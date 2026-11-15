@@ -111,11 +111,11 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
  <div class="online-section"><div class="dialog-actions" style="justify-content:space-between;margin-top:0"><span class="muted" id="lobbyCapacity">0 / 20 active servers</span><button class="btn primary" id="createLobby">+ Create server</button></div><div class="lobby-gallery" id="lobbyGallery"><div class="lobby-empty">Connecting to servers…</div></div></div>
  <div class="dialog-actions"><button class="btn" data-close>Close</button></div></div></div>
 <script>
-/* Fully self-contained offline build: no module imports, Blob modules, or network assets. */
+/* Generated from js/main.js and js/material-physics.js. Do not edit this block manually. */
 window.__pixelphyxOfflineMultiplayer = {
- createMultiplayer() {
-  throw new Error('Multiplayer is unavailable in the offline edition.');
- }
+  createMultiplayer() {
+    throw new Error('Multiplayer is unavailable in the offline edition.');
+  }
 };
 const PixelPhyxMaterial = (() => {
 // PixelPhyx material simulation: density, capillary wetting, thermal transfer and combustion.
@@ -317,11 +317,11 @@ function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlock
  for(let i=0;i<N;i++)if(!cells[i]){wet[i]=0;heat[i]=0;fuel[i]=0;burn[i]=0;age[i]=0;corrosion[i]=0}
 }
 
- return { stepMaterialPhysics, materialState, resetMaterialState };
+  return { stepMaterialPhysics, materialState, resetMaterialState };
 })();
 (() => {
- const firebaseConfig = {};
- const { stepMaterialPhysics, materialState, resetMaterialState } = PixelPhyxMaterial;
+  const firebaseConfig = {};
+  const { stepMaterialPhysics, materialState, resetMaterialState } = PixelPhyxMaterial;
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
 const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});
