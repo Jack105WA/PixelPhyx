@@ -49,7 +49,7 @@ document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
- cells=new Uint8Array(N);updated=new Uint8Array(N);carriedParticles=new Uint8Array(N);resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
+ cells=new Uint8Array(N);updated=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;stickFigure=null;remoteStickFigures.clear();
@@ -272,9 +272,74 @@ function pushParticlesFromRopeSweep(){
   }
  }
 }
+// Lightweight visual particles have their own velocity, gravity, drag and world collisions.
+const visualParticles=[];
+const MAX_VISUAL_PARTICLES=520;
+function emitVisualParticle(x,y,kind){
+ if(visualParticles.length>=MAX_VISUAL_PARTICLES)return;
+ const molten=kind==='molten',smoke=kind==='smoke';
+ visualParticles.push({
+  kind,x:x+.2+Math.random()*.6,y:y+.2+Math.random()*.6,
+  vx:(Math.random()-.5)*(molten?2.1:1.25),
+  vy:molten?-(.55+Math.random()*2.2):smoke?-(.25+Math.random()*.9):-(.8+Math.random()*2.4),
+  life:molten?35+Math.random()*55:smoke?45+Math.random()*75:22+Math.random()*38,
+  maxLife:molten?90:smoke?120:60,
+  size:molten?.8+Math.random()*1.5:smoke?1.1+Math.random()*1.8:.55+Math.random()*.9,
+  bounce:0,heat:molten?850:620
+ });
+}
+function stepVisualParticles(){
+ for(let i=visualParticles.length-1;i>=0;i--){
+  const p=visualParticles[i];
+  p.life--;
+  if(p.kind==='smoke'){
+   p.vy-=.012;p.vx+=(Math.random()-.5)*.035;p.vx*=.985;p.vy*=.99;
+  }else{
+   p.vy+=p.kind==='molten'?.075:.025;
+   p.vx*=p.kind==='molten'?.992:.985;p.vy*=.995;
+  }
+  const speed=Math.hypot(p.vx,p.vy),steps=Math.max(1,Math.min(5,Math.ceil(speed*1.5)));
+  let alive=true;
+  for(let n=0;n<steps;n++){
+   const nx=p.x+p.vx/steps,ny=p.y+p.vy/steps,gx=Math.floor(nx),gy=Math.floor(ny);
+   if(!inside(gx,gy)){alive=false;break}
+   const m=cells[idx(gx,gy)];
+   if(m!==M.EMPTY){
+    if(p.kind==='molten'&&(m===M.WATER||m===M.ICE)){
+     if(Math.random()<.7)emitVisualParticle(p.x,p.y,'smoke');
+     alive=false;break;
+    }
+    if(p.kind==='molten'&&p.bounce===0&&p.vy>.15){
+     p.vy=-Math.abs(p.vy)*.28;p.vx*=.58;p.bounce=1;p.life=Math.min(p.life,18);
+     break;
+    }
+    if(p.kind==='ember'&&(m===M.WOOD||m===M.PLANT||m===M.OIL||m===M.TNT)){
+     const heatIndex=idx(gx,gy);materialState.heat[heatIndex]=Math.min(1600,materialState.heat[heatIndex]+28);
+    }
+    alive=false;break;
+   }
+   p.x=nx;p.y=ny;
+  }
+  if(!alive||p.life<=0){visualParticles.splice(i,1)}
+ }
+}
+function drawVisualParticles(){
+ for(const p of visualParticles){
+  const fade=Math.max(0,Math.min(1,p.life/(p.maxLife*.35)));
+  ctx.globalAlpha=p.kind==='smoke'?.28*fade:.92*fade;
+  if(p.kind==='molten')ctx.fillStyle=p.bounce?'#ff9b32':'#ff5a18';
+  else if(p.kind==='smoke')ctx.fillStyle='#8b9299';
+  else ctx.fillStyle=p.life<8?'#ffb34d':'#ffe36a';
+  ctx.beginPath();ctx.arc(p.x,p.y,p.size*(p.kind==='smoke'?1.15:1),0,Math.PI*2);ctx.fill();
+ }
+ ctx.globalAlpha=1;
+}
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
 function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+ if(m===M.LAVA&&Math.random()<.00035)emitVisualParticle(x,y,'molten');
+ else if(m===M.FIRE&&Math.random()<.00012)emitVisualParticle(x,y,'ember');
+ else if(m===M.FIRE&&Math.random()<.00008)emitVisualParticle(x,y,'smoke');
  if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
  if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
  if(m===M.WATER&&ambient<0&&Math.random()<Math.min(.04,Math.abs(ambient)/3000)){cells[i]=M.ICE;continue}
@@ -291,6 +356,7 @@ function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y
  if(m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
  }}
  stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState});
+ stepVisualParticles();
  stepRopes()}
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
@@ -344,6 +410,7 @@ function render(){
  ctx.putImageData(frameImage,0,0);
  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.58;ctx.imageSmoothingEnabled=true;
  ctx.drawImage(bloomCanvas,0,0,W,H);ctx.restore();
+ drawVisualParticles();
  ctx.lineCap='round';ctx.lineJoin='round';
  for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
  if(stickFigure)drawStickFigure(stickFigure,playerColor);for(const [owner,figure] of remoteStickFigures){if(owner!==playerId)drawStickFigure(figure,figure.color)}
@@ -384,7 +451,7 @@ function updateTemperature(){const slider=document.querySelector('#temperatureCo
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size})});
 document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
 document.querySelector('#step').onclick=()=>{if(!running){tick();render()}};
-document.querySelector('#clear').onclick=()=>{cells.fill(0);resetMaterialState(N);ropes=[];publishOperation({type:'clear'});log('World cleared')};
+document.querySelector('#clear').onclick=()=>{cells.fill(0);visualParticles.length=0;resetMaterialState(N);ropes=[];publishOperation({type:'clear'});log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
 
 document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#brushOut').textContent=brush+' px'};
