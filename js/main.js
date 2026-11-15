@@ -46,10 +46,10 @@ let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),pla
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
 function setConnection(state,label){const el=document.querySelector('#connection');el.className='status '+state;document.querySelector('#connectionText').textContent=label}
-const toolDefs=[['draw','✎','Draw'],['line','／','Line'],['rope','⌁','Rope'],['grab','✋','Grab'],['stick','♙','Stick'],['erase','⌫','Erase'],['box','▦','Box'],['bomb','✹','Blast'],['heat','♨','Heat'],['cool','❄','Cool']];
+const toolDefs=[['draw','✎','Draw'],['rope','⌁','Rope'],['grab','✋','Grab'],['box','▦','Box']];
 const toolsEl=document.querySelector('#tools');
 toolDefs.forEach(([id,icon,name])=>{const b=document.createElement('button');b.className='tool'+(id==='draw'?' active':'');b.innerHTML='<span class="ico">'+icon+'</span><span>'+name+'</span>';b.onclick=()=>selectTool(id,b);toolsEl.append(b)});
-function selectTool(id,button){tool=id;document.querySelectorAll('.tool').forEach(b=>b.classList.remove('active'));button.classList.add('active');document.querySelector('#toolHud').textContent='TOOL · '+id.toUpperCase();if(id==='stick')log('Stick tool selected — click to place your one stick figure. Arrow keys move it.');if(id==='grab')log('Grab tool selected — drag a rope point to pull it.');if(id==='rope')log('Rope tool selected — drag to create; right-click a rope to delete it.');}
+function selectTool(id,button){tool=id;document.querySelectorAll('.tool').forEach(b=>b.classList.remove('active'));button.classList.add('active');document.querySelector('#toolHud').textContent='TOOL · '+id.toUpperCase();if(id==='grab')log('Grab tool selected — drag a rope point to pull it.');if(id==='rope')log('Rope tool selected — drag to create; right-click a rope to delete it.');}
 const matEl=document.querySelector('#materials');
 materials.forEach(m=>{const b=document.createElement('button');b.className='material'+(m.id===selected?' active':'');b.innerHTML='<span class="mico" style="color:'+m.color+'">'+m.icon+'</span><span class="mname">'+m.name+'</span>';b.title=m.name+' · '+m.type;b.onclick=()=>{selected=m.id;document.querySelectorAll('.material').forEach(x=>x.classList.remove('active'));b.classList.add('active')};matEl.append(b)});
 document.querySelector('#materialCount').textContent=materials.length+' TYPES';
@@ -59,7 +59,7 @@ function resizeCanvas(size){
  cells=new Uint8Array(N);updated=new Uint8Array(N);movingParticles=[];moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
- strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;stickFigure=null;remoteStickFigures.clear();
+ strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
 }
 function recordParticleMove(from,to,material){
@@ -78,7 +78,7 @@ function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Ma
 function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
 let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null;
 function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
- if(tool==='rope'||tool==='grab'||tool==='stick')return;
+ if(tool==='rope'||tool==='grab')return;
  if(erase){circle(p.x,p.y,brush,M.EMPTY);lastPoint=p;return}
  if(tool==='box'){for(let yy=-brush;yy<=brush;yy++)for(let xx=-brush;xx<=brush;xx++)put(p.x+xx,p.y+yy,selected);return}
  if(tool==='bomb'){circle(p.x,p.y,2,M.TNT);return}
@@ -91,30 +91,25 @@ document.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointerdown',e=>{
  const p=canvasPoint(e);if(!inside(p.x,p.y))return;
  if(tool==='rope'&&e.button===2){e.preventDefault();const hit=findRopeAt(p);if(hit){ropes=ropes.filter(r=>r.id!==hit.id);publishOperation({type:'ropeDelete',ropeId:hit.id});log('Rope deleted')}return}
- if(tool==='grab'&&e.button===0){const stickHit=findStickGrab(p);if(stickHit){const {figure,node,nodeIndex,owner}=stickHit;node.grabbed=true;node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;ropeDrag={kind:'stick',figure,node,nodeIndex,owner,lastPublish:0};drawing=true;canvas.setPointerCapture(e.pointerId);log('Stick figure grabbed — drag a body joint');return}const hit=findRopeGrab(p);if(hit){ropeDrag={kind:'rope',...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.setPointerCapture(e.pointerId);ropeDrag.lastPublish=0;log('Rope grabbed — pull to move it')}return}
- if(tool==='stick'){
-  if(e.button===2){if(stickFigure){stickFigure=null;publishOperation({type:'stickState',owner:playerId,removed:true});log('Your stick figure was removed')}return}
-  if(e.button===0){if(!stickFigure)stickFigure=createStickFigure(p.x,p.y);else{stickFigure.x=p.x;stickFigure.y=p.y;stickFigure.vx=0;stickFigure.vy=0;stickFigure.joints=createStickJoints(p.x,p.y)}publishStickState(true);log('Stick figure placed — use the arrow keys to move it')}return;
- }
+ if(tool==='grab'&&e.button===0){const hit=findRopeGrab(p);if(hit){ropeDrag={kind:'rope',...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.setPointerCapture(e.pointerId);ropeDrag.lastPublish=0;log('Rope grabbed — pull to move it')}return}
  drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)
 });
 canvas.addEventListener('pointermove',e=>{
  const p=canvasPoint(e);
- if(ropeDrag){const {node}=ropeDrag;node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(ropeDrag.kind==='stick'){if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;if(ropeDrag.owner===playerId)publishStickState(true)}return}const {rope,nodeIndex}=ropeDrag;if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}
+ if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}
  if(!drawing)return;
  if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);
  if(tool==='rope'){lastPoint=p;return}act(p,e)
 });
 canvas.addEventListener('pointerup',e=>{
- if(ropeDrag){if(ropeDrag.kind==='stick'){ropeDrag.node.grabbed=false;ropeDrag.node.px=ropeDrag.node.x;ropeDrag.node.py=ropeDrag.node.y;if(ropeDrag.owner===playerId)publishStickState(true)}else{const {rope,node,nodeIndex}=ropeDrag;node.anchor=ropeDrag.wasAnchor;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:false})}ropeDrag=null;drawing=false;return}
+ if(ropeDrag){const {rope,node,nodeIndex}=ropeDrag;node.anchor=ropeDrag.wasAnchor;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:false});ropeDrag=null;drawing=false;return}
  if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){const created=createRope(ropeStart,end);publishOperation({type:'rope',ropeId:created.id,a:ropeStart,b:end})}ropeStart=null}
  else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});
  drawing=false;activeErase=false;lastPoint=null;strokePoints=[]
 });
-canvas.addEventListener('pointercancel',()=>{if(ropeDrag){if(ropeDrag.kind==='stick'){ropeDrag.node.grabbed=false}else ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}drawing=false;ropeStart=null;lastPoint=null});
+canvas.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}drawing=false;ropeStart=null;lastPoint=null});
 canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
-function findStickGrab(p){if(!stickFigure)return null;let best=null,bestDistance=9;for(let nodeIndex=0;nodeIndex<stickFigure.joints.length;nodeIndex++){const node=stickFigure.joints[nodeIndex],distance=Math.hypot(node.x-p.x,node.y-p.y);if(distance<bestDistance){bestDistance=distance;best={figure:stickFigure,owner:playerId,node,nodeIndex}}}return best}
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
 function findRopeAt(p){let best=null,bestDistance=5;for(const rope of ropes){for(let i=0;i<rope.points.length-1;i++){const a=rope.points[i],b=rope.points[i+1],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len)):0,d=Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));if(d<bestDistance){bestDistance=d;best=rope}}}return best}
 function createRope(a,b){
@@ -485,8 +480,7 @@ function render(){
  drawVisualParticles();
  ctx.lineCap='round';ctx.lineJoin='round';
  for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
- if(stickFigure)drawStickFigure(stickFigure,playerColor,renderAlpha);for(const [owner,figure] of remoteStickFigures){if(owner!==playerId)drawStickFigure(figure,figure.color,renderAlpha)}
- for(const [id,target] of Object.entries(remoteCursorTargets)){
+  for(const [id,target] of Object.entries(remoteCursorTargets)){
   let current=remoteCursors[id];
   if(!current){current=remoteCursors[id]={...target};continue}
   current.x+=(target.x-current.x)*.35;current.y+=(target.y-current.y)*.35;
@@ -521,17 +515,9 @@ function render(){
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4,MP_SYNC_INTERVAL=1000;
-let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,stickAccumulator=0,renderAlpha=1;
-function saveActorRenderState(figure){if(!figure?.joints)return;figure.previousJoints=figure.joints.map(point=>({x:point.x,y:point.y}));}
-function loop(now){
- const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;stickAccumulator+=elapsed;let stickSteps=0;
- while(stickAccumulator>=SIMULATION_STEP&&stickSteps<MAX_STEPS_PER_FRAME){
-  if(stickFigure){saveActorRenderState(stickFigure);stepStickFigure(stickFigure,1,true);publishStickState()}
-  for(const figure of remoteStickFigures.values()){saveActorRenderState(figure);stepStickFigure(figure,1,false)}
-  stickAccumulator-=SIMULATION_STEP;stickSteps++;
- }
- if(stickSteps===MAX_STEPS_PER_FRAME&&stickAccumulator>SIMULATION_STEP)stickAccumulator=0;
- renderAlpha=Math.max(0,Math.min(1,stickAccumulator/SIMULATION_STEP));
+let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0;
+ function loop(now){
+  const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
@@ -724,160 +710,8 @@ function renderPlayers(people){
   d.append(av,nm,you);el.append(d);
  }
 }
-function applyOperation(op){if(!op||remoteApplying)return;remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);resetMaterialState(N);ropes=[]}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='stickState'&&typeof op.owner==='string'){if(op.removed){remoteStickFigures.delete(op.owner)}else if(op.state&&Number.isFinite(op.state.x)&&Number.isFinite(op.state.y)&&Array.isArray(op.state.joints)&&op.state.joints.length===16){const state=op.state,existing=remoteStickFigures.get(op.owner),figure=existing||{id:op.owner,x:state.x,y:state.y,vx:0,vy:0,grounded:false,walk:0,joints:createStickJoints(state.x,state.y),color:op.color||'#65d6ad'};figure.x=state.x;figure.y=state.y;figure.vx=state.vx||0;figure.vy=state.vy||0;figure.grounded=!!state.grounded;figure.walk=state.walk||0;figure.color=op.color||figure.color;figure.joints=state.joints.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],weight:i===0?.65:1,grabbed:false}));remoteStickFigures.set(op.owner,figure)}}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/1.5)),points=[];for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}const id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))ropes.push({id,points,length:distance/segments,stiffness:1})}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.x=op.x;node.y=op.y;node.px=op.x;node.py=op.y;if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='box'){for(const p of pts)for(let y=-bs;y<=bs;y++)for(let x=-bs;x<=bs;x++)put(p.x+x,p.y+y,mat)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
+function applyOperation(op){if(!op||remoteApplying)return;remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);resetMaterialState(N);ropes=[]}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/1.5)),points=[];for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}const id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))ropes.push({id,points,length:distance/segments,stiffness:1})}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.x=op.x;node.y=op.y;node.px=op.x;node.py=op.y;if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='box'){for(const p of pts)for(let y=-bs;y<=bs;y++)for(let x=-bs;x<=bs;x++)put(p.x+x,p.y+y,mat)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
 let localCursor=null;
-let stickFigure=null;
-const remoteStickFigures=new Map();
-const stickKeys={left:false,right:false,up:false,down:false};
-let lastStickPublish=0;
-function stickSolidAt(x,y){
- if(!inside(x,y))return true;
- const m=cells[idx(x,y)];
- return m===M.STONE||m===M.WOOD||m===M.ICE||m===M.GLASS||m===M.TNT;
-}
-function createStickJoints(x,y){
- const points=[
-  [0,-15],[0,-10],[0,-5],[0,0],
-  [-3,-9],[3,-9],[-5,-5],[5,-5],[-7,-2],[7,-2],
-  [-2,-1],[2,-1],[-2,5],[2,5],[-2,11],[2,11]
- ];
- return points.map(([ox,oy],i)=>({x:x+ox,y:y+oy,px:x+ox,py:y+oy,weight:i===0?.65:1,grabbed:false}));
-}
-function createStickFigure(x,y){return{id:playerId,x,y,vx:0,vy:0,grounded:false,ragdoll:false,walk:0,airTime:0,landTime:0,recoverTime:0,jumpHeld:false,joints:createStickJoints(x,y),color:playerColor}}
-function solveStickDistance(a,b,length,stiffness=1){
- const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.001,offset=(d-length)/d*.5*stiffness;
- if(a.weight!==0&&!a.grabbed){a.x+=dx*offset;a.y+=dy*offset}
- if(b.weight!==0&&!b.grabbed){b.x-=dx*offset;b.y-=dy*offset}
-}
-const stickBones=[
- [0,1,5.2],[1,2,4.8],[2,3,5.2],
- [2,4,3.2],[2,5,3.2],[4,5,6],
- [4,6,4.1],[6,8,3.2],[5,7,4.1],[7,9,3.2],
- [3,10,2.6],[3,11,2.6],[10,11,4],
- [10,12,5.1],[12,14,6],[11,13,5.1],[13,15,6],
- [1,4,4.4],[1,5,4.4],[2,10,5.6],[2,11,5.6],
- [6,7,9.2],[8,9,14],[14,15,4]
-];
-function pushStickParticle(point,oldX,oldY){
- const gx=Math.floor(point.x),gy=Math.floor(point.y);
- if(!inside(gx,gy))return;
- const cell=idx(gx,gy),material=cells[cell];
- if(!material||stickSolidAt(gx,gy))return;
- const dx=point.x-oldX,dy=point.y-oldY;
- const directions=[[Math.sign(dx),Math.sign(dy)],[Math.sign(dx),0],[0,Math.sign(dy)],[-1,0],[1,0],[0,-1],[0,1]];
- for(const [ox,oy] of directions){
-  if(!ox&&!oy)continue;
-  const tx=gx+ox,ty=gy+oy;
-  if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY){cells[idx(tx,ty)]=material;cells[cell]=M.EMPTY;return}
- }
-}
-function collideStickJoint(point){
- const oldX=point.x,oldY=point.y;
- let gx=Math.floor(point.x),gy=Math.floor(point.y);
- if(!inside(gx,gy)){point.x=Math.max(.5,Math.min(W-.5,point.x));point.y=Math.max(.5,Math.min(H-.5,point.y));gx=Math.floor(point.x);gy=Math.floor(point.y)}
- if(!stickSolidAt(gx,gy)){pushStickParticle(point,oldX,oldY);return false}
- const vx=point.x-point.px,vy=point.y-point.py;
- const candidates=[[gx,gy-1],[gx-Math.sign(vx||1),gy],[gx+Math.sign(vx||1),gy],[gx,gy-2],[gx-1,gy-1],[gx+1,gy-1]];
- let best=null,bestScore=Infinity;
- for(const [x,y] of candidates){
-  if(stickSolidAt(x,y))continue;
-  const score=(x+.5-point.x)**2+(y+.5-point.y)**2+(y>gy?3:0);
-  if(score<bestScore){bestScore=score;best=[x+.5,y+.5]}
- }
- if(best){point.x=best[0];point.y=best[1]}else{point.x=point.px;point.y=point.py}
- point.px=point.x-vx*.12;point.py=point.y-vy*.08;
- return true;
-}
-function stepStickFigure(figure,dt=1,controlled=false){
- const step=Math.max(.1,Math.min(1.5,dt)),j=figure.joints;
- if(!j||j.length!==16)return;
- const direction=controlled?((stickKeys.right?1:0)-(stickKeys.left?1:0)):0;
- const crouch=controlled&&stickKeys.down;
- const jump=controlled&&stickKeys.up&&figure.grounded&&!figure.jumpHeld;
- figure.jumpHeld=!!(controlled&&stickKeys.up);
- if(jump){
-  for(const p of j)p.py+=5.2;
-  figure.grounded=false;figure.ragdoll=false;figure.airTime=0;figure.landTime=0;
- }
- for(let i=0;i<j.length;i++){
-  const p=j[i];if(p.grabbed)continue;
-  const vx=(p.x-p.px)*.985,vy=(p.y-p.py)*.985;
-  p.px=p.x;p.py=p.y;
-  const move=(i===3||i===10||i===11||i===12||i===13||i===14||i===15)?direction*.16:direction*.055;
-  p.x+=vx+move*step;
-  p.y+=vy+gravity*.12*step*step;
-  p.x=Math.max(1,Math.min(W-1,p.x));p.y=Math.max(1,Math.min(H-1,p.y));
- }
- for(let pass=0;pass<8;pass++){
-  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,pass<2?.72:.9);
-  for(let i=0;i<j.length;i++)if(!j[i].grabbed)collideStickJoint(j[i]);
- }
- const isSupported=i=>{
-  const p=j[i],x=Math.floor(p.x),y=Math.floor(p.y);
-  if(p.y>=H-1.75)return true;
-  for(let ox=-1;ox<=1;ox++)if(stickSolidAt(x+ox,y+1))return true;
-  return false;
- };
- const feetSupported=isSupported(14)||isSupported(15);
- const lowerBodySupported=feetSupported||[3,10,11,12,13].some(isSupported);
- const head=j[0],pelvis=j[3];
- const lean=Math.abs(Math.atan2(pelvis.x-head.x,Math.max(.1,pelvis.y-head.y)));
- const impact=Math.max(...j.map(p=>Math.hypot(p.x-p.px,p.y-p.py)));
- if(lowerBodySupported){
-  figure.grounded=true;figure.airTime=0;figure.landTime=(figure.landTime||0)+step/60;
-  if(figure.ragdoll&&figure.landTime>=.18){figure.ragdoll=false;figure.recoverTime=0}
- }else{
-  figure.grounded=false;figure.landTime=0;figure.airTime=(figure.airTime||0)+step/60;
-  // Ordinary jumps and short drops stay controlled; a real tumble enters ragdoll.
-  if(!jump&&figure.airTime>.22&&(lean>.72||impact>4.8))figure.ragdoll=true;
- }
- if(figure.grounded&&!figure.ragdoll){
-  figure.recoverTime=Math.min(1,(figure.recoverTime||0)+step/30);
-  const blend=Math.min(.72,.42+figure.recoverTime*.24);
-  const gait=direction?Math.sin((figure.walk||0)+step*.16)*1.5*direction:0;
-  if(direction)figure.walk=(figure.walk||0)+step*.16;
-  const pose=[[0,-15],[0,-10],[0,-5],[0,0],[-3,-9],[3,-9],[-5,-5],[5,-5],[-7,-2],[7,-2],[-2,-1],[2,-1],[-2+gait,5],[2-gait,5],[-2+gait*1.5,11],[2-gait*1.5,11]];
-  for(let i=0;i<j.length;i++){
-   const p=j[i];if(i===3||p.grabbed)continue;
-   const tx=pelvis.x+pose[i][0],ty=pelvis.y+pose[i][1]+(crouch&&i<3?3:0);
-   const ox=p.x,oy=p.y;p.x+=(tx-p.x)*blend;p.y+=(ty-p.y)*blend;
-   p.px+=(p.x-ox)*.9;p.py+=(p.y-oy)*.9;
-  }
- }else if(!figure.ragdoll){
-  // Keep the body upright while falling; do not switch to ragdoll just because it is airborne.
-  const pose=[[0,-15],[0,-10],[0,-5],[0,0],[-3,-9],[3,-9],[-5,-5],[5,-5],[-7,-2],[7,-2],[-2,-1],[2,-1],[-2,5],[2,5],[-2,11],[2,11]];
-  for(let i=0;i<j.length;i++){
-   const p=j[i];if(i===3||p.grabbed)continue;
-   const tx=pelvis.x+pose[i][0],ty=pelvis.y+pose[i][1],blend=i===0?.2:.12;
-   p.x+=(tx-p.x)*blend;p.y+=(ty-p.y)*blend;
-  }
- }else{
-  figure.recoverTime=0;
- }
- for(let pass=0;pass<5;pass++){
-  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,.94);
-  for(let i=0;i<j.length;i++)if(!j[i].grabbed)collideStickJoint(j[i]);
- }
- figure.x=pelvis.x;figure.y=pelvis.y;
- figure.vx=pelvis.x-pelvis.px;figure.vy=pelvis.y-pelvis.py;
-}
-function collisionStickFloor(point){return point.y>=H-1}
-function stickSnapshot(figure){return{x:+figure.x.toFixed(2),y:+figure.y.toFixed(2),vx:+figure.vx.toFixed(3),vy:+figure.vy.toFixed(3),grounded:!!figure.grounded,walk:+figure.walk.toFixed(3),joints:figure.joints.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2)])}}
-function publishStickState(force=false){
- if(!stickFigure)return;
- const now=performance.now();if(!force&&now-lastStickPublish<1000/20)return;lastStickPublish=now;
- publishOperation({type:'stickState',owner:playerId,color:playerColor,state:stickSnapshot(stickFigure)});
-}
-function drawStickFigure(figure,color,alpha=1){
- const current=figure.joints;if(!current||current.length!==16)return;
- const previous=figure.previousJoints;
- const j=previous&&previous.length===16?current.map((point,i)=>({x:previous[i].x+(point.x-previous[i].x)*alpha,y:previous[i].y+(point.y-previous[i].y)*alpha})):current;
- ctx.save();ctx.strokeStyle=color||figure.color||'#65d6ad';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=1.5;ctx.lineCap='round';ctx.lineJoin='round';
- ctx.beginPath();ctx.arc(j[0].x,j[0].y,2.3,0,Math.PI*2);ctx.fill();
- ctx.beginPath();
- for(const [a,b] of [[0,1],[1,2],[2,3],[2,4],[2,5],[4,6],[6,8],[5,7],[7,9],[3,10],[3,11],[10,12],[12,14],[11,13],[13,15]]){ctx.moveTo(j[a].x,j[a].y);ctx.lineTo(j[b].x,j[b].y)}
- ctx.stroke();ctx.restore();
-}
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
