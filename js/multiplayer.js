@@ -154,7 +154,15 @@ export function createMultiplayer(callbacks = {}) {
     const now = Date.now();
     if (now - lastWorldWrite < 1000 / 30) return;
     lastWorldWrite = now;
-    pendingWorld = world;
+    if (pendingWorld) {
+      pendingWorld = {
+        ...pendingWorld,
+        ...world,
+        chunks: { ...(pendingWorld.chunks || {}), ...(world.chunks || {}) },
+        metadata: world.metadata || pendingWorld.metadata,
+        full: !!(pendingWorld.full || world.full)
+      };
+    } else pendingWorld = world;
     if (worldWriteInFlight) return;
     worldWriteInFlight = true;
     (async () => {
