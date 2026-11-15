@@ -270,24 +270,24 @@ function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  targetCtx.beginPath();targetCtx.moveTo(c.x,c.y);targetCtx.lineTo(c.x+3.5,c.y+8);targetCtx.lineTo(c.x+5.5,c.y+5);targetCtx.lineTo(c.x+8.5,c.y+4.5);targetCtx.closePath();targetCtx.fill();
  if(isYou){targetCtx.restore();return}
  const label=String(c.name||'Guest').slice(0,20);
- targetCtx.font='600 12px Inter,system-ui,sans-serif';
- const paddingX=4,paddingY=3,textWidth=targetCtx.measureText(label).width;
- const labelWidth=Math.ceil(textWidth+paddingX*2+2),labelHeight=18;
- const labelX=Math.max(2,Math.min(localCursorCanvas.width-labelWidth-2,c.x+11));
- let labelY=c.y-labelHeight-5;
- if(labelY<2)labelY=c.y+11;
+ targetCtx.font='600 7px Inter,system-ui,sans-serif';
+ const paddingX=3,textWidth=targetCtx.measureText(label).width;
+ const labelWidth=Math.ceil(textWidth+paddingX*2+2),labelHeight=12;
+ const labelX=Math.max(2,Math.min(localCursorCanvas.width-labelWidth-2,c.x+10));
+ let labelY=c.y-labelHeight-4;
+ if(labelY<2)labelY=c.y+10;
  labelY=Math.max(2,Math.min(localCursorCanvas.height-labelHeight-2,labelY));
- targetCtx.shadowColor='rgba(0,0,0,.9)';targetCtx.shadowBlur=3;
+ targetCtx.shadowColor='rgba(0,0,0,.9)';targetCtx.shadowBlur=2;
  targetCtx.fillStyle='rgba(5,12,22,.97)';
  targetCtx.fillRect(labelX,labelY,labelWidth,labelHeight);
  targetCtx.shadowBlur=0;
- targetCtx.strokeStyle='#ffffff';targetCtx.lineWidth=1;
+ targetCtx.strokeStyle='#ffffff';targetCtx.lineWidth=.7;
  targetCtx.strokeRect(labelX+.5,labelY+.5,labelWidth-1,labelHeight-1);
  targetCtx.fillStyle=cursorColor;
- targetCtx.fillRect(labelX+1,labelY+1,2,labelHeight-2);
+ targetCtx.fillRect(labelX+1,labelY+1,1.5,labelHeight-2);
  targetCtx.fillStyle='#ffffff';
  targetCtx.textBaseline='middle';
- targetCtx.fillText(label,labelX+paddingX+2,labelY+labelHeight/2);
+ targetCtx.fillText(label,labelX+paddingX+1,labelY+labelHeight/2);
  targetCtx.restore();
 }
 function render(){
