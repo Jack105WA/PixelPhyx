@@ -5,9 +5,28 @@ import {
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
+  // Generate unpredictable identifiers with the Web Crypto API.
+  // Secure randomness is required; never use a predictable fallback.
+  function secureRandomString(length, alphabet = '0123456789abcdefghijklmnopqrstuvwxyz') {
+    if (!globalThis.crypto?.getRandomValues) {
+      throw new Error('Secure random generation is unavailable in this browser');
+    }
+    const limit = Math.floor(256 / alphabet.length) * alphabet.length;
+    let result = '';
+    while (result.length < length) {
+      const bytes = new Uint8Array(Math.max(16, (length - result.length) * 2));
+      globalThis.crypto.getRandomValues(bytes);
+      for (const byte of bytes) {
+        if (byte < limit) result += alphabet[byte % alphabet.length];
+        if (result.length === length) break;
+      }
+    }
+    return result;
+  }
+
 export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
-  let playerId = 'guest-' + Math.random().toString(36).slice(2, 9);
+  let playerId = 'guest-' + secureRandomString(16);
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
@@ -190,7 +209,7 @@ export function createMultiplayer(callbacks = {}) {
     for (let i = 1; i <= 20; i++) {
       const slot = 'slot-' + String(i).padStart(2, '0');
       const slotRef = ref(db, 'lobbySlots/' + slot);
-      const code = 'PX-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+      const code = 'PX-' + secureRandomString(7).toUpperCase();
       const result = await runTransaction(slotRef, current => current == null ? {
         room: code, hostId: playerId, hostName: safeName, reservedAt: Date.now()
       } : current);
