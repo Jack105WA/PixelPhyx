@@ -20,6 +20,7 @@ export function createMultiplayer(callbacks = {}) {
     stopWorld?.(); stopWorld = null;
     stopPlayers?.(); stopPlayers = null;
     stopCursors?.(); stopCursors = null;
+    stopJoinRequests?.(); stopJoinRequests = null;
   }
 
   async function connect(config) {
