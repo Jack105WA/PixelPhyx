@@ -349,9 +349,9 @@ document.querySelector('#createLobby').onclick=async()=>{
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   document.querySelector('#roomModal').classList.remove('open');
-  log('Created lobby '+room+' — you are the host');
- }catch(error){alert(error.message);log('Lobby creation failed: '+error.message)}
- finally{button.disabled=false;button.textContent='+ Create lobby'}
+  log('Created server '+room+' — you are the host');
+ }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
+ finally{button.disabled=false;button.textContent='+ Create server'}
 };
 
 let stopLobbyGallery=null;
@@ -365,9 +365,9 @@ async function openLobbyGallery(){
 }
 function renderLobbyGallery(lobbies){
  const gallery=document.querySelector('#lobbyGallery');
- document.querySelector('#lobbyCapacity').textContent=lobbies.length+' / 20 active lobbies';
+ document.querySelector('#lobbyCapacity').textContent=lobbies.length+' / 20 active servers';
  gallery.replaceChildren();
- if(!lobbies.length){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No active lobbies yet. Create one to become the host.';gallery.append(empty);return}
+ if(!lobbies.length){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No active servers yet. Create one to become the host.';gallery.append(empty);return}
  for(const lobby of lobbies){
   const card=document.createElement('article');card.className='lobby-card';
   const top=document.createElement('div');top.className='lobby-card-top';
