@@ -61,7 +61,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
   <canvas class="local-cursor" id="localCursor" width="320" height="180" aria-hidden="true"></canvas>
   <canvas class="cursor-names" id="cursorNames" width="320" height="180" aria-hidden="true"></canvas>
   <div class="canvas-hud"><span class="hud-chip" id="toolHud">TOOL · DRAW</span><span class="hud-chip" id="particleHud">0 PARTICLES</span></div>
-  <div class="canvas-hint">CLICK + DRAG TO BUILD · RIGHT CLICK TO ERASE · SCROLL TO RESIZE BRUSH · SPACE TO PAUSE</div>
+  <div class="canvas-hint">CLICK + DRAG TO BUILD · ROPE RIGHT-CLICK TO DELETE · GRAB TOOL TO PULL · STICK TOOL + ARROWS TO MOVE · SPACE TO PAUSE</div>
  </div>
  <div class="bottomline"><span>PIXELPHYX ENGINE · <span id="worldDimensions">320 × 180</span></span><span id="worldState">SIMULATION RUNNING</span></div>
 </section>
@@ -72,7 +72,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
   <div class="stat"><span>Particles</span><strong id="particleCount">0</strong></div><div class="stat"><span>Rope segments</span><strong id="ropeCount">0</strong></div><div class="stat"><span>Gravity</span><strong id="gravityRead">1.0×</strong></div>
  </div>
  <div class="section"><div class="section-title">Experiment log</div><div class="log" id="feed"><div class="log-entry">Welcome to the lab. Select a material and start experimenting.</div></div></div>
- <div class="section"><div class="section-title">Quick controls</div><div class="log"><div class="log-entry">Space — pause / resume</div><div class="log-entry">Right click — erase</div><div class="log-entry">Scroll — brush size</div><div class="log-entry">Rope tool — drag between two anchors</div></div></div>
+ <div class="section"><div class="section-title">Quick controls</div><div class="log"><div class="log-entry">Space — pause / resume</div><div class="log-entry">Scroll — brush size</div><div class="log-entry">Rope tool — drag to create; right-click to delete</div><div class="log-entry">Grab tool — drag rope points to pull them</div><div class="log-entry">Stick tool — click to place one; arrow keys move it</div><div class="log-entry">Stick tool — right-click to remove your figure</div></div></div>
  <div class="section"><div class="section-title">Join approvals <span class="muted">Host only</span></div><div id="joinRequests"><div class="lobby-empty">No pending join requests</div></div></div>
 </aside>
 </div>
