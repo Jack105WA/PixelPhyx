@@ -248,10 +248,10 @@ function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y
  if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
  if(m===M.WATER&&ambient<0&&Math.random()<Math.min(.04,Math.abs(ambient)/3000)){cells[i]=M.ICE;continue}
  if(ambient>180&&m===M.WATER&&Math.random()<.012){cells[i]=M.STEAM;continue}
- if([M.SAND,M.SALT,M.WATER,M.OIL,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
+ if([M.SAND,M.SALT,M.WATER,M.OIL,M.ACID,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
  const gas=m===M.STEAM||m===M.SMOKE||m===M.FIRE,dy=gas?-1:1,ny=y+dy,ni=inside(x,ny)?idx(x,ny):-1;
  if(ni>=0&&cells[ni]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+.5,ny+.5)){cells[ni]=m;cells[i]=M.EMPTY;updated[ni]=1;i=ni;y=gas?y:y}
- else if([M.SAND,M.SALT,M.WATER,M.OIL,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+dy+.5)){cells[side]=m;cells[i]=M.EMPTY;updated[side]=1}else if((m===M.WATER||m===M.OIL)&&at(x+d,y)===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+.5)&&Math.random()<.4){cells[idx(x+d,y)]=m;cells[i]=M.EMPTY}}
+ else if([M.SAND,M.SALT,M.WATER,M.OIL,M.ACID,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+dy+.5)){cells[side]=m;cells[i]=M.EMPTY;updated[side]=1}else if((m===M.WATER||m===M.OIL||m===M.ACID)&&at(x+d,y)===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+.5)&&Math.random()<.4){cells[idx(x+d,y)]=m;cells[i]=M.EMPTY}}
  
  if(m===M.STEAM&&Math.random()<.002)cells[i]=M.WATER;
  if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
