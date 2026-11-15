@@ -1,9 +1,9 @@
 // PixelPhyx material simulation: density, capillary wetting, thermal transfer and combustion.
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-let state={wetness:new Float32Array(0),heat:new Float32Array(0),fuel:new Float32Array(0),burn:new Float32Array(0),age:new Uint16Array(0),corrosion:new Float32Array(0)};
+let state={wetness:new Float32Array(0),heat:new Float32Array(0),fuel:new Float32Array(0),burn:new Float32Array(0),age:new Uint16Array(0),corrosion:new Float32Array(0),airHeat:new Float32Array(0),airNext:new Float32Array(0)};
 export const materialState=state;
 export function resetMaterialState(size){
- Object.assign(state,{wetness:new Float32Array(size),heat:new Float32Array(size),fuel:new Float32Array(size),burn:new Float32Array(size),age:new Uint16Array(size),corrosion:new Float32Array(size)});
+ Object.assign(state,{wetness:new Float32Array(size),heat:new Float32Array(size),fuel:new Float32Array(size),burn:new Float32Array(size),age:new Uint16Array(size),corrosion:new Float32Array(size),airHeat:new Float32Array(size),airNext:new Float32Array(size)});
 }
 const PROPERTIES={
  1:{density:1.6,conductivity:.08,porosity:.72,flammability:0,settle:.98},
@@ -75,6 +75,22 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
    }
   }
  }
+ // Air stores and transports heat independently of particles. Hot fire/lava warms nearby
+ // air, rising air carries heat upward, and exposed materials absorb it without contact.
+ const air=s.airHeat,nextAir=s.airNext;
+ for(let i=0;i<N;i++){
+  const m=cells[i],source=m===M.FIRE||m===M.LAVA;
+  const target=source?Math.max(heat[i],m===M.LAVA?900:780):ambient;
+  air[i]+=(target-air[i])*(source?.16:.0015);
+ }
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  const i=index(x,y),here=air[i];
+  const up=y>0?air[i-W]:ambient;
+  const left=x>0?air[i-1]:ambient,right=x<W-1?air[i+1]:ambient;
+  const down=y<H-1?air[i+W]:ambient;
+  nextAir[i]=Math.max(ambient,here+(here-up)*.105+(left+right-2*here)*.018+(down-here)*.006);
+ }
+ air.set(nextAir);
  // Heat diffuses through adjacent matter. Combustion consumes fuel over time rather than
  // instantly deleting a flammable object; wood chars, oil burns hot, and wet matter resists ignition.
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
@@ -164,6 +180,17 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
    const loss=(p.conductivity||.05)*.015;
    heat[i]=Math.max(ambient,heat[i]-loss);
   }else if(heat[i]<ambient)heat[i]=ambient;
+ }
+ // Air transfers heat to nearby exposed matter, even when a gap separates it from the source.
+ for(let i=0;i<N;i++){
+  const m=cells[i];if(!m)continue;
+  const prop=PROPERTIES[m],airTemperature=air[i];
+  if(airTemperature>heat[i])heat[i]+=(airTemperature-heat[i])*(m===M.WOOD?.055:.035);
+  if(prop?.flammability&&heat[i]>(prop.ignition||220)){
+   const moisture=wet[i]||0;
+   const chance=(m===M.WOOD?.018:m===M.PLANT?.025:m===M.OIL?.04:m===M.TNT?.025:.008)*(1-moisture*.94);
+   if(Math.random()<chance)ignite(cells,s,i,m);
+  }
  }
  // Remove stale state when a particle has been erased or transformed.
  for(let i=0;i<N;i++)if(!cells[i]){wet[i]=0;heat[i]=0;fuel[i]=0;burn[i]=0;age[i]=0;corrosion[i]=0}
