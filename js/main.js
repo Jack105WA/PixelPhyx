@@ -405,30 +405,32 @@ function drawInterpolatedCells(){
   target.fillRect(x,y,scale,scale);
  }
 }
-function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
+function drawPlayerCursor(c,isYou=false,targetCtx=ctx,deviceScale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
- const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- // Rasterize the pointer into whole, fully opaque pixels. Canvas path fills
- // antialias their edges, which can make an otherwise opaque cursor look faded.
- const points=[[c.x,c.y],[c.x+3.5,c.y+8],[c.x+5.5,c.y+5],[c.x+8.5,c.y+4.5]];
+ const color=isYou?'#ffffff':(c.color||'#ffffff');
+ // Draw directly into the display-resolution overlay. Every covered device
+ // pixel is a 1x1 opaque rectangle; no transformed canvas paths or smoothing.
+ const x=c.x,y=c.y,scale=2.5*deviceScale;
+ const points=[[x,y],[x+3.5*scale,y+8*scale],[x+5.5*scale,y+5*scale],[x+8.5*scale,y+4.5*scale]];
  const minY=Math.floor(Math.min(...points.map(p=>p[1])));
  const maxY=Math.ceil(Math.max(...points.map(p=>p[1])));
  targetCtx.save();
+ targetCtx.setTransform(1,0,0,1,0,0);
  targetCtx.globalAlpha=1;
  targetCtx.globalCompositeOperation='source-over';
- targetCtx.fillStyle=cursorColor;
- for(let y=minY;y<maxY;y++){
-  const scanY=y+.5,intersections=[];
+ targetCtx.fillStyle=color;
+ for(let py=minY;py<maxY;py++){
+  const scanY=py+.5,crossings=[];
   for(let i=0;i<points.length;i++){
-   const a=points[i],b=points[(i+1)%points.length];
-   if((a[1]<=scanY&&b[1]>scanY)||(b[1]<=scanY&&a[1]>scanY)){
-    intersections.push(a[0]+(scanY-a[1])*(b[0]-a[0])/(b[1]-a[1]));
+   const p=points[i],q=points[(i+1)%points.length];
+   if((p[1]<=scanY&&q[1]>scanY)||(q[1]<=scanY&&p[1]>scanY)){
+    crossings.push(p[0]+(scanY-p[1])*(q[0]-p[0])/(q[1]-p[1]));
    }
   }
-  intersections.sort((a,b)=>a-b);
-  for(let i=0;i+1<intersections.length;i+=2){
-   const left=Math.ceil(intersections[i]),right=Math.floor(intersections[i+1]);
-   if(right>=left)targetCtx.fillRect(left,y,right-left+1,1);
+  crossings.sort((u,v)=>u-v);
+  for(let i=0;i+1<crossings.length;i+=2){
+   const left=Math.ceil(crossings[i]-.5),right=Math.floor(crossings[i+1]-.5);
+   if(right>=left)targetCtx.fillRect(left,py,right-left+1,1);
   }
  }
  targetCtx.restore();
@@ -492,29 +494,28 @@ function render(){
  }
  for(const id of Object.keys(remoteCursors))if(!remoteCursorTargets[id])delete remoteCursors[id];
  const cursorCtx=localCursorCtx,nameCtx=cursorNamesCtx;
- const canvasRect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
- const nameWidth=Math.max(1,Math.round(canvasRect.width*dpr)),nameHeight=Math.max(1,Math.round(canvasRect.height*dpr));
- // Render at the world's native pixel resolution to preserve the
- // original sharp, pixelated cursor appearance.
- if(localCursorCanvas.width!==W||localCursorCanvas.height!==H){
-  localCursorCanvas.width=W;
-  localCursorCanvas.height=H;
+ const canvasRect=canvas.getBoundingClientRect(),dpr=Math.max(1,window.devicePixelRatio||1);
+ const displayWidth=Math.max(1,Math.round(canvasRect.width*dpr)),displayHeight=Math.max(1,Math.round(canvasRect.height*dpr));
+ if(localCursorCanvas.width!==displayWidth||localCursorCanvas.height!==displayHeight){
+  localCursorCanvas.width=displayWidth;
+  localCursorCanvas.height=displayHeight;
  }
  cursorCtx.setTransform(1,0,0,1,0,0);
- cursorCtx.clearRect(0,0,W,H);
- if(cursorNamesCanvas.width!==nameWidth||cursorNamesCanvas.height!==nameHeight){
-  cursorNamesCanvas.width=nameWidth;cursorNamesCanvas.height=nameHeight;
+ cursorCtx.globalAlpha=1;
+ cursorCtx.globalCompositeOperation='source-over';
+ cursorCtx.imageSmoothingEnabled=false;
+ cursorCtx.clearRect(0,0,displayWidth,displayHeight);
+ if(cursorNamesCanvas.width!==displayWidth||cursorNamesCanvas.height!==displayHeight){
+  cursorNamesCanvas.width=displayWidth;
+  cursorNamesCanvas.height=displayHeight;
  }
  nameCtx.setTransform(dpr,0,0,dpr,0,0);
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
- const cursorScale=Math.max(.1,2.5*W/Math.max(1,canvasRect.width));
  if(localCursor){
-  cursorCtx.save();cursorCtx.translate(localCursor.x,localCursor.y);cursorCtx.scale(cursorScale,cursorScale);
-  drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
+  drawPlayerCursor({x:localCursor.x/W*canvasRect.width*dpr,y:localCursor.y/H*canvasRect.height*dpr},true,cursorCtx,dpr);
  }
  for(const c of Object.values(remoteCursors)){
-  cursorCtx.save();cursorCtx.translate(c.x,c.y);cursorCtx.scale(cursorScale,cursorScale);
-  drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
+  drawPlayerCursor({x:c.x/W*canvasRect.width*dpr,y:c.y/H*canvasRect.height*dpr,color:c.color},false,cursorCtx,dpr);
   drawCursorName({x:c.x/W*canvasRect.width,y:c.y/H*canvasRect.height,name:c.name},nameCtx);
  }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
