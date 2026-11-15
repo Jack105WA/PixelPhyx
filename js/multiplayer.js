@@ -23,6 +23,28 @@ export function createMultiplayer(callbacks = {}) {
     stopJoinRequests?.(); stopJoinRequests = null;
   }
 
+  function syncJoinRequestListener() {
+    const shouldListen = joined && !!room && hostId === playerId;
+    if (!shouldListen) {
+      stopJoinRequests?.();
+      stopJoinRequests = null;
+      return;
+    }
+    if (stopJoinRequests) return;
+    const requestPath = 'rooms/' + room + '/joinRequests';
+    stopJoinRequests = onChildAdded(ref(db, requestPath), snapshot => {
+      const request = snapshot.val();
+      if (request?.status === 'pending') {
+        callbacks.onJoinRequest?.({
+          key: snapshot.key,
+          room,
+          uid: request.uid || '',
+          name: request.name || 'Guest'
+        });
+      }
+    }, error => log('Join request listener failed: ' + error.message));
+  }
+
   async function connect(config) {
     report('connecting', 'CONNECTING');
     try {
@@ -105,26 +127,24 @@ export function createMultiplayer(callbacks = {}) {
         callbacks.onPlayers?.(people);
         update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
         const ids = Object.keys(people).sort();
-        if (hostId && people[hostId]) return;
+        if (hostId && people[hostId]) {
+          syncJoinRequestListener();
+          return;
+        }
         const nextHost = ids[0] || null;
         try {
           const result = await runTransaction(hostRef, current => current && people[current] ? current : nextHost);
           hostId = result.snapshot.val();
+          syncJoinRequestListener();
         } catch (error) {
           log('Host election failed: ' + error.message);
         }
       }, error => log('Presence sync error: ' + error.message));
 
-      if (isHost) {
-        stopJoinRequests = onChildAdded(ref(db, roomPath + '/joinRequests'), snapshot => {
-          const request = snapshot.val();
-          if (request?.status === 'pending') callbacks.onJoinRequest?.({ key: snapshot.key, room: nextRoom, name: request.name || 'Guest' });
-        }, error => log('Join request listener failed: ' + error.message));
-      }
-
       const confirmedHost = await get(hostRef);
       hostId = confirmedHost.val() || playerId;
       joined = true;
+      syncJoinRequestListener();
       report('online', 'ROOM ONLINE');
       log('Connected to room ' + room + (hostId === playerId ? ' as host' : ''));
     } catch (error) {
