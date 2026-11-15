@@ -395,8 +395,9 @@ function drawInterpolatedCells(){
   if(material===M.SAND&&wet){const f=1-wet*.38;r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f)}
   if(heat>0&&material!==M.FIRE){const f=Math.min(.35,heat/900);r=Math.min(255,Math.round(r+(255-r)*f));g=Math.round(g+(100-g)*f);b=Math.round(b*(1-f*.7))}
   target.fillStyle=`rgb(${r},${g},${b})`;
-  const x=(particle.fromX+(particle.toX-particle.fromX)*alpha)*scale;
-  const y=(particle.fromY+(particle.toY-particle.fromY)*alpha)*scale;
+  const x=Math.round((particle.fromX+(particle.toX-particle.fromX)*alpha)*scale);
+  const y=Math.round((particle.fromY+(particle.toY-particle.fromY)*alpha)*scale);
+  // Integer 4x-grid coordinates prevent fractional-edge antialiasing.
   target.fillRect(x,y,scale,scale);
  }
 }
