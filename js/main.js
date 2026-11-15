@@ -738,7 +738,7 @@ function stepStickFigure(figure,dt,controlled=false){
   const p=j[i],x=Math.floor(p.x),y=Math.floor(p.y);
   if(p.y>=H-1.5)return true;
   for(let oy=0;oy<=2;oy++)for(let ox=-1;ox<=1;ox++){
-   if(stickSolidAt(x+ox,y+oy))return true;
+   if(inside(x+ox,y+oy)&&stickSolidAt(x+ox,y+oy))return true;
   }
   return false;
  };
