@@ -418,7 +418,7 @@ function render(){
  drawVisualParticles();
  ctx.lineCap='round';ctx.lineJoin='round';
  for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
- if(stickFigure)drawStickFigure(stickFigure,playerColor);for(const [owner,figure] of remoteStickFigures){if(owner!==playerId)drawStickFigure(figure,figure.color)}
+ if(stickFigure)drawStickFigure(stickFigure,playerColor,renderAlpha);for(const [owner,figure] of remoteStickFigures){if(owner!==playerId)drawStickFigure(figure,figure.color,renderAlpha)}
  for(const [id,target] of Object.entries(remoteCursorTargets)){
   let current=remoteCursors[id];
   if(!current){current=remoteCursors[id]={...target};continue}
@@ -448,8 +448,22 @@ function render(){
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4,MP_SYNC_INTERVAL=1000;
-let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,stickAccumulator=0;
-function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;stickAccumulator+=elapsed;let stickSteps=0;while(stickAccumulator>=SIMULATION_STEP&&stickSteps<MAX_STEPS_PER_FRAME){if(stickFigure){stepStickFigure(stickFigure,1,true);publishStickState()}for(const figure of remoteStickFigures.values())stepStickFigure(figure,1,false);stickAccumulator-=SIMULATION_STEP;stickSteps++}if(stickSteps===MAX_STEPS_PER_FRAME&&stickAccumulator>SIMULATION_STEP)stickAccumulator=0;if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,stickAccumulator=0,renderAlpha=1;
+function saveActorRenderState(figure){if(!figure?.joints)return;figure.previousJoints=figure.joints.map(point=>({x:point.x,y:point.y}));}
+function loop(now){
+ const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;stickAccumulator+=elapsed;let stickSteps=0;
+ while(stickAccumulator>=SIMULATION_STEP&&stickSteps<MAX_STEPS_PER_FRAME){
+  if(stickFigure){saveActorRenderState(stickFigure);stepStickFigure(stickFigure,1,true);publishStickState()}
+  for(const figure of remoteStickFigures.values()){saveActorRenderState(figure);stepStickFigure(figure,1,false)}
+  stickAccumulator-=SIMULATION_STEP;stickSteps++;
+ }
+ if(stickSteps===MAX_STEPS_PER_FRAME&&stickAccumulator>SIMULATION_STEP)stickAccumulator=0;
+ renderAlpha=Math.max(0,Math.min(1,stickAccumulator/SIMULATION_STEP));
+ if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
+ if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
+ render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
 
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
@@ -812,8 +826,10 @@ function publishStickState(force=false){
  const now=performance.now();if(!force&&now-lastStickPublish<1000/20)return;lastStickPublish=now;
  publishOperation({type:'stickState',owner:playerId,color:playerColor,state:stickSnapshot(stickFigure)});
 }
-function drawStickFigure(figure,color){
- const j=figure.joints;if(!j||j.length!==16)return;
+function drawStickFigure(figure,color,alpha=1){
+ const current=figure.joints;if(!current||current.length!==16)return;
+ const previous=figure.previousJoints;
+ const j=previous&&previous.length===16?current.map((point,i)=>({x:previous[i].x+(point.x-previous[i].x)*alpha,y:previous[i].y+(point.y-previous[i].y)*alpha})):current;
  ctx.save();ctx.strokeStyle=color||figure.color||'#65d6ad';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=1.5;ctx.lineCap='round';ctx.lineJoin='round';
  ctx.beginPath();ctx.arc(j[0].x,j[0].y,2.3,0,Math.PI*2);ctx.fill();
  ctx.beginPath();
