@@ -540,17 +540,9 @@ document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.quer
 document.querySelector('#temperatureControl').oninput=e=>{const value=+e.target.value;ambient=temperatureUnit==='F'?(value-32)*5/9:value;updateTemperature();publishOperation({type:'settings',gravity,ambient})};
 document.querySelector('#temperatureUnit').onclick=()=>{temperatureUnit=temperatureUnit==='C'?'F':'C';updateTemperature()};
 addEventListener('keydown',e=>{
- if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return;
- const keys={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
- if(keys[e.code]){e.preventDefault();stickKeys[keys[e.code]]=true;return}
- if(e.code==='Space'){e.preventDefault();document.querySelector('#play').click()}
-});
-addEventListener('keyup',e=>{
- const keys={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
- if(keys[e.code]){e.preventDefault();stickKeys[keys[e.code]]=false}
-});
-addEventListener('blur',()=>{for(const key of Object.keys(stickKeys))stickKeys[key]=false});
-addEventListener('keyup',e=>{if(e.code==='ArrowUp'&&stickFigure)stickFigure.vy=Math.min(stickFigure.vy,0)});
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return;
+  if(e.code==='Space'){e.preventDefault();document.querySelector('#play').click()}
+ });
 
 const openModal=id=>document.querySelector('#'+id).classList.add('open');
 document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFirebase(firebaseConfig)}catch(e){alert('Firebase connection failed: '+e.message)}};document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
