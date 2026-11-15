@@ -88,7 +88,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   const up=y>0?air[i-W]:ambient;
   const left=x>0?air[i-1]:ambient,right=x<W-1?air[i+1]:ambient;
   const down=y<H-1?air[i+W]:ambient;
-  nextAir[i]=Math.max(ambient,here+(here-up)*.105+(left+right-2*here)*.018+(down-here)*.006);
+  nextAir[i]=Math.max(ambient,here+(down-here)*.105+(left+right-2*here)*.018+(up-here)*.006);
  }
  air.set(nextAir);
  // Heat diffuses through adjacent matter. Combustion consumes fuel over time rather than
