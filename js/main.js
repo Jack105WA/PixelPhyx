@@ -669,7 +669,7 @@ function createStickJoints(x,y){
  ];
  return points.map(([ox,oy],i)=>({x:x+ox,y:y+oy,px:x+ox,py:y+oy,weight:i===0?.65:1,grabbed:false}));
 }
-function createStickFigure(x,y){return{id:playerId,x,y,vx:0,vy:0,grounded:false,walk:0,joints:createStickJoints(x,y),color:playerColor}}
+function createStickFigure(x,y){return{id:playerId,x,y,vx:0,vy:0,grounded:false,ragdoll:false,walk:0,airTime:0,landTime:0,recoverTime:0,jumpHeld:false,joints:createStickJoints(x,y),color:playerColor}}
 function solveStickDistance(a,b,length,stiffness=1){
  const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.001,offset=(d-length)/d*.5*stiffness;
  if(a.weight!==0&&!a.grabbed){a.x+=dx*offset;a.y+=dy*offset}
@@ -694,9 +694,7 @@ function pushStickParticle(point,oldX,oldY){
  for(const [ox,oy] of directions){
   if(!ox&&!oy)continue;
   const tx=gx+ox,ty=gy+oy;
-  if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY){
-   cells[idx(tx,ty)]=material;cells[cell]=M.EMPTY;return;
-  }
+  if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY){cells[idx(tx,ty)]=material;cells[cell]=M.EMPTY;return}
  }
 }
 function collideStickJoint(point){
@@ -705,24 +703,19 @@ function collideStickJoint(point){
  if(!inside(gx,gy)){point.x=Math.max(.5,Math.min(W-.5,point.x));point.y=Math.max(.5,Math.min(H-.5,point.y));gx=Math.floor(point.x);gy=Math.floor(point.y)}
  if(!stickSolidAt(gx,gy)){pushStickParticle(point,oldX,oldY);return false}
  const vx=point.x-point.px,vy=point.y-point.py;
- const candidates=[
-  [gx,gy-1],[gx-Math.sign(vx||1),gy],[gx+Math.sign(vx||1),gy],
-  [gx,gy-2],[gx-1,gy-1],[gx+1,gy-1]
- ];
+ const candidates=[[gx,gy-1],[gx-Math.sign(vx||1),gy],[gx+Math.sign(vx||1),gy],[gx,gy-2],[gx-1,gy-1],[gx+1,gy-1]];
  let best=null,bestScore=Infinity;
  for(const [x,y] of candidates){
   if(stickSolidAt(x,y))continue;
   const score=(x+.5-point.x)**2+(y+.5-point.y)**2+(y>gy?3:0);
   if(score<bestScore){bestScore=score;best=[x+.5,y+.5]}
  }
- if(best){point.x=best[0];point.y=best[1]}
- else{point.x=point.px;point.y=point.py}
- // Remove most of the velocity into the surface so feet and hands settle instead of skating.
+ if(best){point.x=best[0];point.y=best[1]}else{point.x=point.px;point.y=point.py}
  point.px=point.x-vx*.12;point.py=point.y-vy*.08;
  return true;
 }
 function stepStickFigure(figure,dt=1,controlled=false){
- const step=Math.max(.1,Math.min(2,dt)),j=figure.joints;
+ const step=Math.max(.1,Math.min(1.5,dt)),j=figure.joints;
  if(!j||j.length!==16)return;
  const direction=controlled?((stickKeys.right?1:0)-(stickKeys.left?1:0)):0;
  const crouch=controlled&&stickKeys.down;
@@ -730,9 +723,8 @@ function stepStickFigure(figure,dt=1,controlled=false){
  figure.jumpHeld=!!(controlled&&stickKeys.up);
  if(jump){
   for(const p of j)p.py+=5.2;
-  figure.grounded=false;figure.ragdoll=true;figure.airTime=0;figure.landTime=0;
+  figure.grounded=false;figure.ragdoll=false;figure.airTime=0;figure.landTime=0;
  }
- // Verlet integration uses a fixed 60 Hz step on every display refresh rate.
  for(let i=0;i<j.length;i++){
   const p=j[i];if(p.grabbed)continue;
   const vx=(p.x-p.px)*.985,vy=(p.y-p.py)*.985;
@@ -740,80 +732,56 @@ function stepStickFigure(figure,dt=1,controlled=false){
   const move=(i===3||i===10||i===11||i===12||i===13||i===14||i===15)?direction*.16:direction*.055;
   p.x+=vx+move*step;
   p.y+=vy+gravity*.12*step*step;
-  p.x=Math.max(1,Math.min(W-1,p.x));
-  p.y=Math.max(1,Math.min(H-1,p.y));
+  p.x=Math.max(1,Math.min(W-1,p.x));p.y=Math.max(1,Math.min(H-1,p.y));
  }
- // Solve the skeleton before checking the feet, so support is measured from the final pose.
  for(let pass=0;pass<8;pass++){
   for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,pass<2?.72:.9);
   for(let i=0;i<j.length;i++)if(!j[i].grabbed)collideStickJoint(j[i]);
  }
- const footSupported=i=>{
+ const isSupported=i=>{
   const p=j[i],x=Math.floor(p.x),y=Math.floor(p.y);
-  if(p.y>=H-2)return true;
-  // Only cells immediately beneath the feet count; knees and torso cannot fake standing.
-  for(let ox=-1;ox<=1;ox++){
-   if(inside(x+ox,y+1)&&stickSolidAt(x+ox,y+1))return true;
-  }
+  if(p.y>=H-1.75)return true;
+  for(let ox=-1;ox<=1;ox++)if(stickSolidAt(x+ox,y+1))return true;
   return false;
  };
- const footContact=footSupported(14)||footSupported(15);
- // If the character lands on his side, any lower-body contact can start recovery.
- let bodyContact=false;
- for(const index of [3,10,11,12,13,14,15]){
-  const p=j[index],x=Math.floor(p.x),y=Math.floor(p.y);
-  if(p.y>=H-2){bodyContact=true;break}
-  for(let ox=-1;ox<=1;ox++){
-   if(inside(x+ox,y+1)&&stickSolidAt(x+ox,y+1)){bodyContact=true;break}
-  }
-  if(bodyContact)break;
- }
- const supported=footContact||bodyContact;
+ const feetSupported=isSupported(14)||isSupported(15);
+ const lowerBodySupported=feetSupported||[3,10,11,12,13].some(isSupported);
  const head=j[0],pelvis=j[3];
- const torsoLean=Math.abs(Math.atan2(pelvis.x-head.x,Math.max(1,pelvis.y-head.y)));
- const pelvisSpeed=Math.hypot(pelvis.x-pelvis.px,pelvis.y-pelvis.py);
- if(!supported){
-  figure.grounded=false;
-  figure.landTime=0;
-  figure.airTime=(figure.airTime||0)+step/60;
-  if(figure.airTime>.06||jump)figure.ragdoll=true;
+ const lean=Math.abs(Math.atan2(pelvis.x-head.x,Math.max(.1,pelvis.y-head.y)));
+ const impact=Math.max(...j.map(p=>Math.hypot(p.x-p.px,p.y-p.py)));
+ if(lowerBodySupported){
+  figure.grounded=true;figure.airTime=0;figure.landTime=(figure.landTime||0)+step/60;
+  if(figure.ragdoll&&figure.landTime>=.18){figure.ragdoll=false;figure.recoverTime=0}
  }else{
-  figure.grounded=true;
-  figure.airTime=0;
-  figure.landTime=(figure.landTime||0)+step/60;
-  // A landed figure always gets a chance to stand, even if it landed on its side.
-  if(figure.ragdoll&&figure.landTime>.12&&pelvisSpeed<3.5){
-   figure.ragdoll=false;
-   figure.recoverTime=0;
-  }
+  figure.grounded=false;figure.landTime=0;figure.airTime=(figure.airTime||0)+step/60;
+  // Ordinary jumps and short drops stay controlled; a real tumble enters ragdoll.
+  if(!jump&&figure.airTime>.22&&(lean>.72||impact>4.8))figure.ragdoll=true;
  }
  if(figure.grounded&&!figure.ragdoll){
-  figure.recoverTime=Math.min(1,(figure.recoverTime||0)+step/24);
-  const blend=Math.min(.82,.3+figure.recoverTime*.42);
-  const gait=direction?Math.sin((figure.walk||0)+step*.16)*1.25*direction:0;
+  figure.recoverTime=Math.min(1,(figure.recoverTime||0)+step/30);
+  const blend=Math.min(.72,.42+figure.recoverTime*.24);
+  const gait=direction?Math.sin((figure.walk||0)+step*.16)*1.5*direction:0;
   if(direction)figure.walk=(figure.walk||0)+step*.16;
-  const pose=[
-   [0,-15],[0,-10],[0,-5],[0,0],
-   [-3,-9],[3,-9],[-5,-5],[5,-5],[-7,-2],[7,-2],
-   [-2,-1],[2,-1],[-2+gait,5],[2-gait,5],
-   [-2+gait*1.5,11],[2-gait*1.5,11]
-  ];
+  const pose=[[0,-15],[0,-10],[0,-5],[0,0],[-3,-9],[3,-9],[-5,-5],[5,-5],[-7,-2],[7,-2],[-2,-1],[2,-1],[-2+gait,5],[2-gait,5],[-2+gait*1.5,11],[2-gait*1.5,11]];
   for(let i=0;i<j.length;i++){
    const p=j[i];if(i===3||p.grabbed)continue;
    const tx=pelvis.x+pose[i][0],ty=pelvis.y+pose[i][1]+(crouch&&i<3?3:0);
-   const oldX=p.x,oldY=p.y;
-   p.x+=(tx-p.x)*blend;
-   p.y+=(ty-p.y)*blend;
-   // Remove pose-correction velocity so the standing rig does not oscillate.
-   p.px+=(p.x-oldX)*.88;
-   p.py+=(p.y-oldY)*.88;
+   const ox=p.x,oy=p.y;p.x+=(tx-p.x)*blend;p.y+=(ty-p.y)*blend;
+   p.px+=(p.x-ox)*.9;p.py+=(p.y-oy)*.9;
+  }
+ }else if(!figure.ragdoll){
+  // Keep the body upright while falling; do not switch to ragdoll just because it is airborne.
+  const pose=[[0,-15],[0,-10],[0,-5],[0,0],[-3,-9],[3,-9],[-5,-5],[5,-5],[-7,-2],[7,-2],[-2,-1],[2,-1],[-2,5],[2,5],[-2,11],[2,11]];
+  for(let i=0;i<j.length;i++){
+   const p=j[i];if(i===3||p.grabbed)continue;
+   const tx=pelvis.x+pose[i][0],ty=pelvis.y+pose[i][1],blend=i===0?.2:.12;
+   p.x+=(tx-p.x)*blend;p.y+=(ty-p.y)*blend;
   }
  }else{
   figure.recoverTime=0;
  }
- // Final constraints keep limb lengths stable after pose recovery and movement.
- for(let pass=0;pass<4;pass++){
-  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,.92);
+ for(let pass=0;pass<5;pass++){
+  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,.94);
   for(let i=0;i<j.length;i++)if(!j[i].grabbed)collideStickJoint(j[i]);
  }
  figure.x=pelvis.x;figure.y=pelvis.y;
