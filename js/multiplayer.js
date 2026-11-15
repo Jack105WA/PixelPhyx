@@ -151,9 +151,9 @@ export function createMultiplayer(callbacks = {}) {
 
   function publishWorld(world) {
     if (!db || !joined || !room || hostId !== playerId || !world) return;
-    const now = Date.now();
-    if (now - lastWorldWrite < 1000 / 30) return;
-    lastWorldWrite = now;
+    // The caller schedules at 60 Hz. Never discard a delta here: the pending queue
+    // merges changed chunks while a Firebase write is in flight.
+    lastWorldWrite = Date.now();
     if (pendingWorld) {
       pendingWorld = {
         ...pendingWorld,
@@ -176,7 +176,9 @@ export function createMultiplayer(callbacks = {}) {
           if (Object.keys(patch).length) await update(ref(db, 'rooms/' + room), patch);
         }
       } catch (error) {
-        log('Partial world sync failed: ' + error.message);
+        pendingWorld = null;
+        callbacks.onWorldError?.(error);
+        log('Partial world sync failed; requesting a fresh full sync: ' + error.message);
       } finally {
         worldWriteInFlight = false;
       }
