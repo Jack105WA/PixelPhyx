@@ -382,8 +382,8 @@ function rebuildCellInterpolation(){
 function drawInterpolatedCells(){
  const alpha=cellRenderAlpha;if(alpha>=.999||!movingParticles.length)return;
  for(const particle of movingParticles){
-  const p=particle.index*4,d=frameImage.data;
-  ctx.fillStyle=`rgb(${d[p]},${d[p+1]},${d[p+2]})`;
+  const rgb=colors[particle.material]||colors[0];
+  ctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
   const x=particle.fromX+(particle.toX-particle.fromX)*alpha;
   const y=particle.fromY+(particle.toY-particle.fromY)*alpha;
   ctx.fillRect(x,y,1,1);
