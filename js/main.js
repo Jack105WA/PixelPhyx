@@ -11,6 +11,7 @@ function resizeBloomBuffer(){
  bloomCanvas.width=bloomW;bloomCanvas.height=bloomH;
  bloomImage=bloomCtx.createImageData(bloomW,bloomH);bloomPixels=bloomImage.data;
 }
+resizeBloomBuffer();
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15,CHARCOAL:16};
 const materials=[
  {id:1,name:'Sand',icon:'▨',color:'#d9b45f',rgb:[217,180,95],type:'powder'},
