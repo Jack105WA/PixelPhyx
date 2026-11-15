@@ -61,7 +61,21 @@ PixelPhyx is already configured to use the `pixelphyx-backend` Firebase project 
 
 Firebase web API keys are client identifiers, not server secrets; database security comes from Authentication and Realtime Database rules.
 
-### 6. Invite friends
+### 6. Deploy automatic empty-room cleanup
+
+PixelPhyx includes a Firebase Realtime Database function that removes a room's saved world and edit history after its final player disconnects. This runs on the server, so cleanup still happens when every browser window is closed.
+
+Deploy it once from the repository root:
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only functions
+```
+
+The function uses the `pixelphyx-backend` project configured in `.firebaserc`. Firebase requires the project to use the Blaze (pay-as-you-go) plan to deploy Cloud Functions; the function itself is small and only runs when a player disconnects. Review Firebase pricing and usage limits before enabling billing.
+
+### 7. Invite friends
 
 1. Click **Multiplayer** or enter a room code in the Multiplayer panel.
 2. Click **Join room**.
@@ -81,7 +95,7 @@ Everyone in a room shares the same particle world and rope structures. Presence 
 - **Heat / Cool:** place fire or ice.
 - **Brush size:** use the slider or mouse wheel.
 - **Gravity:** adjust gravity strength, including zero gravity.
-- **Simulation speed:** run multiple simulation steps per frame.
+- **Simulation speed:** change the simulation rate multiplier. Physics uses a fixed 60-step-per-second clock independent of display frame rate.
 - **Ambient temperature:** set the world temperature from -100°C to 1200°C. Heat and cold affect water and ice.
 - **Space:** pause or resume.
 - **Right click:** erase.
