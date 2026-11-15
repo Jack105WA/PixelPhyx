@@ -64,9 +64,11 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){
      const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
      const ni=index(nx,ny),other=cells[ni];
-     if(other===M.SAND&&wet[ni]<1&&Math.random()<.38){
-      const amount=Math.min(.2,1-wet[ni]);wet[ni]+=amount;
-      if(Math.random()<.34){cells[i]=M.EMPTY;wet[i]=0;heat[i]=0;fuel[i]=0;burn[i]=0;break}
+     if(other===M.SAND&&wet[ni]<1&&Math.random()<.12){
+      // Sand absorbs moisture, not the water particle itself. Keep water in the
+      // world so a pool cannot vanish just because it touches a large sand bed.
+      const amount=Math.min(.025,1-wet[ni]);
+      wet[ni]+=amount;
      }
      if(other===M.PLANT&&Math.random()<.08)wet[ni]=Math.min(1,wet[ni]+.15);
     }
