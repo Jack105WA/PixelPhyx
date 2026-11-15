@@ -115,7 +115,7 @@ const materials=[
 const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 let cells=new Uint8Array(N),updated=new Uint8Array(N),running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let temperatureUnit='C';
-let strokePoints=[],roomOpsRef=null,stopOpsListener=null,stopPlayersListener=null,lastCursorPoint=null;
+let strokePoints=[],roomOpsRef=null,stopOpsListener=null,stopPlayersListener=null,lastCursorPoint=null,activeErase=false;
 let ropes=[],db=null,auth=null,app=null,room='',roomRef=null,playerId='guest-'+Math.random().toString(36).slice(2,9),playerName='Lab guest',syncTimer=0,lastWorldWrite=0,remoteApplying=false,joined=false,authUser=null,frame=0,lastRemoteWorldAt=0,lastCursorWrite=0,remoteCursors={},playerColor=['#65d6ad','#ff9b71','#78a9ff','#d6a0ff','#ffd166','#ff719a','#70d6c8'][Math.floor(Math.random()*7)];
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
@@ -132,7 +132,7 @@ function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx
 function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
 function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
 let drawing=false,lastPoint=null,ropeStart=null;
-function act(p,e){if(!inside(p.x,p.y))return;const erase=e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
+function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
  if(tool==='rope'){if(!ropeStart){ropeStart={x:p.x,y:p.y};log('Rope anchor selected. Drag to its other end.')}return}
  if(tool==='box'){for(let yy=-brush;yy<=brush;yy++)for(let xx=-brush;xx<=brush;xx++)put(p.x+xx,p.y+yy,selected);return}
  if(tool==='bomb'){circle(p.x,p.y,2,M.TNT);return}
@@ -142,9 +142,9 @@ function act(p,e){if(!inside(p.x,p.y))return;const erase=e.button===2||tool==='e
  circle(p.x,p.y,brush,mat);lastPoint=p;
 }
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('pointerdown',e=>{drawing=true;canvas.setPointerCapture(e.pointerId);const p=canvasPoint(e);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)});
+canvas.addEventListener('pointerdown',e=>{drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);const p=canvasPoint(e);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)});
 canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=canvasPoint(e);if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);if(tool==='rope'){lastPoint=p;return}act(p,e)});
-canvas.addEventListener('pointerup',e=>{if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){createRope(ropeStart,end);publishOperation({type:'rope',a:ropeStart,b:end})}ropeStart=null}else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});drawing=false;lastPoint=null;strokePoints=[]});
+canvas.addEventListener('pointerup',e=>{if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){createRope(ropeStart,end);publishOperation({type:'rope',a:ropeStart,b:end})}ropeStart=null}else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});drawing=false;activeErase=false;lastPoint=null;strokePoints=[]});
 canvas.addEventListener('pointercancel',()=>{drawing=false;ropeStart=null;lastPoint=null});
 canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
