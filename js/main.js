@@ -324,6 +324,7 @@ function render(){
  ctx.drawImage(bloomCanvas,0,0,W,H);ctx.restore();
  ctx.lineCap='round';ctx.lineJoin='round';
  for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
+ drawStickFigure();
  for(const [id,target] of Object.entries(remoteCursorTargets)){
   let current=remoteCursors[id];
   if(!current){current=remoteCursors[id]={...target};continue}
@@ -354,7 +355,7 @@ function render(){
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4,MP_SYNC_INTERVAL=1000;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0;
-function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;moveStickFigure(elapsed/(1000/60));if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
 
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
@@ -369,7 +370,18 @@ document.querySelector('#gravity').oninput=e=>{gravity=+e.target.value/10;docume
 document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.querySelector('#speedOut').textContent=speed+'×'};
 document.querySelector('#temperatureControl').oninput=e=>{const value=+e.target.value;ambient=temperatureUnit==='F'?(value-32)*5/9:value;updateTemperature();publishOperation({type:'settings',gravity,ambient})};
 document.querySelector('#temperatureUnit').onclick=()=>{temperatureUnit=temperatureUnit==='C'?'F':'C';updateTemperature()};
-addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){e.preventDefault();document.querySelector('#play').click()}});
+addEventListener('keydown',e=>{
+ if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return;
+ const keys={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+ if(keys[e.code]){e.preventDefault();stickKeys[keys[e.code]]=true;return}
+ if(e.code==='Space'){e.preventDefault();document.querySelector('#play').click()}
+});
+addEventListener('keyup',e=>{
+ const keys={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+ if(keys[e.code]){e.preventDefault();stickKeys[keys[e.code]]=false}
+});
+addEventListener('blur',()=>{for(const key of Object.keys(stickKeys))stickKeys[key]=false});
+
 const openModal=id=>document.querySelector('#'+id).classList.add('open');
 document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFirebase(firebaseConfig)}catch(e){alert('Firebase connection failed: '+e.message)}};document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
@@ -531,6 +543,56 @@ function renderPlayers(people){
 }
 function applyOperation(op){if(!op||remoteApplying)return;remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);resetMaterialState(N);ropes=[]}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/1.5)),points=[];for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}const id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))ropes.push({id,points,length:distance/segments,stiffness:1})}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.x=op.x;node.y=op.y;node.px=op.x;node.py=op.y;if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='box'){for(const p of pts)for(let y=-bs;y<=bs;y++)for(let x=-bs;x<=bs;x++)put(p.x+x,p.y+y,mat)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
 let localCursor=null;
+const stickFigure={x:Math.floor(W*.5),y:Math.floor(H*.5),vx:0,vy:0,grounded:false,walk:0};
+const stickKeys={left:false,right:false,up:false,down:false};
+function stickSolidAt(x,y){
+ if(!inside(x,y))return true;
+ const m=cells[idx(x,y)];
+ return m===M.STONE||m===M.WOOD||m===M.ICE||m===M.GLASS||m===M.TNT;
+}
+function moveStickFigure(dt){
+ const p=stickFigure,step=Math.min(2,Math.max(.25,dt));
+ const direction=(stickKeys.right?1:0)-(stickKeys.left?1:0);
+ p.vx=direction*1.35;
+ if(direction)p.walk+=step*.22;
+ if(stickKeys.up&&p.grounded){p.vy=-3.5;p.grounded=false}
+ p.vy=Math.min(4.5,p.vy+.22*step);
+ const nextX=Math.max(4,Math.min(W-4,p.x+p.vx*step));
+ const bodyTop=p.y-15,bodyBottom=p.y-1;
+ const sideX=nextX+(direction||1)*3;
+ let blocked=false;
+ for(let yy=Math.floor(bodyTop);yy<=Math.floor(bodyBottom);yy++){
+  if(stickSolidAt(Math.floor(sideX),yy)){blocked=true;break}
+ }
+ if(!blocked)p.x=nextX;
+ const nextY=p.y+p.vy*step;
+ if(p.vy>=0){
+  const footY=Math.floor(nextY);
+  let landed=false;
+  for(let xx=Math.floor(p.x-2);xx<=Math.ceil(p.x+2);xx++){
+   if(stickSolidAt(xx,footY)){landed=true;break}
+  }
+  if(landed){p.y=footY;p.vy=0;p.grounded=true}
+  else{p.y=nextY;p.grounded=false}
+ }else{
+  const headY=Math.floor(nextY-16);
+  let hit=false;
+  for(let xx=Math.floor(p.x-2);xx<=Math.ceil(p.x+2);xx++){
+   if(stickSolidAt(xx,headY)){hit=true;break}
+  }
+  if(hit){p.vy=0;p.y=Math.floor(nextY-16)+17}else p.y=nextY;
+  p.grounded=false;
+ }
+ p.y=Math.max(17,Math.min(H-1,p.y));
+}
+function drawStickFigure(){
+ const p=stickFigure,color=playerColor||'#65d6ad',walking=Math.abs(p.vx)>.01&&p.grounded;
+ const swing=walking?Math.sin(p.walk)*2.5:0, crouch=stickKeys.down&&p.grounded;
+ const headY=p.y-(crouch?11:15),shoulderY=p.y-(crouch?8:11),hipY=p.y-5;
+ ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.35;ctx.lineCap='round';ctx.lineJoin='round';
+ ctx.beginPath();ctx.arc(p.x,headY,2.1,0,Math.PI*2);ctx.fill();
+ ctx.beginPath();ctx.moveTo(p.x,headY+2.3);ctx.lineTo(p.x,hipY);ctx.moveTo(p.x,shoulderY);ctx.lineTo(p.x-3.3,shoulderY+3+swing);ctx.moveTo(p.x,shoulderY);ctx.lineTo(p.x+3.3,shoulderY+3-swing);ctx.moveTo(p.x,hipY);ctx.lineTo(p.x-2.5+swing, p.y);ctx.moveTo(p.x,hipY);ctx.lineTo(p.x+2.5-swing,p.y);ctx.stroke();ctx.restore();
+}
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
