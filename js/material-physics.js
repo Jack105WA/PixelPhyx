@@ -95,7 +95,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     }
     if(tp?.flammability){
      const moisture=wet[ni]||0;
-     const chance=(target===M.OIL?.32:target===M.PLANT?.105:.045)*(1-moisture*.88);
+     const chance=(target===M.OIL ? .32 : target===M.PLANT ? .105 : .045)*(1-moisture*.88);
      heat[ni]=Math.min(1200,heat[ni]+(target===M.OIL?32:target===M.WOOD?15:9));
      if(heat[ni]>(tp.ignition||200)&&Math.random()<chance)ignite(cells,s,ni,target);
     }
