@@ -392,11 +392,16 @@ function drawInterpolatedCells(){
  const cellWidth=rect.width/W,cellHeight=rect.height/H;
  for(const particle of movingParticles){
   if(cells[particle.toIndex]!==particle.material)continue;
-  const rgb=colors[particle.material]||colors[0];
-  target.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  const material=particle.material,base=colors[material]||colors[0];
+  const wet=materialState.wetness[particle.toIndex]||0,heat=materialState.heat[particle.toIndex]||0;
+  let r=base[0],g=base[1],b=base[2];
+  if(material===M.SAND&&wet){const f=1-wet*.38;r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f)}
+  if(heat>0&&material!==M.FIRE){const f=Math.min(.35,heat/900);r=Math.min(255,Math.round(r+(255-r)*f));g=Math.round(g+(100-g)*f);b=Math.round(b*(1-f*.7))}
+  target.fillStyle=`rgb(${r},${g},${b})`;
   const x=(particle.fromX+(particle.toX-particle.fromX)*alpha)*cellWidth;
   const y=(particle.fromY+(particle.toY-particle.fromY)*alpha)*cellHeight;
-  target.fillRect(x,y,cellWidth,cellHeight);
+  // Slightly overlap adjacent subpixel cells so antialiasing cannot create dark seams.
+  target.fillRect(x-.35,y-.35,cellWidth+.7,cellHeight+.7);
  }
 }
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
