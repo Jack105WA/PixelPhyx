@@ -9,7 +9,8 @@ export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
   let playerId = 'guest-' + Math.random().toString(36).slice(2, 9);
   let joined = false, hostId = null, presenceRef = null;
-  let stopOperations = null, stopWorld = null, stopPlayers = null;
+  let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null;
+  let cursorRef = null;
   let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null;
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
@@ -18,6 +19,7 @@ export function createMultiplayer(callbacks = {}) {
     stopOperations?.(); stopOperations = null;
     stopWorld?.(); stopWorld = null;
     stopPlayers?.(); stopPlayers = null;
+    stopCursors?.(); stopCursors = null;
   }
 
   async function connect(config) {
@@ -48,6 +50,7 @@ export function createMultiplayer(callbacks = {}) {
     stopListeners();
     joined = false;
     if (presenceRef) await remove(presenceRef).catch(() => {});
+    if (cursorRef) await remove(cursorRef).catch(() => {});
     room = nextRoom;
     hostId = null;
     report('connecting', 'JOINING ROOM');
@@ -55,6 +58,7 @@ export function createMultiplayer(callbacks = {}) {
     const roomPath = 'rooms/' + room;
     const hostRef = ref(db, roomPath + '/host');
     presenceRef = ref(db, roomPath + '/players/' + playerId);
+    cursorRef = ref(db, roomPath + '/cursors/' + playerId);
 
     try {
       const hostResult = await runTransaction(hostRef, current => current || playerId);
@@ -66,6 +70,7 @@ export function createMultiplayer(callbacks = {}) {
         joinedAt: serverTimestamp()
       });
       await onDisconnect(presenceRef).remove();
+      await onDisconnect(cursorRef).remove();
 
       stopWorld = onValue(ref(db, roomPath + '/world'), snapshot => {
         const world = snapshot.val();
@@ -88,6 +93,10 @@ export function createMultiplayer(callbacks = {}) {
         // while preserving the add event for every connected client.
         if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
       }, error => log('Edit sync error: ' + error.message));
+
+      stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
+        callbacks.onCursors?.(snapshot.val() || {});
+      }, error => log('Cursor sync error: ' + error.message));
 
       stopPlayers = onValue(ref(db, roomPath + '/players'), async snapshot => {
         const people = snapshot.val() || {};
@@ -157,7 +166,7 @@ export function createMultiplayer(callbacks = {}) {
 
   function updateCursor(point, color, name) {
     if (!db || !joined || !room) return;
-    update(ref(db, 'rooms/' + room + '/players/' + playerId + '/cursor'), {
+    update(ref(db, 'rooms/' + room + '/cursors/' + playerId), {
       x: point.x, y: point.y, color, name, updatedAt: Date.now()
     }).catch(() => {});
   }
