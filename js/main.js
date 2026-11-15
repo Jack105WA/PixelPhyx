@@ -1,5 +1,9 @@
-import { firebaseConfig } from './firebase-config.js';
-import { stepMaterialPhysics, materialState, resetMaterialState } from './material-physics.js';
+// Reuse the cache-busting version from the entry URL for every local module.
+const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
+const [{ firebaseConfig }, { stepMaterialPhysics, materialState, resetMaterialState }] = await Promise.all([
+  import(`./firebase-config.js?v=${encodeURIComponent(cacheVersion)}`),
+  import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`)
+]);
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
@@ -505,7 +509,7 @@ async function connectFirebase(config){
  if(!multiplayer){
   if(!multiplayerLoading){
    multiplayerLoading=(async()=>{
-    const {createMultiplayer}=await import('./multiplayer.js');
+    const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
     multiplayer=createMultiplayer({
      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
      onPlayers:renderPlayers,
