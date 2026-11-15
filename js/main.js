@@ -133,7 +133,8 @@ function stepRopes(){
 let ropeCollisionBuckets=new Map();
 const ROPE_BUCKET_SIZE=4,ROPE_COLLISION_RADIUS=1.35;
 function rebuildRopeCollisionIndex(){
- ropeCollisionBuckets=new Map();
+ ropeCollisionBuckets.clear();
+ if(!ropes.length)return;
  for(const rope of ropes){
   const points=rope.points;
   if(!points||points.length<2)continue;
@@ -151,24 +152,25 @@ function rebuildRopeCollisionIndex(){
   }
  }
 }
+const ropeCandidateSegments=new Set();
+const orient=(ax,ay,bx,by,cx,cy)=>(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
+function pointSegmentDistance(px,py,ax,ay,bx,by){
+ const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy;
+ const t=len?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len)):0;
+ return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
 function ropeBlocksMove(x1,y1,x2,y2){
  if(!ropeCollisionBuckets.size)return false;
  const minX=Math.floor((Math.min(x1,x2)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
  const maxX=Math.floor((Math.max(x1,x2)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
  const minY=Math.floor((Math.min(y1,y2)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
  const maxY=Math.floor((Math.max(y1,y2)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
- const candidates=new Set();
+ ropeCandidateSegments.clear();
  for(let by=minY;by<=maxY;by++)for(let bx=minX;bx<=maxX;bx++){
   const bucket=ropeCollisionBuckets.get(by*1000+bx);
-  if(bucket)for(const segment of bucket)candidates.add(segment);
+  if(bucket)for(const segment of bucket)ropeCandidateSegments.add(segment);
  }
- const orient=(ax,ay,bx,by,cx,cy)=>(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
- const pointSegmentDistance=(px,py,ax,ay,bx,by)=>{
-  const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy;
-  const t=len?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len)):0;
-  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
- };
- for(const s of candidates){
+ for(const s of ropeCandidateSegments){
   const {ax,ay,bx,by}=s;
   const o1=orient(x1,y1,x2,y2,ax,ay),o2=orient(x1,y1,x2,y2,bx,by);
   const o3=orient(ax,ay,bx,by,x1,y1),o4=orient(ax,ay,bx,by,x2,y2);
@@ -184,13 +186,15 @@ function ropeBlocksMove(x1,y1,x2,y2){
  }
  return false;
 }
+const carriedParticles=new Uint8Array(N);
 function pushParticlesFromRopeSweep(){
+ if(!ropes.length)return;
  const insideQuad=(px,py,ax,ay,bx,by,cx,cy,dx,dy)=>{
   const cross=(x1,y1,x2,y2)=>x1*y2-y1*x2,points=[[ax,ay],[bx,by],[cx,cy],[dx,dy]];let sign=0;
   for(let i=0;i<4;i++){const a=points[i],b=points[(i+1)%4],v=cross(b[0]-a[0],b[1]-a[1],px-a[0],py-a[1]);if(Math.abs(v)<.0001)continue;const s=Math.sign(v);if(sign&&s!==sign)return false;sign=s}
   return true;
  };
- const carried=new Uint8Array(N);
+ const carried=carriedParticles;carried.fill(0);
  for(const rope of ropes){
   const p=rope.points;
   for(let i=0;i<p.length-1;i++){
@@ -293,7 +297,7 @@ async function connectFirebase(config){
    multiplayerLoading=(async()=>{
     const {createMultiplayer}=await import('./multiplayer.js');
     multiplayer=createMultiplayer({
-     onStatus:setConnection,onLog:log,onOperation:op=>{applyOperation(op);if(multiplayer?.isHost&&room)multiplayer.publishWorld(serialize())},onWorld:applyWorld,
+     onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
      onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,color:p.color||'#ffffff',name:p.name||'Guest'}}}
     });
    })().catch(error=>{multiplayerLoading=null;throw error});
