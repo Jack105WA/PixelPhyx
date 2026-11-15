@@ -403,31 +403,18 @@ function drawInterpolatedCells(){
 }
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
- const color=isYou?'#ffffff':(c.color||'#ffffff');
- // Rasterize on the simulation's native pixel grid. Each covered world pixel
- // is a solid 1x1 block, then CSS image-rendering:pixelated enlarges those blocks.
- const points=[[c.x,c.y],[c.x+3.5*scale,c.y+8*scale],[c.x+5.5*scale,c.y+5*scale],[c.x+8.5*scale,c.y+4.5*scale]];
- const minY=Math.floor(Math.min(...points.map(p=>p[1])));
- const maxY=Math.ceil(Math.max(...points.map(p=>p[1])));
+ const cursorColor=isYou?'#ffffff':(c.color||'#fff');
  targetCtx.save();
- targetCtx.setTransform(1,0,0,1,0,0);
- targetCtx.globalAlpha=1;
- targetCtx.globalCompositeOperation='source-over';
- targetCtx.fillStyle=color;
- for(let py=minY;py<maxY;py++){
-  const scanY=py+.5,crossings=[];
-  for(let i=0;i<points.length;i++){
-   const p=points[i],q=points[(i+1)%points.length];
-   if((p[1]<=scanY&&q[1]>scanY)||(q[1]<=scanY&&p[1]>scanY)){
-    crossings.push(p[0]+(scanY-p[1])*(q[0]-p[0])/(q[1]-p[1]));
-   }
-  }
-  crossings.sort((u,v)=>u-v);
-  for(let i=0;i+1<crossings.length;i+=2){
-   const left=Math.ceil(crossings[i]-.5),right=Math.floor(crossings[i+1]-.5);
-   if(right>=left)targetCtx.fillRect(left,py,right-left+1,1);
-  }
- }
+ targetCtx.fillStyle=cursorColor;
+ targetCtx.strokeStyle=cursorColor;
+ targetCtx.lineWidth=.8*scale;
+ targetCtx.beginPath();
+ targetCtx.moveTo(c.x,c.y);
+ targetCtx.lineTo(c.x+3.5*scale,c.y+8*scale);
+ targetCtx.lineTo(c.x+5.5*scale,c.y+5*scale);
+ targetCtx.lineTo(c.x+8.5*scale,c.y+4.5*scale);
+ targetCtx.closePath();
+ targetCtx.fill();
  targetCtx.restore();
 }
 function drawCursorName(c,targetCtx){
