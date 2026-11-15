@@ -54,7 +54,7 @@ function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
  cells=new Uint8Array(N);updated=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
- canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;
+ canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;stickFigure=null;remoteStickFigures.clear();
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
@@ -436,11 +436,11 @@ function render(){
  nameCtx.clearRect(0,0,shellRect.width,shellRect.height);
  cursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);
  if(localCursor){
-  cursorCtx.save();cursorCtx.translate(localCursor.x/W*localCursorCanvas.width,localCursor.y/H*localCursorCanvas.height);cursorCtx.scale(.8,.8);
+  cursorCtx.save();cursorCtx.translate(Math.floor(localCursor.x),Math.floor(localCursor.y));cursorCtx.scale(.8,.8);
   drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
  }
  for(const c of Object.values(remoteCursors)){
-  const x=Math.round(c.x/W*localCursorCanvas.width),y=Math.round(c.y/H*localCursorCanvas.height);
+  const x=Math.floor(c.x),y=Math.floor(c.y);
   cursorCtx.save();cursorCtx.translate(x,y);cursorCtx.scale(.8,.8);
   drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
   drawCursorName({x:c.x/W*shellRect.width,y:c.y/H*shellRect.height,name:c.name},nameCtx);
@@ -818,7 +818,7 @@ canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
 const canvasShell=document.querySelector('#canvasShell');
-localCursorCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=CANVAS_SIZES.medium.height;
+localCursorCanvas.width=W;localCursorCanvas.height=H;
 cursorNamesCanvas.width=Math.max(1,Math.round(canvasShell.clientWidth*(window.devicePixelRatio||1)));
 cursorNamesCanvas.height=Math.max(1,Math.round(canvasShell.clientHeight*(window.devicePixelRatio||1)));
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
