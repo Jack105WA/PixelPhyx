@@ -279,7 +279,7 @@ function emitVisualParticle(x,y,kind){
  if(visualParticles.length>=MAX_VISUAL_PARTICLES)return;
  const molten=kind==='molten',smoke=kind==='smoke';
  visualParticles.push({
-  kind,x:x+.2+Math.random()*.6,y:y+.2+Math.random()*.6,
+  kind,x:x+.15+Math.random()*.7,y:y-.15,
   vx:(Math.random()-.5)*(molten?2.1:1.25),
   vy:molten?-(.55+Math.random()*2.2):smoke?-(.25+Math.random()*.9):-(.8+Math.random()*2.4),
   life:molten?35+Math.random()*55:smoke?45+Math.random()*75:22+Math.random()*38,
