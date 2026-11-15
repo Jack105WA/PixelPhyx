@@ -7,6 +7,18 @@
         ".read": "auth != null",
         ".write": "auth != null"
       }
+    },
+    "lobbyDirectory": {
+      ".read": "auth != null",
+      "$room": {
+        ".write": "auth != null"
+      }
+    },
+    "lobbySlots": {
+      ".read": "auth != null",
+      "$slot": {
+        ".write": "auth != null"
+      }
     }
   }
 }
