@@ -708,79 +708,94 @@ function collideStickJoint(point){
  return true;
 }
 function stepStickFigure(figure,dt,controlled=false){
- const step=Math.min(2,Math.max(.25,dt)),j=figure.joints;
+ const step=Math.min(1.5,Math.max(.35,dt)),j=figure.joints;
  if(!j||j.length!==16)return;
  const direction=controlled?((stickKeys.right?1:0)-(stickKeys.left?1:0)):0;
  const crouch=controlled&&stickKeys.down;
  const jump=controlled&&stickKeys.up&&figure.grounded;
  if(jump){
-  for(const point of j)point.py+=3.1;
-  figure.grounded=false;figure.ragdoll=true;figure.uprightTime=0;
+  // Give the entire body the same upward impulse so the pose does not split apart.
+  for(const point of j)point.py+=3.8;
+  figure.grounded=false;figure.ragdoll=true;figure.airTime=.1;figure.uprightTime=0;
  }
- const oldPelvisX=j[3].x,oldPelvisY=j[3].y;
  let touchedGround=false;
- // Every joint has its own momentum. Horizontal input accelerates the whole body,
- // while the feet receive extra traction only when they are actually supported.
  for(let i=0;i<j.length;i++){
   const point=j[i];if(point.grabbed)continue;
-  const vx=(point.x-point.px)*.986,vy=(point.y-point.py)*.994;
+  const vx=(point.x-point.px)*.982,vy=(point.y-point.py)*.992;
   const foot=i===14||i===15;
-  const drive=(foot?.105:(i===3||i===10||i===11)?.075:.035)*direction*step;
+  const drive=(foot?.12:(i===3||i===10||i===11)?.09:.045)*direction*step;
   point.px=point.x;point.py=point.y;
   point.x+=vx+drive;
-  point.y+=vy+.145*gravity*step*step;
-  if(crouch&&(i===0||i===1||i===2))point.y+=.07*step;
+  point.y+=vy+.135*gravity*step*step;
   point.x=Math.max(.5,Math.min(W-.5,point.x));
   point.y=Math.max(.5,Math.min(H-.5,point.y));
   if(collisionStickFloor(point))touchedGround=true;
   if(collideStickJoint(point))touchedGround=touchedGround||foot;
  }
- // Determine support from both feet and nearby solid cells, not from any arbitrary
- // joint touching the floor. This keeps wall/hand contact from enabling a ground jump.
- const supported=(i)=>{
+ // A foot is supported by a solid directly beneath it or by the canvas floor.
+ // Check a small footprint so uneven terrain does not make the controller flicker.
+ const supported=i=>{
   const p=j[i],x=Math.floor(p.x),y=Math.floor(p.y);
-  return p.y>=H-1||stickSolidAt(x,y+1)||stickSolidAt(x-1,y+1)||stickSolidAt(x+1,y+1);
+  if(p.y>=H-1.5)return true;
+  for(let oy=0;oy<=2;oy++)for(let ox=-1;ox<=1;ox++){
+   if(stickSolidAt(x+ox,y+oy))return true;
+  }
+  return false;
  };
- const grounded=supported(14)||supported(15)||((touchedGround)&&(supported(12)||supported(13)));
+ const leftSupport=supported(14)||supported(12);
+ const rightSupport=supported(15)||supported(13);
+ const hasSupport=leftSupport||rightSupport||touchedGround&&(
+  j[12].y>=H-2||j[13].y>=H-2
+ );
+ if(hasSupport){
+  figure.airTime=0;
+  figure.grounded=true;
+ }else{
+  figure.airTime=(figure.airTime||0)+step/60;
+  // A short grace period prevents a one-frame contact gap from dropping the pose.
+  figure.grounded=!!figure.grounded&&figure.airTime<.09&&!figure.ragdoll;
+ }
  const torsoDX=j[3].x-j[0].x,torsoDY=j[3].y-j[0].y;
  const lean=Math.atan2(torsoDX,Math.max(.001,torsoDY));
  const pelvisVy=j[3].y-j[3].py;
- if(!grounded||pelvisVy>.85||Math.abs(lean)>.78){
+ if(jump||(!figure.grounded&&figure.airTime>.045)||Math.abs(lean)>.95){
   figure.ragdoll=true;figure.uprightTime=0;
- }else if(figure.ragdoll&&grounded&&Math.abs(lean)<.62&&Math.abs(pelvisVy)<1.15){
-  figure.uprightTime=(figure.uprightTime||0)+step;
-  if(figure.uprightTime>.32){figure.ragdoll=false;figure.uprightTime=0}
- }else if(!grounded){
+ }
+ if(figure.ragdoll&&hasSupport&&Math.abs(lean)<.72&&Math.abs(pelvisVy)<1.8){
+  figure.uprightTime=(figure.uprightTime||0)+step/60;
+  if(figure.uprightTime>.22){
+   figure.ragdoll=false;figure.uprightTime=0;figure.airTime=0;
+  }
+ }else if(!hasSupport){
   figure.uprightTime=0;
  }
- // When standing on the ground, gently guide the joints into a walkable stance.
- // The pose has no authority in the air: falling, jumping, and impacts stay ragdoll.
- if(grounded&&!figure.ragdoll){
-  const gait=direction?Math.sin((figure.walk||0)+step*.22)*.7*direction:0;
-  if(direction)figure.walk=(figure.walk||0)+step*.22;
+ if(figure.grounded&&!figure.ragdoll){
+  const gait=direction?Math.sin((figure.walk||0)+step*.2)*1.15*direction:0;
+  if(direction)figure.walk=(figure.walk||0)+step*.2;
   const stance=[
    [0,-15],[0,-10],[0,-5],[0,0],
    [-3,-9],[3,-9],[-5,-5],[5,-5],
    [-7,-2],[7,-2],[-2,-1],[2,-1],
    [-2+gait,5],[2-gait,5],[-2+gait*1.8,11],[2-gait*1.8,11]
   ];
-  const strength=direction?.24:.19;
+  const strength=direction?.58:.68;
   for(let i=0;i<j.length;i++){
    if(i===3||j[i].grabbed)continue;
-   const targetX=j[3].x+stance[i][0],targetY=j[3].y+stance[i][1]+(crouch&&i<3?3:0);
-   j[i].x+=(targetX-j[i].x)*strength*step;
-   j[i].y+=(targetY-j[i].y)*strength*step;
-   j[i].px+=(targetX-j[i].px)*strength*.32*step;
-   j[i].py+=(targetY-j[i].py)*strength*.32*step;
+   const targetX=j[3].x+stance[i][0];
+   const targetY=j[3].y+stance[i][1]+(crouch&&i<3?3.5:0);
+   const nextX=j[i].x+(targetX-j[i].x)*strength*step;
+   const nextY=j[i].y+(targetY-j[i].y)*strength*step;
+   // Dampen limb velocity while pose control is active to stop joints wobbling.
+   j[i].x=nextX;j[i].y=nextY;
+   j[i].px+=(targetX-j[i].px)*Math.min(.9,strength*.72*step);
+   j[i].py+=(targetY-j[i].py)*Math.min(.9,strength*.72*step);
   }
  }
- // Solve limb lengths and repeatedly resolve contacts so the figure cannot sink
- // into walls, floors, or piles of movable particles.
- for(let pass=0;pass<8;pass++){
-  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,pass<2?.78:.92);
+ // Keep the rig coherent, then resolve contacts after each constraint pass.
+ for(let pass=0;pass<7;pass++){
+  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,pass<2?.82:.96);
   for(let i=0;i<j.length;i++)if(!j[i].grabbed)collideStickJoint(j[i]);
  }
- figure.grounded=grounded;
  figure.x=j[3].x;figure.y=j[3].y;
  figure.vx=j[3].x-j[3].px;figure.vy=j[3].y-j[3].py;
 }
