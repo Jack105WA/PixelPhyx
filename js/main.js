@@ -1,6 +1,8 @@
 import { firebaseConfig } from './firebase-config.js';
 
-const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};\nlet canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;\nconst canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});let frameImage=ctx.createImageData(W,H);
+const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
+let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
+const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});let frameImage=ctx.createImageData(W,H);
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15};
 const materials=[
  {id:1,name:'Sand',icon:'▨',color:'#d9b45f',rgb:[217,180,95],type:'powder'},
@@ -34,7 +36,17 @@ function selectTool(id,button){tool=id;document.querySelectorAll('.tool').forEac
 const matEl=document.querySelector('#materials');
 materials.forEach(m=>{const b=document.createElement('button');b.className='material'+(m.id===selected?' active':'');b.innerHTML='<span class="mico" style="color:'+m.color+'">'+m.icon+'</span><span class="mname">'+m.name+'</span>';b.title=m.name+' · '+m.type;b.onclick=()=>{selected=m.id;document.querySelectorAll('.material').forEach(x=>x.classList.remove('active'));b.classList.add('active')};matEl.append(b)});
 document.querySelector('#materialCount').textContent=materials.length+' TYPES';
-function resizeCanvas(size,preserve=true){\n const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;\n const oldW=W,oldH=H,oldCells=cells,scaleX=dimensions.width/oldW,scaleY=dimensions.height/oldH;W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;\n for(const rope of ropes){for(const point of rope.points){point.x*=scaleX;point.px*=scaleX;point.y*=scaleY;point.py*=scaleY}rope.length*=Math.sqrt(scaleX*scaleY)}\n cells=new Uint8Array(N);updated=new Uint8Array(N);frameImage=ctx.createImageData(W,H);\n if(preserve){for(let y=0;y<H;y++){const sy=Math.min(oldH-1,Math.floor(y*oldH/H));for(let x=0;x<W;x++){const sx=Math.min(oldW-1,Math.floor(x*oldW/W));cells[idx(x,y)]=oldCells[sy*oldW+sx]}}}\n canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;\n document.querySelector('#worldDimensions').textContent=W+' × '+H;\n log('Canvas resized to '+size+' ('+W+' × '+H+')');return true;\n}\nfunction put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
+function resizeCanvas(size,preserve=true){
+ const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
+ const oldW=W,oldH=H,oldCells=cells,scaleX=dimensions.width/oldW,scaleY=dimensions.height/oldH;W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
+ for(const rope of ropes){for(const point of rope.points){point.x*=scaleX;point.px*=scaleX;point.y*=scaleY;point.py*=scaleY}rope.length*=Math.sqrt(scaleX*scaleY)}
+ cells=new Uint8Array(N);updated=new Uint8Array(N);carriedParticles=new Uint8Array(N);frameImage=ctx.createImageData(W,H);
+ if(preserve){for(let y=0;y<H;y++){const sy=Math.min(oldH-1,Math.floor(y*oldH/H));for(let x=0;x<W;x++){const sx=Math.min(oldW-1,Math.floor(x*oldW/W));cells[idx(x,y)]=oldCells[sy*oldW+sx]}}}
+ canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;
+ document.querySelector('#worldDimensions').textContent=W+' × '+H;
+ log('Canvas resized to '+size+' ('+W+' × '+H+')');return true;
+}
+function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
 function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx*xx+yy*yy<=r*r)put(x+xx,y+yy,m)}
 function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
 function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
@@ -186,7 +198,7 @@ function ropeBlocksMove(x1,y1,x2,y2){
  }
  return false;
 }
-const carriedParticles=new Uint8Array(N);
+let carriedParticles=new Uint8Array(N);
 function pushParticlesFromRopeSweep(){
  if(!ropes.length)return;
  const insideQuad=(px,py,ax,ay,bx,by,cx,cy,dx,dy)=>{
@@ -283,7 +295,8 @@ function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastF
 
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
-document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size,true))publishOperation({type:'canvasSize',size})});\ndocument.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
+document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size,true))publishOperation({type:'canvasSize',size})});
+document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
 document.querySelector('#step').onclick=()=>{if(!running){tick();render()}};
 document.querySelector('#clear').onclick=()=>{cells.fill(0);ropes=[];publishOperation({type:'clear'});log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
