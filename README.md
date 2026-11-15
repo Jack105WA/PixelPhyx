@@ -19,6 +19,10 @@ After GitHub Pages finishes deploying, open:
 
 **https://jack105wa.github.io/PixelPhyx/**
 
+## OFFLINE
+
+https://github.com/Jack105WA/PixelPhyx/blob/main/Website/offline.html
+
 The site is published from the contents of `Website/` at the Pages site root, so public URLs do not include `/Website/`. The game also runs locally from a web server. Firebase's browser SDK is loaded from Google's CDN, so an internet connection is required for online play.
 
 ## Firebase multiplayer setup
