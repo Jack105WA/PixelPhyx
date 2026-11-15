@@ -150,12 +150,12 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   if(m===M.SAND&&wet[i]>0)wet[i]=Math.max(0,wet[i]-.0008);
   // Conduct heat between neighboring cells, not just toward ambient temperature.
   if(heat[i]>ambient){
-   for(const [dx,dy] of [[1,0],[0,1]]){
+   for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){
     const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
     const ni=index(nx,ny),other=cells[ni];if(!other)continue;
-    const conductivity=Math.min(1,(p.conductivity||.05)*(PROPERTIES[other]?.conductivity||.05)*.35);
+    const conductivity=Math.min(.08,(p.conductivity||.05)*(PROPERTIES[other]?.conductivity||.05)*1.5);
     const transfer=(heat[i]-heat[ni])*conductivity;
-    if(transfer>0.05){heat[i]-=transfer;heat[ni]+=transfer}
+    if(Math.abs(transfer)>0.05){heat[i]-=transfer;heat[ni]+=transfer}
    }
   }
   if(heat[i]>ambient){
