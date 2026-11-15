@@ -51,7 +51,8 @@ const gameScript = [
 
 new vm.Script(gameScript, { filename: 'offline-game.js' });
 
-const firstScript = /<script>[\s\S]*?<\/script>/;
+// Match the embedded script regardless of tag-name casing or attributes.
+const firstScript = /<script\b[^>]*>[\s\S]*?<\/script\s*>/i;
 if (!firstScript.test(offlineHtml)) {
   throw new Error('Could not find the embedded game script in Website/offline.html');
 }
