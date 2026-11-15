@@ -274,7 +274,7 @@ function render(){
  }
  for(const id of Object.keys(remoteCursors))if(!remoteCursorTargets[id])delete remoteCursors[id];
  for(const c of Object.values(remoteCursors))drawPlayerCursor(c,false);
- if(room&&localCursor)drawPlayerCursor(localCursor,true);
+ if(localCursor)drawPlayerCursor(localCursor,true);
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4,MP_SYNC_INTERVAL=1000;
