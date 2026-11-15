@@ -401,30 +401,9 @@ function drawInterpolatedCells(){
 }
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
- // Draw a larger, deliberately pixel-stepped pointer in CSS-pixel units.
- // Each cell is a hard-edged 2px block, keeping the cursor crisp at every canvas size.
- const pixel=2,outline='#101820',cursorColor=isYou?'#ffffff':(c.color||'#fff');
- const rows=[
-  '10000000',
-  '11000000',
-  '12100000',
-  '12210000',
-  '12221000',
-  '12222100',
-  '12222210',
-  '12222221',
-  '12221111',
-  '12101000'
- ];
- targetCtx.save();
- for(let y=0;y<rows.length;y++){
-  for(let x=0;x<rows[y].length;x++){
-   const cell=rows[y][x];
-   if(cell==='0')continue;
-   targetCtx.fillStyle=cell==='1'?outline:cursorColor;
-   targetCtx.fillRect(c.x+x*pixel,c.y+y*pixel,pixel,pixel);
-  }
- }
+ const cursorColor=isYou?'#ffffff':(c.color||'#fff');
+ targetCtx.save();targetCtx.fillStyle=cursorColor;targetCtx.strokeStyle=cursorColor;targetCtx.lineWidth=.8;
+ targetCtx.beginPath();targetCtx.moveTo(c.x,c.y);targetCtx.lineTo(c.x+3.5,c.y+8);targetCtx.lineTo(c.x+5.5,c.y+5);targetCtx.lineTo(c.x+8.5,c.y+4.5);targetCtx.closePath();targetCtx.fill();
  targetCtx.restore();
 }
 function drawCursorName(c,targetCtx){
@@ -501,11 +480,11 @@ function render(){
  // Cursor artwork is drawn in CSS pixels, not simulation pixels, so changing
  // the world resolution or displayed canvas scale never changes its size.
  if(localCursor){
-  cursorCtx.save();cursorCtx.translate(localCursor.x/W*canvasRect.width,localCursor.y/H*canvasRect.height);cursorCtx.scale(1,1);
+  cursorCtx.save();cursorCtx.translate(localCursor.x/W*canvasRect.width,localCursor.y/H*canvasRect.height);cursorCtx.scale(2.5,2.5);
   drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
  }
  for(const c of Object.values(remoteCursors)){
-  cursorCtx.save();cursorCtx.translate(c.x/W*canvasRect.width,c.y/H*canvasRect.height);cursorCtx.scale(1,1);
+  cursorCtx.save();cursorCtx.translate(c.x/W*canvasRect.width,c.y/H*canvasRect.height);cursorCtx.scale(2.5,2.5);
   drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
   drawCursorName({x:c.x/W*canvasRect.width,y:c.y/H*canvasRect.height,name:c.name},nameCtx);
  }
