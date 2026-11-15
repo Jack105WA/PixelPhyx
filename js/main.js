@@ -97,7 +97,7 @@ canvas.addEventListener('pointerup',e=>{
 canvas.addEventListener('pointercancel',()=>{if(ropeDrag){if(ropeDrag.kind==='stick'){ropeDrag.node.grabbed=false}else ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}drawing=false;ropeStart=null;lastPoint=null});
 canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
-function findStickGrab(p){let best=null,bestDistance=9;const figures=[...(stickFigure?[{figure:stickFigure,owner:playerId}]:[])];for(const [owner,figure] of remoteStickFigures)figures.push({figure,owner});for(const entry of figures){for(let nodeIndex=0;nodeIndex<entry.figure.joints.length;nodeIndex++){const node=entry.figure.joints[nodeIndex],distance=Math.hypot(node.x-p.x,node.y-p.y);if(distance<bestDistance){bestDistance=distance;best={...entry,node,nodeIndex}}}}return best}
+function findStickGrab(p){if(!stickFigure)return null;let best=null,bestDistance=9;for(let nodeIndex=0;nodeIndex<stickFigure.joints.length;nodeIndex++){const node=stickFigure.joints[nodeIndex],distance=Math.hypot(node.x-p.x,node.y-p.y);if(distance<bestDistance){bestDistance=distance;best={figure:stickFigure,owner:playerId,node,nodeIndex}}}return best}
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
 function findRopeAt(p){let best=null,bestDistance=5;for(const rope of ropes){for(let i=0;i<rope.points.length-1;i++){const a=rope.points[i],b=rope.points[i+1],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len)):0,d=Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));if(d<bestDistance){bestDistance=d;best=rope}}}return best}
 function createRope(a,b){
@@ -718,7 +718,7 @@ function stepStickFigure(figure,dt,controlled=false){
   const point=j[i];if(point.grabbed)continue;
   const oldX=point.x,oldY=point.y;
   let vx=(point.x-point.px)*.985,vy=(point.y-point.py)*.992;
-  if(i===14||i===15)vx*=grounded?.72:.985;
+  if(i===14||i===15)vx*=grounded ? .72 : .985;
   point.px=point.x;point.py=point.y;
   const drive=(i===3||i===10||i===11||i===12||i===13||i===14||i===15)?direction*.105*step:direction*.025*step;
   point.x+=vx+drive;
