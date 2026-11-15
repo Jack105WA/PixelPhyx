@@ -9,7 +9,7 @@ export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
   let playerId = 'guest-' + Math.random().toString(36).slice(2, 9);
   let joined = false, hostId = null, presenceRef = null;
-  let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null;
+  let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
   let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null;
 
@@ -19,6 +19,7 @@ export function createMultiplayer(callbacks = {}) {
     stopOperations?.(); stopOperations = null;
     stopWorld?.(); stopWorld = null;
     stopPlayers?.(); stopPlayers = null;
+    stopHost?.(); stopHost = null;
     stopCursors?.(); stopCursors = null;
     stopJoinRequests?.(); stopJoinRequests = null;
   }
@@ -81,6 +82,13 @@ export function createMultiplayer(callbacks = {}) {
 
     const roomPath = 'rooms/' + room;
     const hostRef = ref(db, roomPath + '/host');
+    // Keep every client synchronized with the authoritative host value. Presence
+    // changes can trigger election asynchronously, so do not rely only on the
+    // local result of the transaction to update each client's host state.
+    stopHost = onValue(hostRef, snapshot => {
+      hostId = snapshot.val() || null;
+      syncJoinRequestListener();
+    }, error => log('Host sync error: ' + error.message));
     presenceRef = ref(db, roomPath + '/players/' + playerId);
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
 
@@ -133,9 +141,29 @@ export function createMultiplayer(callbacks = {}) {
         }
         const nextHost = ids[0] || null;
         try {
-          const result = await runTransaction(hostRef, current => current && people[current] ? current : nextHost);
-          hostId = result.snapshot.val();
+          const result = await runTransaction(hostRef, current => {
+            // Keep the current host only while that player is still present.
+            // Otherwise, all clients converge on the same deterministic candidate.
+            if (current && people[current]) return current;
+            return nextHost;
+          });
+          hostId = result.snapshot.val() || null;
           syncJoinRequestListener();
+          if (hostId) {
+            const electedPlayer = people[hostId];
+            const directoryRef = ref(db, 'lobbyDirectory/' + room);
+            update(directoryRef, {
+              hostId,
+              ...(electedPlayer?.name ? { hostName: electedPlayer.name } : {})
+            }).catch(() => {});
+            get(directoryRef).then(directory => {
+              const slot = directory.val()?.slot;
+              if (slot) update(ref(db, 'lobbySlots/' + slot), {
+                hostId,
+                ...(electedPlayer?.name ? { hostName: electedPlayer.name } : {})
+              }).catch(() => {});
+            }).catch(() => {});
+          }
         } catch (error) {
           log('Host election failed: ' + error.message);
         }
