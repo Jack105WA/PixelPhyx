@@ -127,7 +127,7 @@ export function createMultiplayer(callbacks = {}) {
   function publishWorld(world) {
     if (!db || !joined || !room || hostId !== playerId) return;
     const now = Date.now();
-    if (now - lastWorldWrite < 30) return;
+    if (now - lastWorldWrite < 1000 / 60) return;
     lastWorldWrite = now;
     pendingWorld = world;
     if (worldWriteInFlight) return;
