@@ -36,7 +36,7 @@ const materials=[
  {id:16,name:'Charcoal',icon:'▪',color:'#34363a',rgb:[52,54,58],type:'powder'}
 ];
 const colors=[[12,16,24],...materials.map(m=>m.rgb)];
-let cells=new Uint8Array(N),previousCells=new Uint8Array(N),updated=new Uint8Array(N),movingParticles=[],movingDestinations=new Uint8Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
+let cells=new Uint8Array(N),updated=new Uint8Array(N),movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let temperatureUnit='C';
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
 let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
@@ -53,11 +53,21 @@ document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
- cells=new Uint8Array(N);previousCells=new Uint8Array(N);updated=new Uint8Array(N);movingParticles=[];movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
+ cells=new Uint8Array(N);updated=new Uint8Array(N);movingParticles=[];moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;stickFigure=null;remoteStickFigures.clear();
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
+}
+function recordParticleMove(from,to,material){
+ const previous=moveByDestination[from];
+ if(previous>=0&&movingParticles[previous]?.material===material){
+  const move=movingParticles[previous];move.toIndex=to;move.toX=to%W;move.toY=(to/W)|0;moveByDestination[from]=-1;moveByDestination[to]=previous;
+ }else{
+  const moveIndex=movingParticles.length;
+  movingParticles.push({fromX:from%W,fromY:(from/W)|0,toX:to%W,toY:(to/W)|0,toIndex:to,material});
+  moveByDestination[to]=moveIndex;
+ }
 }
 function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
 function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx*xx+yy*yy<=r*r)put(x+xx,y+yy,m)}
@@ -337,7 +347,7 @@ function drawVisualParticles(){
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
-function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
@@ -351,8 +361,8 @@ function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y
  if(ambient>180&&m===M.WATER&&Math.random()<.012){cells[i]=M.STEAM;continue}
  if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
  const gas=m===M.STEAM||m===M.SMOKE||m===M.FIRE,dy=gas?-1:1,ny=y+dy,ni=inside(x,ny)?idx(x,ny):-1;
- if(ni>=0&&cells[ni]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+.5,ny+.5)){cells[ni]=m;cells[i]=M.EMPTY;updated[ni]=1;i=ni;y=gas?y:y}
- else if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+dy+.5)){cells[side]=m;cells[i]=M.EMPTY;updated[side]=1}else if((m===M.WATER||m===M.OIL||m===M.ACID)&&at(x+d,y)===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+.5)&&Math.random()<.4){cells[idx(x+d,y)]=m;cells[i]=M.EMPTY}}
+ if(ni>=0&&cells[ni]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+.5,ny+.5)){cells[ni]=m;cells[i]=M.EMPTY;recordParticleMove(i,ni,m);updated[ni]=1;i=ni;y=gas?y:y}
+ else if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+dy+.5)){cells[side]=m;cells[i]=M.EMPTY;recordParticleMove(i,side,m);updated[side]=1}else if((m===M.WATER||m===M.OIL||m===M.ACID)&&at(x+d,y)===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+.5)&&Math.random()<.4){const sideIndex=idx(x+d,y);cells[sideIndex]=m;cells[i]=M.EMPTY;recordParticleMove(i,sideIndex,m)}}
  
  if(m===M.STEAM&&Math.random()<.002)cells[i]=M.WATER;
  if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
@@ -360,28 +370,17 @@ function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y
  }
  if(m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
  }}
- stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState});
+ stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
  stepVisualParticles();
  stepRopes()}
 function rebuildCellInterpolation(){
- movingParticles.length=0;movingDestinations.fill(0);const claimed=new Uint8Array(N);
- const directions=[[0,1],[-1,1],[1,1],[-1,0],[1,0],[0,-1],[-1,-1],[1,-1],[0,2],[-1,2],[1,2]];
- for(let from=0;from<N;from++){
-  const material=previousCells[from];if(!material||cells[from]===material)continue;
-  const x=from%W,y=(from/W)|0;let destination=-1,bestScore=Infinity;
-  for(let order=0;order<directions.length;order++){
-   const [dx,dy]=directions[order],tx=x+dx,ty=y+dy;if(!inside(tx,ty))continue;
-   const to=idx(tx,ty);if(claimed[to]||cells[to]!==material||previousCells[to]===material)continue;
-   const score=dx*dx+dy*dy+order*.0001;if(score<bestScore){bestScore=score;destination=to}
-  }
-  if(destination<0)continue;
-  claimed[destination]=1;movingDestinations[destination]=1;
-  movingParticles.push({fromX:x,fromY:y,toX:destination%W,toY:(destination/W)|0,index:destination,material});
- }
+ movingDestinations.fill(0);
+ for(const move of movingParticles)if(cells[move.toIndex]===move.material)movingDestinations[move.toIndex]=1;
 }
 function drawInterpolatedCells(){
  const alpha=cellRenderAlpha;if(alpha>=.999||!movingParticles.length)return;
  for(const particle of movingParticles){
+  if(cells[particle.toIndex]!==particle.material)continue;
   const rgb=colors[particle.material]||colors[0];
   ctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
   const x=particle.fromX+(particle.toX-particle.fromX)*alpha;
@@ -513,7 +512,7 @@ function loop(now){
  }
  if(stickSteps===MAX_STEPS_PER_FRAME&&stickAccumulator>SIMULATION_STEP)stickAccumulator=0;
  renderAlpha=Math.max(0,Math.min(1,stickAccumulator/SIMULATION_STEP));
- if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){previousCells.set(cells);tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
+ if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
