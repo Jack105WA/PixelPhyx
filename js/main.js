@@ -243,13 +243,19 @@ document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFireba
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 document.querySelector('#connectFirebase').onclick=async()=>{try{await connectFirebase(firebaseConfig);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
+let multiplayerLoading=null;
 async function connectFirebase(config){
  if(!multiplayer){
-  const {createMultiplayer}=await import('./multiplayer.js');
-  multiplayer=createMultiplayer({
-   onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
-   onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,name:p.name||'Guest'}}}
-  });
+  if(!multiplayerLoading){
+   multiplayerLoading=(async()=>{
+    const {createMultiplayer}=await import('./multiplayer.js');
+    multiplayer=createMultiplayer({
+     onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
+     onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,name:p.name||'Guest'}}}
+    });
+   })().catch(error=>{multiplayerLoading=null;throw error});
+  }
+  await multiplayerLoading;
  }
  playerId=await multiplayer.connect(config);
  return playerId;
@@ -265,6 +271,8 @@ async function joinRoom(code){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
  try{
+  await connectFirebase(firebaseConfig);
+  if(!multiplayer)throw new Error('Multiplayer failed to initialize');
   lastRemoteWorldAt=0;lastWorldPublish=0;
   await multiplayer.joinRoom(clean);room=clean;
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
