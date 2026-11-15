@@ -151,10 +151,57 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min
 
 function createRope(a,b){const distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/4)),points=[];for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}ropes.push({points,length:distance/segments,stiffness:1});log('Rope attached with '+segments+' physics segments')}
 function solidAt(x,y){const gx=Math.floor(x),gy=Math.floor(y);return !inside(gx,gy)||[M.STONE,M.WOOD,M.ICE,M.TNT,M.GLASS].includes(at(gx,gy))}
-function stepRopes(){for(const rope of ropes){const p=rope.points;for(let i=0;i<p.length;i++){const n=p[i];if(n.anchor)continue;const vx=(n.x-n.px)*.985,vy=(n.y-n.py)*.985;n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+0.12*gravity;if(solidAt(n.x,n.y)){n.x=n.px;n.y=n.py}}
- for(let pass=0;pass<6;pass++){for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.001,diff=(d-rope.length)/d*.5*rope.stiffness;if(!a.anchor){a.x+=dx*diff;a.y+=dy*diff}if(!b.anchor){b.x-=dx*diff;b.y-=dy*diff}}}
- for(const n of p){n.x=Math.max(0,Math.min(W-1,n.x));n.y=Math.max(0,Math.min(H-1,n.y))}
-}}
+function ropeCellIsSolid(m){return m===M.STONE||m===M.WOOD||m===M.ICE||m===M.TNT||m===M.GLASS}
+function resolveRopeNode(n){
+ const gx=Math.floor(n.x),gy=Math.floor(n.y);
+ if(!inside(gx,gy))return;
+ const here=idx(gx,gy),material=cells[here];
+ if(material===M.EMPTY)return;
+ // Flexible rope pushes loose particles out of its occupied pixel.
+ if(!ropeCellIsSolid(material)){
+  let target=-1,best=Infinity;
+  for(let radius=1;radius<=3&&target<0;radius++){
+   for(let oy=-radius;oy<=radius;oy++)for(let ox=-radius;ox<=radius;ox++){
+    if(Math.max(Math.abs(ox),Math.abs(oy))!==radius)continue;
+    const x=gx+ox,y=gy+oy;if(!inside(x,y))continue;
+    const candidate=idx(x,y);if(cells[candidate]!==M.EMPTY)continue;
+    const score=ox*ox+oy*oy;if(score<best){best=score;target=candidate}
+   }
+  }
+  if(target>=0){cells[target]=material;cells[here]=M.EMPTY;return}
+ }
+ // Solid materials act as obstacles: move the rope node to the nearest free pixel.
+ let target=null,best=Infinity;
+ for(let radius=1;radius<=4;radius++){
+  for(let oy=-radius;oy<=radius;oy++)for(let ox=-radius;ox<=radius;ox++){
+   if(Math.max(Math.abs(ox),Math.abs(oy))!==radius)continue;
+   const x=gx+ox,y=gy+oy;if(!inside(x,y)||cells[idx(x,y)]!==M.EMPTY)continue;
+   const score=ox*ox+oy*oy;if(score<best){best=score;target={x:x+.5,y:y+.5}}
+  }
+  if(target)break;
+ }
+ if(target){n.x=target.x;n.y=target.y}else{n.x=n.px;n.y=n.py}
+}
+function stepRopes(){
+ for(const rope of ropes){
+  const p=rope.points;
+  for(let i=0;i<p.length;i++){
+   const n=p[i];if(n.anchor)continue;
+   const vx=(n.x-n.px)*.985,vy=(n.y-n.py)*.985;
+   n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.12*gravity;
+  }
+  for(let pass=0;pass<8;pass++){
+   for(let i=0;i<p.length-1;i++){
+    const a=p[i],b=p[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.001;
+    const diff=(d-rope.length)/d*.5*rope.stiffness;
+    if(!a.anchor){a.x+=dx*diff;a.y+=dy*diff}
+    if(!b.anchor){b.x-=dx*diff;b.y-=dy*diff}
+   }
+   for(let i=1;i<p.length-1;i++)resolveRopeNode(p[i]);
+  }
+  for(const n of p){n.x=Math.max(0,Math.min(W-1,n.x));n.y=Math.max(0,Math.min(H-1,n.y))}
+ }
+}
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(i,x,y,m){for(const j of [i-1,i+1,i-W,i+W]){if(j<0||j>=N)continue;const n=cells[j];if(m===M.FIRE){if(n===M.WOOD||n===M.OIL||n===M.PLANT){cells[j]=M.FIRE}if(n===M.WATER){cells[i]=M.STEAM;cells[j]=M.STEAM}if(n===M.ICE)cells[j]=M.WATER}
  else if(m===M.ACID&&(n===M.STONE||n===M.WOOD||n===M.GLASS)){cells[j]=M.EMPTY}
