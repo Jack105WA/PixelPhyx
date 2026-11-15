@@ -51,7 +51,7 @@ function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button==
 }
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointerdown',e=>{const p=canvasPoint(e);if(tool==='rope'&&e.button===2){e.preventDefault();const hit=findRopeGrab(p);if(hit){ropeDrag={...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.setPointerCapture(e.pointerId);ropeDrag.lastPublish=0;log('Rope grabbed. Drag to reposition it.')}return}drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)});
-canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(now-(ropeDrag.lastPublish||0)>=1000/60){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}if(!drawing)return;if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);if(tool==='rope'){lastPoint=p;return}act(p,e)});
+canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}if(!drawing)return;if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);if(tool==='rope'){lastPoint=p;return}act(p,e)});
 canvas.addEventListener('pointerup',e=>{if(ropeDrag){const {rope,node,nodeIndex}=ropeDrag;node.anchor=ropeDrag.wasAnchor;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:false});ropeDrag=null;drawing=false;return}if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){const created=createRope(ropeStart,end);publishOperation({type:'rope',ropeId:created.id,a:ropeStart,b:end})}ropeStart=null}else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});drawing=false;activeErase=false;lastPoint=null;strokePoints=[]});
 canvas.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}drawing=false;ropeStart=null;lastPoint=null});
 canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
@@ -130,29 +130,57 @@ function stepRopes(){
  }
  pushParticlesFromRopeSweep();
 }
+let ropeCollisionBuckets=new Map();
+const ROPE_BUCKET_SIZE=4,ROPE_COLLISION_RADIUS=1.35;
+function rebuildRopeCollisionIndex(){
+ ropeCollisionBuckets=new Map();
+ for(const rope of ropes){
+  const points=rope.points;
+  if(!points||points.length<2)continue;
+  for(let i=0;i<points.length-1;i++){
+   const a=points[i],b=points[i+1],segment={ax:a.x+.5,ay:a.y+.5,bx:b.x+.5,by:b.y+.5};
+   const minX=Math.floor((Math.min(segment.ax,segment.bx)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+   const maxX=Math.floor((Math.max(segment.ax,segment.bx)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+   const minY=Math.floor((Math.min(segment.ay,segment.by)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+   const maxY=Math.floor((Math.max(segment.ay,segment.by)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+   for(let by=minY;by<=maxY;by++)for(let bx=minX;bx<=maxX;bx++){
+    const key=by*1000+bx;let bucket=ropeCollisionBuckets.get(key);
+    if(!bucket){bucket=[];ropeCollisionBuckets.set(key,bucket)}
+    bucket.push(segment);
+   }
+  }
+ }
+}
 function ropeBlocksMove(x1,y1,x2,y2){
+ if(!ropeCollisionBuckets.size)return false;
+ const minX=Math.floor((Math.min(x1,x2)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+ const maxX=Math.floor((Math.max(x1,x2)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+ const minY=Math.floor((Math.min(y1,y2)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+ const maxY=Math.floor((Math.max(y1,y2)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
+ const candidates=new Set();
+ for(let by=minY;by<=maxY;by++)for(let bx=minX;bx<=maxX;bx++){
+  const bucket=ropeCollisionBuckets.get(by*1000+bx);
+  if(bucket)for(const segment of bucket)candidates.add(segment);
+ }
+ const orient=(ax,ay,bx,by,cx,cy)=>(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
  const pointSegmentDistance=(px,py,ax,ay,bx,by)=>{
   const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy;
   const t=len?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len)):0;
   return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
  };
- const orient=(ax,ay,bx,by,cx,cy)=>(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
- for(const rope of ropes){
-  const points=rope.points;
-  if(!points||points.length<2)continue;
-  for(let i=0;i<points.length-1;i++){
-   const a=points[i],b=points[i+1],ax=a.x+.5,ay=a.y+.5,bx=b.x+.5,by=b.y+.5;
-   const o1=orient(x1,y1,x2,y2,ax,ay),o2=orient(x1,y1,x2,y2,bx,by);
-   const o3=orient(ax,ay,bx,by,x1,y1),o4=orient(ax,ay,bx,by,x2,y2);
-   if(o1*o2<=0&&o3*o4<=0&&Math.max(Math.min(x1,x2),Math.min(ax,bx))<=Math.min(Math.max(x1,x2),Math.max(ax,bx))+.0001&&Math.max(Math.min(y1,y2),Math.min(ay,by))<=Math.min(Math.max(y1,y2),Math.max(ay,by))+.0001)return true;
-   const distance=Math.min(
-    pointSegmentDistance(x1,y1,ax,ay,bx,by),
-    pointSegmentDistance(x2,y2,ax,ay,bx,by),
-    pointSegmentDistance(ax,ay,x1,y1,x2,y2),
-    pointSegmentDistance(bx,by,x1,y1,x2,y2)
-   );
-   if(distance<1.35)return true;
-  }
+ for(const s of candidates){
+  const {ax,ay,bx,by}=s;
+  const o1=orient(x1,y1,x2,y2,ax,ay),o2=orient(x1,y1,x2,y2,bx,by);
+  const o3=orient(ax,ay,bx,by,x1,y1),o4=orient(ax,ay,bx,by,x2,y2);
+  if(o1*o2<=0&&o3*o4<=0&&
+   Math.max(Math.min(x1,x2),Math.min(ax,bx))<=Math.min(Math.max(x1,x2),Math.max(ax,bx))+.0001&&
+   Math.max(Math.min(y1,y2),Math.min(ay,by))<=Math.min(Math.max(y1,y2),Math.max(ay,by))+.0001)return true;
+  if(Math.min(
+   pointSegmentDistance(x1,y1,ax,ay,bx,by),
+   pointSegmentDistance(x2,y2,ax,ay,bx,by),
+   pointSegmentDistance(ax,ay,x1,y1,x2,y2),
+   pointSegmentDistance(bx,by,x1,y1,x2,y2)
+  )<ROPE_COLLISION_RADIUS)return true;
  }
  return false;
 }
@@ -204,7 +232,7 @@ function reaction(i,x,y,m){for(const j of [i-1,i+1,i-W,i+W]){if(j<0||j>=N)contin
  else if(m===M.WATER&&n===M.FIRE){cells[i]=M.STEAM;cells[j]=M.STEAM}
  else if(m===M.SALT&&n===M.WATER){cells[i]=M.EMPTY}
  }}
-function tick(){updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
  if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
  if(m===M.WATER&&ambient<0&&Math.random()<Math.min(.04,Math.abs(ambient)/3000)){cells[i]=M.ICE;continue}
@@ -236,9 +264,9 @@ function render(){
  if(room&&localCursor)drawPlayerCursor({...localCursor,color:playerColor,name:playerName},true);
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
-const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=75,MP_SYNC_INTERVAL=1000/60;
+const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4,MP_SYNC_INTERVAL=250;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0;
-function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;if(running&&(!room||!multiplayer?.joined||multiplayer.isHost)){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP*MAX_STEPS_PER_FRAME)simulationAccumulator=SIMULATION_STEP*MAX_STEPS_PER_FRAME}if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;if(running&&(!room||!multiplayer?.joined||multiplayer.isHost)){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
 
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
