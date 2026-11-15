@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
   getDatabase, ref, onValue, set, onDisconnect, serverTimestamp,
-  push, onChildAdded, runTransaction, update, remove, get, query, limitToLast
+  push, onChildAdded, onChildChanged, runTransaction, update, remove, get, query, limitToLast
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
@@ -72,10 +72,20 @@ export function createMultiplayer(callbacks = {}) {
       await onDisconnect(presenceRef).remove();
       await onDisconnect(cursorRef).remove();
 
-      stopWorld = onValue(ref(db, roomPath + '/world'), snapshot => {
+      stopWorld = onValue(ref(db, roomPath + '/worldMeta'), snapshot => {
         const world = snapshot.val();
         if (world) callbacks.onWorld?.(world);
-      }, error => log('World sync error: ' + error.message));
+      }, error => log('World metadata sync error: ' + error.message));
+      const chunksRef = ref(db, roomPath + '/worldChunks');
+      const applyChunk = snapshot => callbacks.onWorldChunk?.(snapshot.key, snapshot.val());
+      const stopChunkAdded = onChildAdded(chunksRef, applyChunk);
+      const stopChunkChanged = onChildChanged(chunksRef, applyChunk);
+      const stopWorldRequests = onChildAdded(ref(db, roomPath + '/worldRequests'), snapshot => {
+        if (hostId === playerId && snapshot.key !== playerId) callbacks.onWorldRequest?.(snapshot.key);
+        if (hostId === playerId) remove(snapshot.ref).catch(() => {});
+      });
+      const originalStopWorld = stopWorld;
+      stopWorld = () => { originalStopWorld?.(); stopChunkAdded(); stopChunkChanged(); stopWorldRequests(); };
 
       const operationsRef = ref(db, roomPath + '/operations');
       // Read only a bounded tail. Old operation history must never be downloaded in full.
@@ -114,6 +124,7 @@ export function createMultiplayer(callbacks = {}) {
 
       const confirmedHost = await get(hostRef);
       hostId = confirmedHost.val() || playerId;
+      await set(ref(db, roomPath + '/worldRequests/' + playerId), serverTimestamp());
       joined = true;
       report('online', 'ROOM ONLINE');
       log('Connected to room ' + room + (hostId === playerId ? ' as host' : ''));
@@ -139,25 +150,25 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function publishWorld(world) {
-    if (!db || !joined || !room || hostId !== playerId) return;
+    if (!db || !joined || !room || hostId !== playerId || !world) return;
     const now = Date.now();
-    if (now - lastWorldWrite < 1000 / 60) return;
+    if (now - lastWorldWrite < 1000 / 30) return;
     lastWorldWrite = now;
     pendingWorld = world;
     if (worldWriteInFlight) return;
-
     worldWriteInFlight = true;
     (async () => {
       try {
         while (pendingWorld && joined && room && hostId === playerId) {
           const latest = pendingWorld;
           pendingWorld = null;
-          await set(ref(db, 'rooms/' + room + '/world'), {
-            ...latest, by: playerId, updatedAt: serverTimestamp()
-          });
+          const patch = {};
+          if (latest.metadata) patch['worldMeta'] = { ...latest.metadata, by: playerId, updatedAt: serverTimestamp() };
+          if (latest.chunks) for (const [id, chunk] of Object.entries(latest.chunks)) patch['worldChunks/' + id] = chunk;
+          if (Object.keys(patch).length) await update(ref(db, 'rooms/' + room), patch);
         }
       } catch (error) {
-        log('World sync failed: ' + error.message);
+        log('Partial world sync failed: ' + error.message);
       } finally {
         worldWriteInFlight = false;
       }
