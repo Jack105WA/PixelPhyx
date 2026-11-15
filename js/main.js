@@ -57,7 +57,7 @@ function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
  cells=new Uint8Array(N);updated=new Uint8Array(N);movingParticles=[];moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
- canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;
+ canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;stickFigure=null;remoteStickFigures.clear();
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
@@ -472,24 +472,25 @@ function render(){
  const cursorCtx=localCursorCtx,nameCtx=cursorNamesCtx;
  const canvasRect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
  const nameWidth=Math.max(1,Math.round(canvasRect.width*dpr)),nameHeight=Math.max(1,Math.round(canvasRect.height*dpr));
- if(localCursorCanvas.width!==nameWidth||localCursorCanvas.height!==nameHeight){
-  localCursorCanvas.width=nameWidth;localCursorCanvas.height=nameHeight;
+ // Keep cursor pixels at the simulation's native resolution, matching the
+ // original pre-7dd rendering, while compensating for display scale.
+ if(localCursorCanvas.width!==W||localCursorCanvas.height!==H){
+  localCursorCanvas.width=W;localCursorCanvas.height=H;
  }
+ cursorCtx.setTransform(1,0,0,1,0,0);
+ cursorCtx.clearRect(0,0,W,H);
  if(cursorNamesCanvas.width!==nameWidth||cursorNamesCanvas.height!==nameHeight){
   cursorNamesCanvas.width=nameWidth;cursorNamesCanvas.height=nameHeight;
  }
- cursorCtx.setTransform(dpr,0,0,dpr,0,0);
- cursorCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
  nameCtx.setTransform(dpr,0,0,dpr,0,0);
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
- // Cursor artwork is drawn in CSS pixels, not simulation pixels, so changing
- // the world resolution or displayed canvas scale never changes its size.
+ const cursorScale=Math.max(.1,2.5*W/Math.max(1,canvasRect.width));
  if(localCursor){
-  cursorCtx.save();cursorCtx.translate(localCursor.x/W*canvasRect.width,localCursor.y/H*canvasRect.height);cursorCtx.scale(2.5,2.5);
+  cursorCtx.save();cursorCtx.translate(localCursor.x,localCursor.y);cursorCtx.scale(cursorScale,cursorScale);
   drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
  }
  for(const c of Object.values(remoteCursors)){
-  cursorCtx.save();cursorCtx.translate(c.x/W*canvasRect.width,c.y/H*canvasRect.height);cursorCtx.scale(2.5,2.5);
+  cursorCtx.save();cursorCtx.translate(c.x,c.y);cursorCtx.scale(cursorScale,cursorScale);
   drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
   drawCursorName({x:c.x/W*canvasRect.width,y:c.y/H*canvasRect.height,name:c.name},nameCtx);
  }
