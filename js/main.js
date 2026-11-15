@@ -285,7 +285,7 @@ document.querySelector('#play').onclick=()=>{running=!running;document.querySele
 document.querySelector('#step').onclick=()=>{if(!running){tick();render()}};
 document.querySelector('#clear').onclick=()=>{cells.fill(0);ropes=[];publishOperation({type:'clear'});log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
-document.querySelector('#share').onclick=()=>{if(!room){log('Join a room first to share its code');return}navigator.clipboard?.writeText(room).then(()=>log('Room code copied: '+room)).catch(()=>log('Room code: '+room))};
+
 document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#brushOut').textContent=brush+' px'};
 document.querySelector('#gravity').oninput=e=>{gravity=+e.target.value/10;document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';publishOperation({type:'settings',gravity,ambient})};
 document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.querySelector('#speedOut').textContent=speed+'×'};
@@ -298,6 +298,29 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.m
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 document.querySelector('#connectFirebase').onclick=async()=>{try{await connectFirebase(firebaseConfig);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
 let multiplayerLoading=null;
+const pendingJoinRequests=new Map();
+function queueJoinRequest(request){
+ if(!request?.key)return;
+ pendingJoinRequests.set(request.key,request);
+ renderJoinRequests();
+ log(request.name+' requested to join '+request.room);
+}
+function renderJoinRequests(){
+ const list=document.querySelector('#joinRequests');if(!list)return;
+ list.replaceChildren();
+ if(!pendingJoinRequests.size){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No pending join requests';list.append(empty);return}
+ for(const request of pendingJoinRequests.values()){
+  const row=document.createElement('div');row.className='join-request';
+  const label=document.createElement('span');label.textContent=request.name+' wants to join '+request.room;
+  const actions=document.createElement('div');actions.className='join-request-actions';
+  for(const [approved,text] of [[true,'Approve'],[false,'Decline']]){
+   const button=document.createElement('button');button.className='btn'+(approved?' primary':'');button.textContent=text;
+   button.onclick=async()=>{button.disabled=true;try{await multiplayer.respondToJoinRequest(request.key,approved);pendingJoinRequests.delete(request.key);renderJoinRequests();log((approved?'Approved ':'Declined ')+request.name+' join request')}catch(error){button.disabled=false;log('Could not process join request: '+error.message)}};
+   actions.append(button);
+  }
+  row.append(label,actions);list.append(row);
+ }
+}
 async function connectFirebase(config){
  if(!multiplayer){
   if(!multiplayerLoading){
@@ -306,7 +329,7 @@ async function connectFirebase(config){
     multiplayer=createMultiplayer({
      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
      onPlayers:renderPlayers,
-     onJoinRequest:request=>{const accepted=confirm(request.name+' wants to join lobby '+request.room+'. Allow them?');multiplayer?.respondToJoinRequest(request.key,accepted).catch(error=>log('Could not process join request: '+error.message))},
+     onJoinRequest:request=>queueJoinRequest(request),
      onCursors:people=>{remoteCursorTargets={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&Number.isFinite(p.x)&&Number.isFinite(p.y))remoteCursorTargets[id]={x:p.x,y:p.y,color:p.color||'#ffffff',name:p.name||'Guest'}}}
     });
    })().catch(error=>{multiplayerLoading=null;throw error});
@@ -367,7 +390,7 @@ async function requestAndJoinRoom(code){
  if(!clean){alert('Choose a lobby first');return}
  try{
   await connectFirebase(firebaseConfig);
-  log('Requesting access to '+clean+'…');
+  log('Sending join request to '+clean+'…');
   const approved=await multiplayer.requestJoin(clean,{name:playerName});
   if(!approved)throw new Error('The host declined your request');
   await joinRoom(clean,true);
