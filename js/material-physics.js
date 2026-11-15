@@ -1,9 +1,9 @@
 // PixelPhyx material simulation: density, capillary wetting, thermal transfer and combustion.
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-let state={wetness:new Float32Array(0),heat:new Float32Array(0),fuel:new Float32Array(0),burn:new Float32Array(0),age:new Uint16Array(0)};
+let state={wetness:new Float32Array(0),heat:new Float32Array(0),fuel:new Float32Array(0),burn:new Float32Array(0),age:new Uint16Array(0),corrosion:new Float32Array(0)};
 export const materialState=state;
 export function resetMaterialState(size){
- Object.assign(state,{wetness:new Float32Array(size),heat:new Float32Array(size),fuel:new Float32Array(size),burn:new Float32Array(size),age:new Uint16Array(size)});
+ Object.assign(state,{wetness:new Float32Array(size),heat:new Float32Array(size),fuel:new Float32Array(size),burn:new Float32Array(size),age:new Uint16Array(size),corrosion:new Float32Array(size)});
 }
 const PROPERTIES={
  1:{density:1.6,conductivity:.08,porosity:.72,flammability:0,settle:.98},
@@ -24,7 +24,7 @@ const PROPERTIES={
 };
 function swap(cells,state,a,b){
  const v=cells[a];cells[a]=cells[b];cells[b]=v;
- for(const key of ['wetness','heat','fuel','burn','age']){const arr=state[key];const t=arr[a];arr[a]=arr[b];arr[b]=t}
+ for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const arr=state[key];const t=arr[a];arr[a]=arr[b];arr[b]=t}
 }
 function ignite(cells,state,i,m){
  const p=PROPERTIES[m];if(!p?.flammability)return false;
@@ -36,7 +36,7 @@ function ignite(cells,state,i,m){
 export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state}){
  const M=materials,W=width,H=height,N=W*H;
  if(s.wetness.length!==N)resetMaterialState(N);
- const wet=s.wetness,heat=s.heat,fuel=s.fuel,burn=s.burn,age=s.age;
+ const wet=s.wetness,heat=s.heat,fuel=s.fuel,burn=s.burn,age=s.age,corrosion=s.corrosion;
  const index=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H;
  const get=(x,y)=>inside(x,y)?cells[index(x,y)]:M.STONE;
  // Water displaces lighter grains; wet sand clumps, darkens and becomes heavier/slower.
@@ -137,8 +137,8 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
     const ni=index(nx,ny),other=cells[ni],limit=resistance[other];
     if(limit){
-     burn[ni]+=other===M.SAND||other===M.SALT?1.2:.65;
-     if(burn[ni]>=limit){cells[ni]=M.EMPTY;burn[ni]=0;heat[ni]=0;wet[ni]=0;fuel[ni]=0;age[ni]=0}
+     corrosion[ni]+=other===M.SAND||other===M.SALT?1.2:.65;
+     if(corrosion[ni]>=limit){cells[ni]=M.EMPTY;corrosion[ni]=0;burn[ni]=0;heat[ni]=0;wet[ni]=0;fuel[ni]=0;age[ni]=0}
     }
    }
    if(age[i]>1800){cells[i]=M.EMPTY;continue}
@@ -153,5 +153,5 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   }else if(heat[i]<ambient)heat[i]=ambient;
  }
  // Remove stale state when a particle has been erased or transformed.
- for(let i=0;i<N;i++)if(!cells[i]){wet[i]=0;heat[i]=0;fuel[i]=0;burn[i]=0;age[i]=0}
+ for(let i=0;i<N;i++)if(!cells[i]){wet[i]=0;heat[i]=0;fuel[i]=0;burn[i]=0;age[i]=0;corrosion[i]=0}
 }
