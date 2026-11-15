@@ -743,7 +743,18 @@ function stepStickFigure(figure,dt=1,controlled=false){
   }
   return false;
  };
- const supported=footSupported(14)||footSupported(15);
+ const footContact=footSupported(14)||footSupported(15);
+ // If the character lands on his side, any lower-body contact can start recovery.
+ let bodyContact=false;
+ for(const index of [3,10,11,12,13,14,15]){
+  const p=j[index],x=Math.floor(p.x),y=Math.floor(p.y);
+  if(p.y>=H-2){bodyContact=true;break}
+  for(let ox=-1;ox<=1;ox++){
+   if(inside(x+ox,y+1)&&stickSolidAt(x+ox,y+1)){bodyContact=true;break}
+  }
+  if(bodyContact)break;
+ }
+ const supported=footContact||bodyContact;
  const head=j[0],pelvis=j[3];
  const torsoLean=Math.abs(Math.atan2(pelvis.x-head.x,Math.max(1,pelvis.y-head.y)));
  const pelvisSpeed=Math.hypot(pelvis.x-pelvis.px,pelvis.y-pelvis.py);
