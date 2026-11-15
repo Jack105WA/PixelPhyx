@@ -55,23 +55,18 @@ In Realtime Database → **Rules**, replace the rules with the contents of [data
 
 These starter rules require Firebase Authentication, but any anonymously authenticated visitor can still read and write any room if they know its code. Room codes are not passwords. This is suitable for a small public experiment, not private or abuse-resistant production hosting. Add stricter membership, validation, rate limits, and a trusted backend before using it for sensitive data.
 
-### 5. Add your Firebase config to the game
+### 5. Firebase is preconfigured in PixelPhyx
 
-1. In Firebase, open **Project settings** (gear icon) → **General**.
-2. Under **Your apps**, select your PixelPhyx web app. If you do not see a config, choose **SDK setup and configuration → Config**.
-3. Copy the config object. It should include `apiKey`, `authDomain`, `databaseURL`, `projectId`, `appId`, and usually `storageBucket` / `messagingSenderId`.
-4. Open PixelPhyx and click **Connect**.
-5. Paste the entire config object into the box and click **Connect to Firebase**.
-6. The header should change to **FIREBASE ONLINE**.
+PixelPhyx is already configured to use the `pixelphyx-backend` Firebase project and its Realtime Database. The game connects automatically when it loads; no config needs to be pasted by players. The **Connect** button retries the connection if needed.
 
-The config is stored in local browser storage on that device. You only need to paste it once per browser. Firebase web API keys are client identifiers, not server secrets; database security comes from Authentication and Realtime Database rules.
+Firebase web API keys are client identifiers, not server secrets; database security comes from Authentication and Realtime Database rules.
 
 ### 6. Invite friends
 
 1. Click **Multiplayer** or enter a room code in the Multiplayer panel.
 2. Click **Join room**.
 3. Send the exact same room code to your friends.
-4. They open the deployed game, add the same Firebase web config, and join that room.
+4. They open the deployed game and join that room. Firebase connects automatically.
 
 Everyone in a room shares the same particle world and rope structures. Presence is removed automatically when a player's connection closes.
 
