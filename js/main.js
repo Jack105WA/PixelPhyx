@@ -277,7 +277,7 @@ function drawCursorName(c,targetCtx){
  targetCtx.font='600 10px Inter,Arial,sans-serif';
  targetCtx.textBaseline='middle';
  const width=targetCtx.measureText(label).width;
- const x=Math.max(3,Math.min(cursorNamesCanvas.clientWidth-width-3,c.x+20));
+ const x=Math.max(3,Math.min(cursorNamesCanvas.clientWidth-width-3,c.x+24));
  let y=c.y+19;
  // Keep player names clear of the canvas HUD in the upper-left corner.
  if(x<170&&y<45)y=51;
@@ -316,7 +316,7 @@ function render(){
   drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
  }
  for(const c of Object.values(remoteCursors)){
-  const x=c.x/W*localCursorCanvas.width,y=c.y/H*localCursorCanvas.height;
+  const x=Math.round(c.x/W*localCursorCanvas.width),y=Math.round(c.y/H*localCursorCanvas.height);
   cursorCtx.save();cursorCtx.translate(x,y);cursorCtx.scale(.8,.8);
   drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
   drawCursorName({x:c.x/W*shellRect.width,y:c.y/H*shellRect.height,name:c.name},nameCtx);
