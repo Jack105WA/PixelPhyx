@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
   getDatabase, ref, onValue, set, onDisconnect, serverTimestamp,
-  push, onChildAdded, transaction, update, remove, get
+  push, onChildAdded, runTransaction, update, remove, get
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
@@ -58,7 +58,7 @@ export function createMultiplayer(callbacks = {}) {
     presenceRef = ref(db, roomPath + '/players/' + playerId);
 
     try {
-      const hostResult = await transaction(hostRef, current => current || playerId);
+      const hostResult = await runTransaction(hostRef, current => current || playerId);
       hostId = hostResult.snapshot.val() || playerId;
 
       await set(presenceRef, {
@@ -88,7 +88,7 @@ export function createMultiplayer(callbacks = {}) {
         if (hostId && people[hostId]) return;
         const nextHost = ids[0] || null;
         try {
-          const result = await transaction(hostRef, current => current && people[current] ? current : nextHost);
+          const result = await runTransaction(hostRef, current => current && people[current] ? current : nextHost);
           hostId = result.snapshot.val();
         } catch (error) {
           log('Host election failed: ' + error.message);
