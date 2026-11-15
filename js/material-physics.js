@@ -48,7 +48,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     const below=index(x,y+1),under=cells[below];
     if(under===M.WATER||under===M.OIL){
      if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below);
-    }else if(under===M.EMPTY&&wet[i]<.35&&Math.random()<.95){
+    }else if(under===M.EMPTY&&Math.random()<clamp((.95*(1-wet[i]*.82))*clamp(gravity,.1,2),.04,1)){
      if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below);
     }else if(under!==M.EMPTY&&under!==M.WATER&&under!==M.OIL){
      const d=Math.random()<.5?-1:1,nx=x+d;
