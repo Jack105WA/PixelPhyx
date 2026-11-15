@@ -411,7 +411,7 @@ function drawInterpolatedCells(){
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- targetCtx.save();targetCtx.fillStyle=cursorColor;targetCtx.strokeStyle=cursorColor;targetCtx.lineWidth=.8;
+ targetCtx.save();targetCtx.globalAlpha=1;targetCtx.globalCompositeOperation='source-over';targetCtx.fillStyle=cursorColor;targetCtx.strokeStyle=cursorColor;targetCtx.lineWidth=.8;
  targetCtx.beginPath();targetCtx.moveTo(c.x,c.y);targetCtx.lineTo(c.x+3.5,c.y+8);targetCtx.lineTo(c.x+5.5,c.y+5);targetCtx.lineTo(c.x+8.5,c.y+4.5);targetCtx.closePath();targetCtx.fill();
  targetCtx.restore();
 }
