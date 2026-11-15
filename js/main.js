@@ -23,7 +23,7 @@ const materials=[
 const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 let cells=new Uint8Array(N),updated=new Uint8Array(N),running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let temperatureUnit='C';
-let strokePoints=[],roomOpsRef=null,stopOpsListener=null,stopPlayersListener=null,lastCursorPoint=null,activeErase=false;
+let strokePoints=[],lastCursorPoint=null,activeErase=false;
 let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName='Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},multiplayer=null,playerColor=['#65d6ad','#ff9b71','#78a9ff','#d6a0ff','#ffd166','#ff719a','#70d6c8'][Math.floor(Math.random()*7)];
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
