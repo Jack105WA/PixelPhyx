@@ -268,26 +268,24 @@ function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
  targetCtx.save();targetCtx.fillStyle=cursorColor;targetCtx.strokeStyle=cursorColor;targetCtx.lineWidth=.8;
  targetCtx.beginPath();targetCtx.moveTo(c.x,c.y);targetCtx.lineTo(c.x+3.5,c.y+8);targetCtx.lineTo(c.x+5.5,c.y+5);targetCtx.lineTo(c.x+8.5,c.y+4.5);targetCtx.closePath();targetCtx.fill();
- if(isYou){targetCtx.restore();return}
- const label=String(c.name||'Guest').slice(0,20);
- targetCtx.font='600 7px Inter,system-ui,sans-serif';
- const paddingX=3,textWidth=targetCtx.measureText(label).width;
- const labelWidth=Math.ceil(textWidth+paddingX*2+2),labelHeight=12;
- const labelX=Math.max(2,Math.min(localCursorCanvas.width-labelWidth-2,c.x+10));
- let labelY=c.y-labelHeight-4;
- if(labelY<2)labelY=c.y+10;
- labelY=Math.max(2,Math.min(localCursorCanvas.height-labelHeight-2,labelY));
- targetCtx.shadowColor='rgba(0,0,0,.9)';targetCtx.shadowBlur=2;
- targetCtx.fillStyle='rgba(5,12,22,.97)';
- targetCtx.fillRect(labelX,labelY,labelWidth,labelHeight);
- targetCtx.shadowBlur=0;
- targetCtx.strokeStyle='#ffffff';targetCtx.lineWidth=.7;
- targetCtx.strokeRect(labelX+.5,labelY+.5,labelWidth-1,labelHeight-1);
- targetCtx.fillStyle=cursorColor;
- targetCtx.fillRect(labelX+1,labelY+1,1.5,labelHeight-2);
- targetCtx.fillStyle='#ffffff';
+ targetCtx.restore();
+}
+function drawCursorName(c,targetCtx){
+ if(!c||!c.name)return;
+ const label=String(c.name).slice(0,16);
+ targetCtx.save();
+ targetCtx.font='600 6px Inter,system-ui,sans-serif';
  targetCtx.textBaseline='middle';
- targetCtx.fillText(label,labelX+paddingX+1,labelY+labelHeight/2);
+ const x=Math.max(2,Math.min(localCursorCanvas.width-targetCtx.measureText(label).width-4,c.x+10));
+ let y=c.y-5;
+ if(y<5)y=c.y+10;
+ y=Math.max(5,Math.min(localCursorCanvas.height-5,y));
+ targetCtx.lineJoin='round';
+ targetCtx.lineWidth=2.5;
+ targetCtx.strokeStyle='rgba(4,9,16,.95)';
+ targetCtx.strokeText(label,x,y);
+ targetCtx.fillStyle='#f4f7fb';
+ targetCtx.fillText(label,x,y);
  targetCtx.restore();
 }
 function render(){
@@ -302,15 +300,18 @@ function render(){
   current.color=target.color;current.name=target.name;
  }
  for(const id of Object.keys(remoteCursors))if(!remoteCursorTargets[id])delete remoteCursors[id];
- const cursorCtx=localCursorCtx;
+ const cursorCtx=localCursorCtx,nameCtx=cursorNamesCtx;
  cursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);
+ nameCtx.clearRect(0,0,cursorNamesCanvas.width,cursorNamesCanvas.height);
  if(localCursor){
   cursorCtx.save();cursorCtx.translate(localCursor.x/W*localCursorCanvas.width,localCursor.y/H*localCursorCanvas.height);cursorCtx.scale(.8,.8);
   drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
  }
  for(const c of Object.values(remoteCursors)){
-  cursorCtx.save();cursorCtx.translate(c.x/W*localCursorCanvas.width,c.y/H*localCursorCanvas.height);cursorCtx.scale(.8,.8);
-  drawPlayerCursor({x:0,y:0,name:c.name,color:c.color},false,cursorCtx);cursorCtx.restore();
+  const x=c.x/W*localCursorCanvas.width,y=c.y/H*localCursorCanvas.height;
+  cursorCtx.save();cursorCtx.translate(x,y);cursorCtx.scale(.8,.8);
+  drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
+  drawCursorName({x,y,name:c.name},nameCtx);
  }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
@@ -493,7 +494,8 @@ function applyOperation(op){if(!op||remoteApplying)return;remoteApplying=true;tr
 let localCursor=null;
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
-localCursorCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=CANVAS_SIZES.medium.height;
+const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
+localCursorCanvas.width=cursorNamesCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=cursorNamesCanvas.height=CANVAS_SIZES.medium.height;
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 document.querySelector('#playerColor').value=playerColor;
