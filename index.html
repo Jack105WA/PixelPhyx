@@ -131,7 +131,7 @@ function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
 function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx*xx+yy*yy<=r*r)put(x+xx,y+yy,m)}
 function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
 function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
-let drawing=false,lastPoint=null,ropeStart=null;
+let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null;
 function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
  if(tool==='rope'){if(!ropeStart){ropeStart={x:p.x,y:p.y};log('Rope anchor selected. Drag to its other end.')}return}
  if(erase){circle(p.x,p.y,brush,M.EMPTY);lastPoint=p;return}
@@ -143,12 +143,13 @@ function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button==
  circle(p.x,p.y,brush,mat);lastPoint=p;
 }
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('pointerdown',e=>{drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);const p=canvasPoint(e);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)});
-canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=canvasPoint(e);if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);if(tool==='rope'){lastPoint=p;return}act(p,e)});
-canvas.addEventListener('pointerup',e=>{if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){createRope(ropeStart,end);publishOperation({type:'rope',a:ropeStart,b:end})}ropeStart=null}else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});drawing=false;activeErase=false;lastPoint=null;strokePoints=[]});
-canvas.addEventListener('pointercancel',()=>{drawing=false;ropeStart=null;lastPoint=null});
+canvas.addEventListener('pointerdown',e=>{const p=canvasPoint(e);if(tool==='rope'&&e.button===2){e.preventDefault();const hit=findRopeGrab(p);if(hit){ropeDrag={...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.setPointerCapture(e.pointerId);log('Rope grabbed. Drag to reposition it.')}return}drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)});
+canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(ropeDrag){const {node}=ropeDrag;node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;return}if(!drawing)return;if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);if(tool==='rope'){lastPoint=p;return}act(p,e)});
+canvas.addEventListener('pointerup',e=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null;drawing=false;return}if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){createRope(ropeStart,end);publishOperation({type:'rope',a:ropeStart,b:end})}ropeStart=null}else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});drawing=false;activeErase=false;lastPoint=null;strokePoints=[]});
+canvas.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}drawing=false;ropeStart=null;lastPoint=null});
 canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
+function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(const node of rope.points){const d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node}}}}return best}
 function createRope(a,b){
  const distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/1.5)),points=[];
  for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}
@@ -202,7 +203,7 @@ function stepRopes(){
  for(const rope of ropes){
   const p=rope.points;if(p.length<2)continue;
   for(let i=0;i<p.length;i++){
-   const n=p[i];if(n.anchor)continue;
+   const n=p[i];n.sx=n.x;n.sy=n.y;if(n.anchor)continue;
    const oldX=n.x,oldY=n.y,vx=(n.x-n.px)*.985,vy=(n.y-n.py)*.985;
    n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.12*gravity;
    resolveRopeNode(n,oldX,oldY);
@@ -219,6 +220,7 @@ function stepRopes(){
   }
   for(const n of p){n.x=Math.max(.5,Math.min(W-.5,n.x));n.y=Math.max(.5,Math.min(H-.5,n.y))}
  }
+ pushParticlesFromRopeSweep();
 }
 function ropeBlocksMove(x1,y1,x2,y2){
  const pointSegmentDistance=(px,py,ax,ay,bx,by)=>{
@@ -245,6 +247,24 @@ function ropeBlocksMove(x1,y1,x2,y2){
   }
  }
  return false;
+}
+function pushParticlesFromRopeSweep(){
+ const pointSegmentDistance=(px,py,ax,ay,bx,by)=>{const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len)):0;return Math.hypot(px-(ax+t*dx),py-(ay+t*dy))};
+ for(const rope of ropes){const p=rope.points;for(let i=0;i<p.length-1;i++){
+  const a=p[i],b=p[i+1],ax=a.sx??a.x,ay=a.sy??a.y,bx=b.sx??b.x,by=b.sy??b.y;
+  const minX=Math.max(0,Math.floor(Math.min(ax,bx,a.x,b.x)-1)),maxX=Math.min(W-1,Math.ceil(Math.max(ax,bx,a.x,b.x)+1));
+  const minY=Math.max(0,Math.floor(Math.min(ay,by,a.y,b.y)-1)),maxY=Math.min(H-1,Math.ceil(Math.max(ay,by,a.y,b.y)+1));
+  const moveX=((a.x-ax)+(b.x-bx))*.5,moveY=((a.y-ay)+(b.y-by))*.5;
+  for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+   const k=idx(x,y),m=cells[k];if(!m||ropeCellIsSolid(m))continue;
+   const px=x+.5,py=y+.5;
+   const d=Math.min(pointSegmentDistance(px,py,ax,ay,bx,by),pointSegmentDistance(px,py,a.x,a.y,b.x,b.y),pointSegmentDistance(px,py,ax,ay,a.x,a.y),pointSegmentDistance(px,py,bx,by,b.x,b.y));
+   if(d>0.9)continue;
+   const vx=moveX||a.x-ax,vy=moveY||a.y-ay;
+   const target=findRopeFreeCell(x,y,vx,vy,4);
+   if(target){cells[target.index]=m;cells[k]=M.EMPTY}
+  }
+ }}
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(i,x,y,m){for(const j of [i-1,i+1,i-W,i+W]){if(j<0||j>=N)continue;const n=cells[j];if(m===M.FIRE){if(n===M.WOOD||n===M.OIL||n===M.PLANT){cells[j]=M.FIRE}if(n===M.WATER){cells[i]=M.STEAM;cells[j]=M.STEAM}if(n===M.ICE)cells[j]=M.WATER}
