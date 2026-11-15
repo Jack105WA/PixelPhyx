@@ -427,13 +427,13 @@ function render(){
  }
  for(const id of Object.keys(remoteCursors))if(!remoteCursorTargets[id])delete remoteCursors[id];
  const cursorCtx=localCursorCtx,nameCtx=cursorNamesCtx;
- const shellRect=canvasShell.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
- const nameWidth=Math.max(1,Math.round(shellRect.width*dpr)),nameHeight=Math.max(1,Math.round(shellRect.height*dpr));
+ const canvasRect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+ const nameWidth=Math.max(1,Math.round(canvasRect.width*dpr)),nameHeight=Math.max(1,Math.round(canvasRect.height*dpr));
  if(cursorNamesCanvas.width!==nameWidth||cursorNamesCanvas.height!==nameHeight){
   cursorNamesCanvas.width=nameWidth;cursorNamesCanvas.height=nameHeight;
  }
  nameCtx.setTransform(dpr,0,0,dpr,0,0);
- nameCtx.clearRect(0,0,shellRect.width,shellRect.height);
+ nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
  cursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);
  if(localCursor){
   cursorCtx.save();cursorCtx.translate(Math.floor(localCursor.x),Math.floor(localCursor.y));cursorCtx.scale(.8,.8);
@@ -443,7 +443,7 @@ function render(){
   const x=Math.floor(c.x),y=Math.floor(c.y);
   cursorCtx.save();cursorCtx.translate(x,y);cursorCtx.scale(.8,.8);
   drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
-  drawCursorName({x:c.x/W*shellRect.width,y:c.y/H*shellRect.height,name:c.name},nameCtx);
+  drawCursorName({x:c.x/W*canvasRect.width,y:c.y/H*canvasRect.height,name:c.name},nameCtx);
  }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
@@ -818,9 +818,17 @@ canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
 const canvasShell=document.querySelector('#canvasShell');
+const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];
+function fitCanvasToShell(){
+ const shellWidth=canvasShell.clientWidth,shellHeight=canvasShell.clientHeight;
+ const scale=Math.min(shellWidth/16,shellHeight/9);
+ const width=Math.max(1,Math.floor(scale*16)),height=Math.max(1,Math.floor(scale*9));
+ for(const layer of canvasLayers){layer.style.width=width+'px';layer.style.height=height+'px'}
+}
 localCursorCanvas.width=W;localCursorCanvas.height=H;
-cursorNamesCanvas.width=Math.max(1,Math.round(canvasShell.clientWidth*(window.devicePixelRatio||1)));
-cursorNamesCanvas.height=Math.max(1,Math.round(canvasShell.clientHeight*(window.devicePixelRatio||1)));
+fitCanvasToShell();
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(fitCanvasToShell).observe(canvasShell);
+else window.addEventListener('resize',fitCanvasToShell);
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 document.querySelector('#playerColor').value=playerColor;
