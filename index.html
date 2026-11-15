@@ -89,6 +89,11 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
  <div class="online-section"><div class="section-title">Join by server code</div><div class="control"><label>Server code</label><input id="roomCode" type="text" maxlength="24" placeholder="e.g. PX-ABCDE"></div><button class="btn primary" id="join" style="width:100%;margin-top:9px">Request to join</button></div>
  <div class="online-section"><div class="dialog-actions" style="justify-content:space-between;margin-top:0"><span class="muted" id="lobbyCapacity">0 / 20 active servers</span><button class="btn primary" id="createLobby">+ Create server</button></div><div class="lobby-gallery" id="lobbyGallery"><div class="lobby-empty">Connecting to servers…</div></div></div>
  <div class="dialog-actions"><button class="btn" data-close>Close</button></div></div></div>
-<script type="module" src="./js/main.js"></script>
+<script type="module">
+const script = document.createElement('script');
+script.type = 'module';
+script.src = './js/main.js?v=' + Date.now().toString(36);
+document.head.appendChild(script);
+</script>
 </body>
 </html>
