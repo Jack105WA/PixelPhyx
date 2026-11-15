@@ -408,8 +408,29 @@ function drawInterpolatedCells(){
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- targetCtx.save();targetCtx.globalAlpha=1;targetCtx.globalCompositeOperation='source-over';targetCtx.fillStyle=cursorColor;targetCtx.strokeStyle=cursorColor;targetCtx.lineWidth=.8;
- targetCtx.beginPath();targetCtx.moveTo(c.x,c.y);targetCtx.lineTo(c.x+3.5,c.y+8);targetCtx.lineTo(c.x+5.5,c.y+5);targetCtx.lineTo(c.x+8.5,c.y+4.5);targetCtx.closePath();targetCtx.fill();
+ // Rasterize the pointer into whole, fully opaque pixels. Canvas path fills
+ // antialias their edges, which can make an otherwise opaque cursor look faded.
+ const points=[[c.x,c.y],[c.x+3.5,c.y+8],[c.x+5.5,c.y+5],[c.x+8.5,c.y+4.5]];
+ const minY=Math.floor(Math.min(...points.map(p=>p[1])));
+ const maxY=Math.ceil(Math.max(...points.map(p=>p[1])));
+ targetCtx.save();
+ targetCtx.globalAlpha=1;
+ targetCtx.globalCompositeOperation='source-over';
+ targetCtx.fillStyle=cursorColor;
+ for(let y=minY;y<maxY;y++){
+  const scanY=y+.5,intersections=[];
+  for(let i=0;i<points.length;i++){
+   const a=points[i],b=points[(i+1)%points.length];
+   if((a[1]<=scanY&&b[1]>scanY)||(b[1]<=scanY&&a[1]>scanY)){
+    intersections.push(a[0]+(scanY-a[1])*(b[0]-a[0])/(b[1]-a[1]));
+   }
+  }
+  intersections.sort((a,b)=>a-b);
+  for(let i=0;i+1<intersections.length;i+=2){
+   const left=Math.ceil(intersections[i]),right=Math.floor(intersections[i+1]);
+   if(right>=left)targetCtx.fillRect(left,y,right-left+1,1);
+  }
+ }
  targetCtx.restore();
 }
 function drawCursorName(c,targetCtx){
