@@ -75,13 +75,7 @@ export function createMultiplayer(callbacks = {}) {
       stopWorld = onValue(ref(db, roomPath + '/world'), snapshot => {
         const world = snapshot.val();
         if (world) callbacks.onWorld?.(world);
-      }, error => log('World snapshot sync error: ' + error.message));
-      const stopWorldRequests = onChildAdded(ref(db, roomPath + '/worldRequests'), snapshot => {
-        if (hostId === playerId && snapshot.key !== playerId) callbacks.onWorldRequest?.(snapshot.key);
-        if (hostId === playerId) remove(snapshot.ref).catch(() => {});
-      });
-      const originalStopWorld = stopWorld;
-      stopWorld = () => { originalStopWorld?.(); stopWorldRequests(); };
+      }, error => log('World sync error: ' + error.message));
 
       const operationsRef = ref(db, roomPath + '/operations');
       // Read only a bounded tail. Old operation history must never be downloaded in full.
@@ -120,7 +114,6 @@ export function createMultiplayer(callbacks = {}) {
 
       const confirmedHost = await get(hostRef);
       hostId = confirmedHost.val() || playerId;
-      await set(ref(db, roomPath + '/worldRequests/' + playerId), serverTimestamp());
       joined = true;
       report('online', 'ROOM ONLINE');
       log('Connected to room ' + room + (hostId === playerId ? ' as host' : ''));
@@ -146,9 +139,13 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function publishWorld(world) {
-    if (!db || !joined || !room || hostId !== playerId || !world) return;
+    if (!db || !joined || !room || hostId !== playerId) return;
+    const now = Date.now();
+    if (now - lastWorldWrite < 1000 / 60) return;
+    lastWorldWrite = now;
     pendingWorld = world;
     if (worldWriteInFlight) return;
+
     worldWriteInFlight = true;
     (async () => {
       try {
@@ -160,8 +157,7 @@ export function createMultiplayer(callbacks = {}) {
           });
         }
       } catch (error) {
-        pendingWorld = null;
-        log('World snapshot sync failed: ' + error.message);
+        log('World sync failed: ' + error.message);
       } finally {
         worldWriteInFlight = false;
       }
