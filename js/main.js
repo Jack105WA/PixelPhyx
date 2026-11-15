@@ -57,7 +57,7 @@ function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
  cells=new Uint8Array(N);updated=new Uint8Array(N);movingParticles=[];moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
- canvas.width=W;canvas.height=H;localCursorCanvas.width=W*4;localCursorCanvas.height=H*4;document.querySelector('#canvasSize').value=size;
+ canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;stickFigure=null;remoteStickFigures.clear();
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
@@ -476,15 +476,13 @@ function render(){
  const cursorCtx=localCursorCtx,nameCtx=cursorNamesCtx;
  const canvasRect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
  const nameWidth=Math.max(1,Math.round(canvasRect.width*dpr)),nameHeight=Math.max(1,Math.round(canvasRect.height*dpr));
- // Render the original cursor artwork at 4x supersampling resolution.
- // The overlay keeps the same CSS dimensions, so the cursor stays the same
- // visible size while its edges gain four times the pixel density.
- const cursorResolution=4;
- if(localCursorCanvas.width!==W*cursorResolution||localCursorCanvas.height!==H*cursorResolution){
-  localCursorCanvas.width=W*cursorResolution;
-  localCursorCanvas.height=H*cursorResolution;
+ // Render at the world's native pixel resolution to preserve the
+ // original sharp, pixelated cursor appearance.
+ if(localCursorCanvas.width!==W||localCursorCanvas.height!==H){
+  localCursorCanvas.width=W;
+  localCursorCanvas.height=H;
  }
- cursorCtx.setTransform(cursorResolution,0,0,cursorResolution,0,0);
+ cursorCtx.setTransform(1,0,0,1,0,0);
  cursorCtx.clearRect(0,0,W,H);
  if(cursorNamesCanvas.width!==nameWidth||cursorNamesCanvas.height!==nameHeight){
   cursorNamesCanvas.width=nameWidth;cursorNamesCanvas.height=nameHeight;
