@@ -467,7 +467,7 @@ let localCursor=null;
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 localCursorCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=CANVAS_SIZES.medium.height;
-function drawLocalCursor(e){const shell=document.querySelector('#canvasShell'),r=shell.getBoundingClientRect();localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);drawPlayerCursor({x:(e.clientX-r.left)/r.width*CANVAS_SIZES.medium.width,y:(e.clientY-r.top)/r.height*CANVAS_SIZES.medium.height},true,localCursorCtx)}
+function drawLocalCursor(e){const shell=document.querySelector('#canvasShell'),r=shell.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*CANVAS_SIZES.medium.width,y=(e.clientY-r.top)/r.height*CANVAS_SIZES.medium.height;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);localCursorCtx.save();localCursorCtx.translate(x,y);localCursorCtx.scale(.8,.8);drawPlayerCursor({x:0,y:0},true,localCursorCtx);localCursorCtx.restore()}
 canvas.addEventListener('pointermove',drawLocalCursor);
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
