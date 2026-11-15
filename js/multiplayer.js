@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
   getDatabase, ref, onValue, set, onDisconnect, serverTimestamp,
-  push, onChildAdded, runTransaction, update, remove, get
+  push, onChildAdded, runTransaction, update, remove, get, query, limitToLast
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
@@ -73,15 +73,17 @@ export function createMultiplayer(callbacks = {}) {
       }, error => log('World sync error: ' + error.message));
 
       const operationsRef = ref(db, roomPath + '/operations');
-      // Snapshot existing keys before subscribing. This avoids comparing Firebase server
-      // timestamps with a potentially inaccurate device clock, while ignoring old history.
-      const existingOperations = await get(operationsRef);
+      // Read only a bounded tail. Old operation history must never be downloaded in full.
+      const operationQuery = query(operationsRef, limitToLast(100));
+      const existingOperations = await get(operationQuery);
       const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
-      stopOperations = onChildAdded(operationsRef, snapshot => {
+      stopOperations = onChildAdded(operationQuery, snapshot => {
         if (existingKeys.has(snapshot.key)) return;
         const operation = snapshot.val();
-        if (!operation || operation.by === playerId) return;
-        callbacks.onOperation?.(operation);
+        if (operation && operation.by !== playerId) callbacks.onOperation?.(operation);
+        // Only the host removes processed operations. This keeps the shared queue tiny
+        // while preserving the add event for every connected client.
+        if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
       }, error => log('Edit sync error: ' + error.message));
 
       stopPlayers = onValue(ref(db, roomPath + '/players'), async snapshot => {
