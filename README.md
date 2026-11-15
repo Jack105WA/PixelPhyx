@@ -2,6 +2,12 @@
 
 PixelPhyx is an online pixel-art physics and chemistry sandbox. Build worlds with falling particles, liquids, gases, reactions, explosions, and ropes with live Verlet-physics simulation. Invite friends to the same Firebase Realtime Database room and experiment together.
 
+## Code organization
+
+- `js/main.js` contains the canvas UI, materials, and physics simulation.
+- `js/multiplayer.js` handles Firebase authentication, room presence, edit streaming, host election, and authoritative world snapshots.
+- `js/firebase-config.js` contains the public Firebase web-app configuration.
+
 ## Play online
 
 After GitHub Pages finishes deploying, open:
