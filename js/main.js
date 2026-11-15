@@ -387,7 +387,9 @@ function drawInterpolatedCells(){
   particleInterpolationCanvas.width=width;particleInterpolationCanvas.height=height;
  }
  particleInterpolationCanvas.style.width=rect.width+'px';particleInterpolationCanvas.style.height=rect.height+'px';
- target.setTransform(dpr,0,0,dpr,0,0);target.clearRect(0,0,rect.width,rect.height);
+ // Draw on whole physical-device pixels. Fractional canvas rectangles were being
+ // antialiased against the dark destination cell, leaving a visible rim on landing.
+ target.setTransform(1,0,0,1,0,0);target.clearRect(0,0,width,height);
  const alpha=cellRenderAlpha;if(alpha>=.999||!movingParticles.length)return;
  const cellWidth=rect.width/W,cellHeight=rect.height/H;
  for(const particle of movingParticles){
@@ -398,10 +400,12 @@ function drawInterpolatedCells(){
   if(material===M.SAND&&wet){const f=1-wet*.38;r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f)}
   if(heat>0&&material!==M.FIRE){const f=Math.min(.35,heat/900);r=Math.min(255,Math.round(r+(255-r)*f));g=Math.round(g+(100-g)*f);b=Math.round(b*(1-f*.7))}
   target.fillStyle=`rgb(${r},${g},${b})`;
-  const x=(particle.fromX+(particle.toX-particle.fromX)*alpha)*cellWidth;
-  const y=(particle.fromY+(particle.toY-particle.fromY)*alpha)*cellHeight;
-  // Slightly overlap adjacent subpixel cells so antialiasing cannot create dark seams.
-  target.fillRect(x-.35,y-.35,cellWidth+.7,cellHeight+.7);
+  const x=(particle.fromX+(particle.toX-particle.fromX)*alpha)*cellWidth*dpr;
+  const y=(particle.fromY+(particle.toY-particle.fromY)*alpha)*cellHeight*dpr;
+  // Snap each edge independently so adjacent particles share exact pixel boundaries.
+  const left=Math.round(x),top=Math.round(y);
+  const right=Math.round(x+cellWidth*dpr),bottom=Math.round(y+cellHeight*dpr);
+  target.fillRect(left,top,Math.max(1,right-left),Math.max(1,bottom-top));
  }
 }
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
