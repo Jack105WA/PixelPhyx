@@ -20,7 +20,8 @@ const PROPERTIES={
  12:{density:1.1,conductivity:.1,flammability:.95,ignition:180,fuel:1},
  13:{density:.45,conductivity:.12,flammability:.9,ignition:90,fuel:.65},
  14:{density:2.16,conductivity:.12},
- 15:{density:2.5,conductivity:.9}
+ 15:{density:2.5,conductivity:.9},
+ 16:{density:1.15,conductivity:.12,flammability:.12,ignition:520,fuel:.12}
 };
 function swap(cells,state,a,b){
  const v=cells[a];cells[a]=cells[b];cells[b]=v;
@@ -63,9 +64,9 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){
      const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
      const ni=index(nx,ny),other=cells[ni];
-     if(other===M.SAND&&wet[ni]<1&&Math.random()<.22){
-      const amount=Math.min(.24,1-wet[ni]);wet[ni]+=amount;
-      if(wet[ni]>.72&&Math.random()<.08&&y+1<H&&cells[index(x,y+1)]===M.EMPTY)break;
+     if(other===M.SAND&&wet[ni]<1&&Math.random()<.38){
+      const amount=Math.min(.2,1-wet[ni]);wet[ni]+=amount;
+      if(Math.random()<.34){cells[i]=M.EMPTY;wet[i]=0;heat[i]=0;fuel[i]=0;burn[i]=0;break}
      }
      if(other===M.PLANT&&Math.random()<.08)wet[ni]=Math.min(1,wet[ni]+.15);
     }
@@ -123,7 +124,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     const consume=(m===M.WOOD?.003:m===M.PLANT?.012:m===M.OIL?.025:.018)*(1-(wet[i]||0)*.8);
     fuel[i]=Math.max(0,(fuel[i]||p.fuel||1)-consume);
     if(fuel[i]<=0){
-     if(m===M.WOOD){cells[i]=Math.random()<.72?M.STONE:M.SMOKE;heat[i]=0;burn[i]=0}
+     if(m===M.WOOD){cells[i]=M.CHARCOAL;heat[i]=0;burn[i]=0;fuel[i]=0}
      else if(m===M.PLANT){cells[i]=Math.random()<.55?M.EMPTY:M.SMOKE;heat[i]=0;burn[i]=0}
      else if(m===M.TNT){cells[i]=M.FIRE;heat[i]=650;burn[i]=0}
      else {cells[i]=M.FIRE;heat[i]=650;burn[i]=0}
@@ -147,6 +148,16 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   if(m===M.STEAM&&Math.random()<.003)cells[i]=M.WATER;
   if(m===M.SMOKE&&Math.random()<.002)cells[i]=M.EMPTY;
   if(m===M.SAND&&wet[i]>0)wet[i]=Math.max(0,wet[i]-.0008);
+  // Conduct heat between neighboring cells, not just toward ambient temperature.
+  if(heat[i]>ambient){
+   for(const [dx,dy] of [[1,0],[0,1]]){
+    const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
+    const ni=index(nx,ny),other=cells[ni];if(!other)continue;
+    const conductivity=Math.min(1,(p.conductivity||.05)*(PROPERTIES[other]?.conductivity||.05)*.35);
+    const transfer=(heat[i]-heat[ni])*conductivity;
+    if(transfer>0.05){heat[i]-=transfer;heat[ni]+=transfer}
+   }
+  }
   if(heat[i]>ambient){
    const loss=(p.conductivity||.05)*.015;
    heat[i]=Math.max(ambient,heat[i]-loss);
