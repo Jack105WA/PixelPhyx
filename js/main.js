@@ -1,4 +1,5 @@
 import { firebaseConfig } from './firebase-config.js';
+import { stepMaterialPhysics, materialState, resetMaterialState } from './material-physics.js';
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
@@ -39,7 +40,7 @@ document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
- cells=new Uint8Array(N);updated=new Uint8Array(N);carriedParticles=new Uint8Array(N);ropes=[];frameImage=ctx.createImageData(W,H);
+ cells=new Uint8Array(N);updated=new Uint8Array(N);carriedParticles=new Uint8Array(N);resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
@@ -241,12 +242,7 @@ function pushParticlesFromRopeSweep(){
  }
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
-function reaction(i,x,y,m){for(const j of [i-1,i+1,i-W,i+W]){if(j<0||j>=N)continue;const n=cells[j];if(m===M.FIRE){if(n===M.WOOD||n===M.OIL||n===M.PLANT){cells[j]=M.FIRE}if(n===M.WATER){cells[i]=M.STEAM;cells[j]=M.STEAM}if(n===M.ICE)cells[j]=M.WATER}
- else if(m===M.ACID&&(n===M.STONE||n===M.WOOD||n===M.GLASS)){cells[j]=M.EMPTY}
- else if(m===M.LAVA&&(n===M.WATER||n===M.ICE)){cells[i]=M.STONE;cells[j]=M.STEAM}
- else if(m===M.WATER&&n===M.FIRE){cells[i]=M.STEAM;cells[j]=M.STEAM}
- else if(m===M.SALT&&n===M.WATER){cells[i]=M.EMPTY}
- }}
+function reaction(){}
 function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
  if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
@@ -261,8 +257,10 @@ function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y
  if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
  if(m===M.WATER&&ambient>100&&Math.random()<.0005)cells[i]=M.STEAM;
  }
- if(m===M.FIRE||m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
- }}stepRopes()}
+ if(m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
+ }}
+ stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState});
+ stepRopes()}
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
@@ -292,7 +290,7 @@ function drawCursorName(c,targetCtx){
 }
 function render(){
  let count=0;
- for(let i=0;i<N;i++){const m=cells[i],c=colors[m]||colors[0],p=i*4;frameImage.data[p]=c[0];frameImage.data[p+1]=c[1];frameImage.data[p+2]=c[2];frameImage.data[p+3]=255;if(m)count++}
+ for(let i=0;i<N;i++){const m=cells[i],base=colors[m]||colors[0],p=i*4,wet=materialState.wetness[i]||0,heat=materialState.heat[i]||0;let r=base[0],g=base[1],b=base[2];if(m===M.SAND&&wet){const f=1-wet*.38;r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f)}if(heat>0&&m!==M.FIRE){const f=Math.min(.35,heat/900);r=Math.min(255,Math.round(r+(255-r)*f));g=Math.round(g+(100-g)*f);b=Math.round(b*(1-f*.7))}frameImage.data[p]=r;frameImage.data[p+1]=g;frameImage.data[p+2]=b;frameImage.data[p+3]=255;if(m)count++}
  ctx.putImageData(frameImage,0,0);ctx.lineCap='round';ctx.lineJoin='round';
  for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
  for(const [id,target] of Object.entries(remoteCursorTargets)){
