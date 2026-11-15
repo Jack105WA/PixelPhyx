@@ -470,11 +470,11 @@ function render(){
  // Cursor artwork is drawn in CSS pixels, not simulation pixels, so changing
  // the world resolution or displayed canvas scale never changes its size.
  if(localCursor){
-  cursorCtx.save();cursorCtx.translate(localCursor.x/W*canvasRect.width,localCursor.y/H*canvasRect.height);cursorCtx.scale(.8,.8);
+  cursorCtx.save();cursorCtx.translate(localCursor.x/W*canvasRect.width,localCursor.y/H*canvasRect.height);cursorCtx.scale(2,2);
   drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
  }
  for(const c of Object.values(remoteCursors)){
-  cursorCtx.save();cursorCtx.translate(c.x/W*canvasRect.width,c.y/H*canvasRect.height);cursorCtx.scale(.8,.8);
+  cursorCtx.save();cursorCtx.translate(c.x/W*canvasRect.width,c.y/H*canvasRect.height);cursorCtx.scale(2,2);
   drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
   drawCursorName({x:c.x/W*canvasRect.width,y:c.y/H*canvasRect.height,name:c.name},nameCtx);
  }
