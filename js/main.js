@@ -263,14 +263,14 @@ function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y
  }
  if(m===M.FIRE||m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
  }}stepRopes()}
-function drawPlayerCursor(c,isYou=false){
+function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- ctx.save();ctx.fillStyle=cursorColor;ctx.strokeStyle=cursorColor;ctx.lineWidth=.8;
- ctx.beginPath();ctx.moveTo(c.x,c.y);ctx.lineTo(c.x+3.5,c.y+8);ctx.lineTo(c.x+5.5,c.y+5);ctx.lineTo(c.x+8.5,c.y+4.5);ctx.closePath();ctx.fill();
- if(isYou){ctx.restore();return}
- const label=String(c.name||'Guest').slice(0,14);ctx.font='5px Inter,sans-serif';const tw=ctx.measureText(label).width;
- ctx.fillStyle='#101923';ctx.fillRect(c.x+6,c.y-5,tw+3,7);ctx.fillStyle=cursorColor;ctx.fillText(label,c.x+7.5,c.y+.2);ctx.restore();
+ targetCtx.save();targetCtx.fillStyle=cursorColor;targetCtx.strokeStyle=cursorColor;targetCtx.lineWidth=.8;
+ targetCtx.beginPath();targetCtx.moveTo(c.x,c.y);targetCtx.lineTo(c.x+3.5,c.y+8);targetCtx.lineTo(c.x+5.5,c.y+5);targetCtx.lineTo(c.x+8.5,c.y+4.5);targetCtx.closePath();targetCtx.fill();
+ if(isYou){targetCtx.restore();return}
+ const label=String(c.name||'Guest').slice(0,14);targetCtx.font='5px Inter,sans-serif';const tw=targetCtx.measureText(label).width;
+ targetCtx.fillStyle='#101923';targetCtx.fillRect(c.x+6,c.y-5,tw+3,7);targetCtx.fillStyle=cursorColor;targetCtx.fillText(label,c.x+7.5,c.y+.2);targetCtx.restore();
 }
 function render(){
  let count=0;
@@ -465,8 +465,11 @@ function renderPlayers(people){
 function applyOperation(op){if(!op||remoteApplying)return;remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);ropes=[]}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/1.5)),points=[];for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}const id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))ropes.push({id,points,length:distance/segments,stiffness:1})}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.x=op.x;node.y=op.y;node.px=op.x;node.py=op.y;if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(15,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='box'){for(const p of pts)for(let y=-bs;y<=bs;y++)for(let x=-bs;x<=bs;x++)put(p.x+x,p.y+y,mat)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
 let localCursor=null;
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
-canvas.addEventListener('pointerleave',()=>{localCursor=null;const cursor=document.querySelector('#localCursor');if(cursor)cursor.style.display='none'});
-canvas.addEventListener('pointermove',e=>{const cursor=document.querySelector('#localCursor'),shell=document.querySelector('#canvasShell');if(!cursor||!shell)return;const r=shell.getBoundingClientRect();cursor.style.left=(e.clientX-r.left)+'px';cursor.style.top=(e.clientY-r.top)+'px';cursor.style.display='block'});
+const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
+localCursorCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=CANVAS_SIZES.medium.height;
+function drawLocalCursor(e){const shell=document.querySelector('#canvasShell'),r=shell.getBoundingClientRect();localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);drawPlayerCursor({x:(e.clientX-r.left)/r.width*CANVAS_SIZES.medium.width,y:(e.clientY-r.top)/r.height*CANVAS_SIZES.medium.height},true,localCursorCtx)}
+canvas.addEventListener('pointermove',drawLocalCursor);
+canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 document.querySelector('#playerColor').value=playerColor;
 document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;localStorage.setItem('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
