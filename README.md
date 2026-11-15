@@ -2,11 +2,16 @@
 
 PixelPhyx is an online pixel-art physics and chemistry sandbox. Build worlds with falling particles, liquids, gases, reactions, explosions, and ropes with live Verlet-physics simulation. Invite friends to the same Firebase Realtime Database room and experiment together.
 
-## Code organization
+## Repository layout
 
-- `js/main.js` contains the canvas UI, materials, and physics simulation.
-- `js/multiplayer.js` handles Firebase authentication, room presence, edit streaming, host election, and authoritative world snapshots.
-- `js/firebase-config.js` contains the public Firebase web-app configuration.
+- `Website/` contains the complete live website published by GitHub Pages.
+  - `Website/index.html` is the website entry point.
+  - `Website/js/` contains the browser-side game, physics, multiplayer, and Firebase configuration modules.
+  - `Website/offline.html` is the generated single-file offline edition.
+- `.github/workflows/` contains GitHub Actions automation.
+- `functions/` contains the Firebase Cloud Function for empty-room cleanup.
+- `firebase.json`, `.firebaserc`, and `database.rules.json` configure Firebase.
+- `build-offline.mjs` builds the offline edition from the website source.
 
 ## Play online
 
@@ -14,7 +19,7 @@ After GitHub Pages finishes deploying, open:
 
 **https://jack105wa.github.io/PixelPhyx/**
 
-The game also runs locally from a web server. Firebase's browser SDK is loaded from Google's CDN, so an internet connection is required for online play.
+The site is published from the contents of `Website/` at the Pages site root, so public URLs do not include `/Website/`. The game also runs locally from a web server. Firebase's browser SDK is loaded from Google's CDN, so an internet connection is required for online play.
 
 ## Firebase multiplayer setup
 
@@ -109,4 +114,4 @@ Everyone in a room shares the same particle world and rope structures. Presence 
 
 ## GitHub Pages deployment
 
-The repository deploys from `main` using the workflow in `.github/workflows/pages.yml`. In GitHub, open **Settings → Pages** and make sure the source is **GitHub Actions**. The workflow publishes the repository root.
+The repository deploys from `main` using the workflow in `.github/workflows/pages.yml`. In GitHub, open **Settings → Pages** and make sure the source is **GitHub Actions**. The workflow rebuilds the standalone offline edition and publishes only the contents of `Website/` as the site root. Repository files and Firebase administration files remain outside the deployed website.

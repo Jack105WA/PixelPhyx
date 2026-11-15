@@ -22,19 +22,19 @@ jobs:
         run: node build-offline.mjs
       - name: Commit updated offline edition
         run: |
-          if git diff --quiet -- offline.html; then
-            echo "offline.html is already up to date."
+          if git diff --quiet -- Website/offline.html; then
+            echo "Website/offline.html is already up to date."
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add offline.html
+            git add Website/offline.html
             git commit -m "Build updated offline edition"
             git push
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: Website
   deploy:
     environment:
       name: github-pages
