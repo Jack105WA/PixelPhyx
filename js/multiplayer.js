@@ -78,7 +78,10 @@ export function createMultiplayer(callbacks = {}) {
       const existingOperations = await get(operationQuery);
       const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
       stopOperations = onChildAdded(operationQuery, snapshot => {
-        if (existingKeys.has(snapshot.key)) return;
+        if (existingKeys.has(snapshot.key)) {
+          if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
+          return;
+        }
         const operation = snapshot.val();
         if (operation && operation.by !== playerId) callbacks.onOperation?.(operation);
         // Only the host removes processed operations. This keeps the shared queue tiny
