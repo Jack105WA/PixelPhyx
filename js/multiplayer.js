@@ -10,7 +10,7 @@ export function createMultiplayer(callbacks = {}) {
   let playerId = 'guest-' + Math.random().toString(36).slice(2, 9);
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null;
-  let lastWorldWrite = 0;
+  let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null;
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -127,11 +127,27 @@ export function createMultiplayer(callbacks = {}) {
   function publishWorld(world) {
     if (!db || !joined || !room || hostId !== playerId) return;
     const now = Date.now();
-    if (now - lastWorldWrite < 90) return;
+    if (now - lastWorldWrite < 45) return;
     lastWorldWrite = now;
-    set(ref(db, 'rooms/' + room + '/world'), {
-      ...world, by: playerId, updatedAt: serverTimestamp()
-    }).catch(error => log('World sync failed: ' + error.message));
+    pendingWorld = world;
+    if (worldWriteInFlight) return;
+
+    worldWriteInFlight = true;
+    (async () => {
+      try {
+        while (pendingWorld && joined && room && hostId === playerId) {
+          const latest = pendingWorld;
+          pendingWorld = null;
+          await set(ref(db, 'rooms/' + room + '/world'), {
+            ...latest, by: playerId, updatedAt: serverTimestamp()
+          });
+        }
+      } catch (error) {
+        log('World sync failed: ' + error.message);
+      } finally {
+        worldWriteInFlight = false;
+      }
+    })();
   }
 
   function updateCursor(point, color, name) {
