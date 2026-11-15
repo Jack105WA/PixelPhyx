@@ -23,7 +23,7 @@ const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 let cells=new Uint8Array(N),updated=new Uint8Array(N),running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let temperatureUnit='C';
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
-let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName='Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},multiplayer=null,playerColor=['#65d6ad','#ff9b71','#78a9ff','#d6a0ff','#ffd166','#ff719a','#70d6c8'][Math.floor(Math.random()*7)];
+let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
 function setConnection(state,label){const el=document.querySelector('#connection');el.className='status '+state;document.querySelector('#connectionText').textContent=label}
@@ -219,11 +219,25 @@ function tick(){updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<
  }
  if(m===M.FIRE||m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
  }}stepRopes()}
-function render(){let count=0;for(let i=0;i<N;i++){const m=cells[i],c=colors[m]||colors[0],p=i*4;frameImage.data[p]=c[0];frameImage.data[p+1]=c[1];frameImage.data[p+2]=c[2];frameImage.data[p+3]=255;if(m)count++}ctx.putImageData(frameImage,0,0);ctx.lineCap='round';ctx.lineJoin='round';for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
- for(const [id,c] of Object.entries(remoteCursors)){if(id===playerId||!Number.isFinite(c.x)||!Number.isFinite(c.y))continue;ctx.save();ctx.fillStyle=c.color||'#fff';ctx.strokeStyle=c.color||'#fff';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(c.x,c.y);ctx.lineTo(c.x+3.5,c.y+8);ctx.lineTo(c.x+5.5,c.y+5);ctx.lineTo(c.x+8.5,c.y+4.5);ctx.closePath();ctx.fill();const label=String(c.name||'Guest').slice(0,14);ctx.font='5px Inter,sans-serif';const tw=ctx.measureText(label).width;ctx.fillStyle='#101923';ctx.fillRect(c.x+6,c.y-5,tw+3,7);ctx.fillStyle=c.color||'#fff';ctx.fillText(label,c.x+7.5,c.y+.2);ctx.restore()}document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}
+function drawPlayerCursor(c,isYou=false){
+ if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
+ ctx.save();ctx.fillStyle=c.color||'#fff';ctx.strokeStyle=c.color||'#fff';ctx.lineWidth=.8;
+ ctx.beginPath();ctx.moveTo(c.x,c.y);ctx.lineTo(c.x+3.5,c.y+8);ctx.lineTo(c.x+5.5,c.y+5);ctx.lineTo(c.x+8.5,c.y+4.5);ctx.closePath();ctx.fill();
+ const label=(String(c.name||'Guest').slice(0,14)+(isYou?' (ME)':''));ctx.font='5px Inter,sans-serif';const tw=ctx.measureText(label).width;
+ ctx.fillStyle='#101923';ctx.fillRect(c.x+6,c.y-5,tw+3,7);ctx.fillStyle=c.color||'#fff';ctx.fillText(label,c.x+7.5,c.y+.2);ctx.restore();
+}
+function render(){
+ let count=0;
+ for(let i=0;i<N;i++){const m=cells[i],c=colors[m]||colors[0],p=i*4;frameImage.data[p]=c[0];frameImage.data[p+1]=c[1];frameImage.data[p+2]=c[2];frameImage.data[p+3]=255;if(m)count++}
+ ctx.putImageData(frameImage,0,0);ctx.lineCap='round';ctx.lineJoin='round';
+ for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
+ for(const c of Object.values(remoteCursors))drawPlayerCursor(c,false);
+ if(room&&localCursor)drawPlayerCursor({...localCursor,color:playerColor,name:playerName},true);
+ document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
+}
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=75;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0;
-function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP*MAX_STEPS_PER_FRAME)simulationAccumulator=SIMULATION_STEP*MAX_STEPS_PER_FRAME}if(multiplayer?.isHost&&room&&now-lastWorldPublish>=300){lastWorldPublish=now;multiplayer.publishWorld(serialize())}render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+function loop(now){const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;if(running&&(!room||!multiplayer?.joined||multiplayer.isHost)){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP*MAX_STEPS_PER_FRAME)simulationAccumulator=SIMULATION_STEP*MAX_STEPS_PER_FRAME}if(multiplayer?.isHost&&room&&now-lastWorldPublish>=100){lastWorldPublish=now;multiplayer.publishWorld(serialize())}render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
 
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
@@ -251,7 +265,7 @@ async function connectFirebase(config){
     const {createMultiplayer}=await import('./multiplayer.js');
     multiplayer=createMultiplayer({
      onStatus:setConnection,onLog:log,onOperation:op=>{applyOperation(op);if(multiplayer?.isHost&&room)multiplayer.publishWorld(serialize())},onWorld:applyWorld,
-     onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,name:p.name||'Guest'}}}
+     onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,color:p.color||'#ffffff',name:p.name||'Guest'}}}
     });
    })().catch(error=>{multiplayerLoading=null;throw error});
   }
@@ -266,7 +280,7 @@ document.querySelector('#roomGo').onclick=async()=>{const v=document.querySelect
 function encodeCells(data){let out='';for(let i=0;i<data.length;i+=8192)out+=String.fromCharCode(...data.subarray(i,Math.min(i+8192,data.length)));return btoa(out)}
 function decodeCells(value){if(Array.isArray(value))return Uint8Array.from(value);const raw=atob(value);const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
 function serialize(){return{cells:encodeCells(cells),ropes:ropes.map(r=>r.points.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),p.anchor?1:0])),gravity,ambient,updatedAt:Date.now(),by:playerId}}
-function applyWorld(data){if(!data||data.by===playerId||!data.updatedAt||data.updatedAt<=lastRemoteWorldAt)return;let incoming;try{incoming=decodeCells(data.cells)}catch(e){return}if(incoming.length!==N)return;lastRemoteWorldAt=data.updatedAt;remoteApplying=true;cells.set(incoming);if(Array.isArray(data.ropes))ropes=data.ropes.slice(0,100).map(points=>({length:1.5,stiffness:1,points:Array.isArray(points)?points.map(p=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]})):[]})).filter(r=>r.points.length>1);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false}
+function applyWorld(data){if(!data||data.by===playerId)return;let incoming;try{incoming=decodeCells(data.cells)}catch(e){return}if(incoming.length!==N)return;lastRemoteWorldAt++;remoteApplying=true;cells.set(incoming);if(Array.isArray(data.ropes))ropes=data.ropes.slice(0,100).map(points=>({length:1.5,stiffness:1,points:Array.isArray(points)?points.map(p=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]})):[]})).filter(r=>r.points.length>1);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false}
 async function joinRoom(code){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
@@ -274,7 +288,7 @@ async function joinRoom(code){
   await connectFirebase(firebaseConfig);
   if(!multiplayer)throw new Error('Multiplayer failed to initialize');
   lastRemoteWorldAt=0;lastWorldPublish=0;
-  await multiplayer.joinRoom(clean);room=clean;
+  await multiplayer.joinRoom(clean,{name:playerName,color:playerColor});room=clean;
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   log('Joined room '+room+' — shared world synchronization active');
@@ -294,5 +308,11 @@ function renderPlayers(people){
  }
 }
 function applyOperation(op){if(!op||remoteApplying)return;remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);ropes=[]}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/1.5)),points=[];for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}ropes.push({points,length:distance/segments,stiffness:1})}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(15,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='box'){for(const p of pts)for(let y=-bs;y<=bs;y++)for(let x=-bs;x<=bs;x++)put(p.x+x,p.y+y,mat)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
-canvas.addEventListener('pointermove',e=>{if(!room||!multiplayer?.joined)return;const now=Date.now(),p=canvasPoint(e);if(!inside(p.x,p.y)||now-lastCursorWrite<110)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<2)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
+let localCursor=null;
+canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<50)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
+canvas.addEventListener('pointerleave',()=>{localCursor=null});
+document.querySelector('#playerName').value=playerName;
+document.querySelector('#playerColor').value=playerColor;
+document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;localStorage.setItem('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
+document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;localStorage.setItem('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
 updateTemperature();
