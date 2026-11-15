@@ -342,6 +342,25 @@ async function connectFirebase(config){
  return playerId;
 }
 connectFirebase(firebaseConfig).catch(e=>{console.warn(e);log('Firebase connection unavailable: '+e.message)});
+function updateCurrentRoomUI(){
+ const section=document.querySelector('#currentRoomSection'),code=document.querySelector('#currentRoomCode');
+ if(!section||!code)return;
+ code.textContent=room||'Not connected';
+ section.hidden=!room;
+}
+document.querySelector('#copyRoomCode').onclick=async()=>{
+ if(!room)return;
+ const button=document.querySelector('#copyRoomCode');
+ try{
+  if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(room);
+  else{
+   const field=document.createElement('textarea');field.value=room;field.style.position='fixed';field.style.opacity='0';document.body.append(field);field.select();
+   const copied=document.execCommand('copy');field.remove();if(!copied)throw new Error('Clipboard access is unavailable');
+  }
+  button.title='Copied';button.setAttribute('aria-label','Room code copied');
+  setTimeout(()=>{button.title='Copy room code';button.setAttribute('aria-label','Copy room code')},1200);
+ }catch(error){log('Could not copy room code: '+error.message)}
+};
 document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
@@ -350,6 +369,7 @@ document.querySelector('#createLobby').onclick=async()=>{
   room=await multiplayer.createLobby({name:playerName,color:playerColor});
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
+  updateCurrentRoomUI();
   document.querySelector('#roomModal').classList.remove('open');
   log('Created server '+room+' — you are the host');
  }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
@@ -362,6 +382,7 @@ async function openLobbyGallery(){
   await connectFirebase(firebaseConfig);
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
+  updateCurrentRoomUI();
   openModal('roomModal');
  }catch(error){alert('Could not load lobbies: '+error.message)}
 }
@@ -413,6 +434,7 @@ async function joinRoom(code,approved=false){
   await multiplayer.joinRoom(clean,{name:playerName,color:playerColor},approved,false);room=clean;
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
+  updateCurrentRoomUI();
   log('Joined room '+room+' — shared world synchronization active');
  }catch(e){log('Could not join room: '+e.message);alert('Could not join room: '+e.message)}
 }
