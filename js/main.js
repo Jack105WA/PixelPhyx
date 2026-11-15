@@ -293,7 +293,7 @@ document.querySelector('#temperatureControl').oninput=e=>{const value=+e.target.
 document.querySelector('#temperatureUnit').onclick=()=>{temperatureUnit=temperatureUnit==='C'?'F':'C';updateTemperature()};
 addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){e.preventDefault();document.querySelector('#play').click()}});
 const openModal=id=>document.querySelector('#'+id).classList.add('open');
-document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFirebase(firebaseConfig)}catch(e){alert('Firebase connection failed: '+e.message)}};document.querySelector('#roomBtn').onclick=()=>openModal('roomModal');
+document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFirebase(firebaseConfig)}catch(e){alert('Firebase connection failed: '+e.message)}};document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 document.querySelector('#connectFirebase').onclick=async()=>{try{await connectFirebase(firebaseConfig);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
@@ -306,6 +306,7 @@ async function connectFirebase(config){
     multiplayer=createMultiplayer({
      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
      onPlayers:renderPlayers,
+     onJoinRequest:request=>{const accepted=confirm(request.name+' wants to join lobby '+request.room+'. Allow them?');multiplayer?.respondToJoinRequest(request.key,accepted).catch(error=>log('Could not process join request: '+error.message))},
      onCursors:people=>{remoteCursorTargets={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&Number.isFinite(p.x)&&Number.isFinite(p.y))remoteCursorTargets[id]={x:p.x,y:p.y,color:p.color||'#ffffff',name:p.name||'Guest'}}}
     });
    })().catch(error=>{multiplayerLoading=null;throw error});
@@ -316,20 +317,75 @@ async function connectFirebase(config){
  return playerId;
 }
 connectFirebase(firebaseConfig).catch(e=>{console.warn(e);log('Firebase connection unavailable: '+e.message)});
-document.querySelector('#join').onclick=()=>joinRoom(document.querySelector('#roomCode').value);
-document.querySelector('#roomGo').onclick=async()=>{const v=document.querySelector('#roomModalCode').value;document.querySelector('#roomCode').value=v;document.querySelector('#roomModal').classList.remove('open');await joinRoom(v)};
+document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
+document.querySelector('#createLobby').onclick=async()=>{
+ const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
+ try{
+  await connectFirebase(firebaseConfig);
+  room=await multiplayer.createLobby({name:playerName,color:playerColor});
+  document.querySelector('#roomLabel').textContent='ROOM · '+room;
+  document.querySelector('#roomCode').value=room;
+  document.querySelector('#roomModal').classList.remove('open');
+  log('Created lobby '+room+' — you are the host');
+ }catch(error){alert(error.message);log('Lobby creation failed: '+error.message)}
+ finally{button.disabled=false;button.textContent='+ Create lobby'}
+};
+
+let stopLobbyGallery=null;
+async function openLobbyGallery(){
+ try{
+  await connectFirebase(firebaseConfig);
+  if(stopLobbyGallery)stopLobbyGallery();
+  stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
+  openModal('roomModal');
+ }catch(error){alert('Could not load lobbies: '+error.message)}
+}
+function renderLobbyGallery(lobbies){
+ const gallery=document.querySelector('#lobbyGallery');
+ document.querySelector('#lobbyCapacity').textContent=lobbies.length+' / 20 active lobbies';
+ gallery.replaceChildren();
+ if(!lobbies.length){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No active lobbies yet. Create one to become the host.';gallery.append(empty);return}
+ for(const lobby of lobbies){
+  const card=document.createElement('article');card.className='lobby-card';
+  const top=document.createElement('div');top.className='lobby-card-top';
+  const number=document.createElement('span');number.className='lobby-number';number.textContent=lobby.room;
+  const count=document.createElement('span');count.className='lobby-count';count.textContent=(lobby.players||0)+' online';
+  top.append(number,count);
+  const host=document.createElement('div');host.className='lobby-host';host.textContent='HOST · ';
+  const hostName=document.createElement('strong');hostName.textContent=lobby.hostName||'Unknown';host.append(hostName);
+  const join=document.createElement('button');join.className='btn primary';join.textContent='Request to join';
+  join.onclick=async()=>{
+   join.disabled=true;join.textContent='Request sent…';
+   try{await requestAndJoinRoom(lobby.room);document.querySelector('#roomModal').classList.remove('open')}
+   catch(error){alert(error.message);join.disabled=false;join.textContent='Request to join'}
+  };
+  card.append(top,host,join);gallery.append(card);
+ }
+}
+async function requestAndJoinRoom(code){
+ const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
+ if(!clean){alert('Choose a lobby first');return}
+ try{
+  await connectFirebase(firebaseConfig);
+  log('Requesting access to '+clean+'…');
+  const approved=await multiplayer.requestJoin(clean,{name:playerName});
+  if(!approved)throw new Error('The host declined your request');
+  await joinRoom(clean,true);
+ }catch(error){log('Could not join lobby: '+error.message);throw error}
+}
+
 function encodeCells(data){let out='';for(let i=0;i<data.length;i+=2)out+=String.fromCharCode((data[i]&15)|(((data[i+1]||0)&15)<<4));return btoa(out)}
 function decodeCells(value,packed=false){if(Array.isArray(value))return Uint8Array.from(value);const raw=atob(value);if(packed){const out=new Uint8Array(raw.length*2);for(let i=0;i<raw.length;i++){const byte=raw.charCodeAt(i);out[i*2]=byte&15;out[i*2+1]=byte>>4}return out}const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
 function serialize(){return{cells:encodeCells(cells),packed:true,ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),p.anchor?1:0])})),gravity,ambient,updatedAt:Date.now(),by:playerId}}
 function applyWorld(data){if(!data||data.by===playerId||drawing||ropeDrag)return;let incoming;try{incoming=decodeCells(data.cells,!!data.packed)}catch(e){return}if(incoming.length!==N)return;lastRemoteWorldAt++;remoteApplying=true;cells.set(incoming);if(Array.isArray(data.ropes))ropes=data.ropes.slice(0,100).map(entry=>{const points=Array.isArray(entry)?entry:entry?.points||[];return{id:!Array.isArray(entry)&&entry.id?String(entry.id):newRopeId(),length:1.5,stiffness:1,points:Array.isArray(points)?points.map(p=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]})):[]}}).filter(r=>r.points.length>1);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false}
-async function joinRoom(code){
+async function joinRoom(code,approved=false){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
  try{
   await connectFirebase(firebaseConfig);
   if(!multiplayer)throw new Error('Multiplayer failed to initialize');
   lastRemoteWorldAt=0;lastWorldPublish=0;
-  await multiplayer.joinRoom(clean,{name:playerName,color:playerColor});room=clean;
+  await multiplayer.joinRoom(clean,{name:playerName,color:playerColor},approved,false);room=clean;
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   log('Joined room '+room+' — shared world synchronization active');
