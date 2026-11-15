@@ -1,98 +1,201 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PixelPhyx — Physics Lab</title>
-<meta name="description" content="A pixelated multiplayer physics and chemistry sandbox.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10151e">
+<title>PixelPhyx — Online Physics Lab</title>
+<meta name="description" content="A multiplayer pixel physics and chemistry sandbox. Build, experiment, and break things together.">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&display=swap');
-:root{color-scheme:dark;--bg:#10131b;--panel:#191f2b;--panel2:#222b3a;--line:#354154;--text:#e9f0fa;--muted:#98a8bd;--accent:#72d6b0;--red:#ff6b65}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Inter,system-ui;overflow:hidden}
-header{height:58px;display:flex;align-items:center;gap:18px;padding:0 18px;background:#151a24;border-bottom:1px solid var(--line)}
-.logo{font:12px 'Press Start 2P';color:#8be3bd;white-space:nowrap}.sub{color:var(--muted);font-size:12px}
-.topright{margin-left:auto;display:flex;gap:8px;align-items:center}.pill,.btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:7px;padding:9px 11px;font-weight:700;font-size:12px}.btn{cursor:pointer}.btn:hover,.btn.active{border-color:var(--accent);color:var(--accent)}.btn.primary{background:#285c4d;border-color:#438b72;color:white}.btn.danger{color:#ff9b94}
-main{height:calc(100vh - 58px);display:grid;grid-template-columns:220px minmax(0,1fr) 240px;gap:10px;padding:10px}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-height:0;overflow:auto}.panel h3{font:9px 'Press Start 2P';color:#9eafc5;margin:0;padding:17px 14px 12px}
-.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:0 10px 12px}.tool{background:#222b39;border:1px solid #344154;border-radius:7px;color:#dce7f5;padding:9px 6px;text-align:left;cursor:pointer;font-size:11px;font-weight:700}.tool small{display:block;color:#91a3b9;font-size:9px;margin-top:5px}.tool.selected{border-color:var(--accent);background:#263d3a;color:#a9f5d5}
-.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 12px 12px}.swatch{height:30px;border:2px solid #465368;border-radius:5px;cursor:pointer}.swatch.selected{outline:2px solid var(--accent);outline-offset:1px}
-.group{padding:0 12px 14px}.group label{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin:10px 0 6px}.group input[type=range]{width:100%;accent-color:var(--accent)}.group input[type=text],.group select{width:100%;background:#111722;border:1px solid var(--line);border-radius:6px;color:white;padding:9px}
-.stage{display:flex;flex-direction:column;min-width:0;min-height:0;gap:8px}.stagebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.stagebar .spacer{flex:1}.canvaswrap{position:relative;flex:1;min-height:0;background:#0b0e14;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:grid;place-items:center}.canvaswrap canvas{width:100%;height:100%;object-fit:contain;image-rendering:pixelated;cursor:crosshair;touch-action:none}.hint{position:absolute;bottom:10px;left:12px;color:#7f90a6;font-size:10px;pointer-events:none}.right .stat{display:flex;justify-content:space-between;padding:8px 13px;color:var(--muted);font-size:11px}.right .stat b{color:var(--text)}.feed{padding:0 12px 12px;color:#a9b7c9;font-size:11px;line-height:1.6;max-height:180px;overflow:auto}.feed div{border-bottom:1px solid #293344;padding:5px 0}.players{padding:0 12px 12px;font-size:11px;color:#b9c8da}.player{padding:6px 0;border-bottom:1px solid #293344}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#71d6a9;margin-right:7px}
-.modal{position:fixed;inset:0;background:#05070bc9;display:none;place-items:center;z-index:5}.modal.show{display:grid}.dialog{width:min(480px,calc(100vw - 30px));background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}.dialog h2{font:12px 'Press Start 2P';line-height:1.8}.dialog p{color:var(--muted);font-size:12px;line-height:1.6}.dialog textarea{width:100%;height:150px;background:#0e131c;color:#dce7f5;border:1px solid var(--line);border-radius:7px;padding:10px;font:11px monospace}.dialog .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
-@media(max-width:900px){main{grid-template-columns:170px minmax(0,1fr);}.right{display:none}.logo{font-size:9px}}@media(max-width:600px){header{padding:0 10px}.sub{display:none}main{grid-template-columns:112px minmax(0,1fr);padding:5px;gap:5px}.tools{grid-template-columns:1fr;padding:0 6px 8px}.tool{padding:7px}.panel h3{font-size:7px;padding:12px 7px}.group{padding:0 7px 10px}.swatches{padding:0 7px 8px}.topright .pill{display:none}}
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap');
+:root{color-scheme:dark;--bg:#0d1118;--surface:#151c27;--surface2:#1c2634;--surface3:#253245;--line:#2b394d;--text:#edf3fb;--muted:#91a1b7;--mint:#83e4bd;--mint2:#3da987;--orange:#ffb86a;--danger:#ff7777;--shadow:0 16px 40px #0005}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{background:radial-gradient(ellipse at 50% -30%,#23364a 0,transparent 55%),var(--bg);color:var(--text);font:13px Inter,system-ui;overflow:hidden}
+button,input{font:inherit}button{color:inherit}.app{height:100%;display:flex;flex-direction:column;min-height:0}
+header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 22px;background:#111823ed;border-bottom:1px solid var(--line);box-shadow:0 4px 20px #0002;z-index:2}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.brandmark{width:34px;height:34px;display:grid;place-items:center;background:linear-gradient(145deg,#8be7c1,#398c76);color:#10221c;border-radius:9px;font:18px 'Press Start 2P';box-shadow:0 4px 16px #65d6ad35}.brandname{font:11px 'Press Start 2P';letter-spacing:-.5px;color:#a5f0d0}.brandtag{color:var(--muted);font-size:11px;margin-top:6px}
+.header-spacer{flex:1}.status{display:flex;align-items:center;gap:8px;color:var(--muted);font:11px 'DM Mono',monospace}.status-dot{width:8px;height:8px;border-radius:50%;background:#758397}.status.online .status-dot{background:var(--mint);box-shadow:0 0 10px #83e4bd99}.status.connecting .status-dot{background:var(--orange)}
+.room-pill{padding:8px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:#cbd7e7;font:11px 'DM Mono',monospace}
+.btn{border:1px solid var(--line);background:var(--surface2);border-radius:8px;padding:9px 12px;font-weight:700;font-size:12px;cursor:pointer;transition:.15s}.btn:hover{border-color:#66849a;background:var(--surface3)}.btn.primary{background:#276c56;border-color:#398d70;color:#f4fff9}.btn.primary:hover{background:#318467}.btn.ghost{background:transparent}.btn:disabled{opacity:.45;cursor:not-allowed}
+.layout{flex:1;min-height:0;display:grid;grid-template-columns:258px minmax(0,1fr) 250px;gap:12px;padding:12px}
+.panel{background:linear-gradient(180deg,#18212d,#141b25);border:1px solid var(--line);border-radius:12px;min-height:0;overflow:auto;box-shadow:var(--shadow);scrollbar-width:thin;scrollbar-color:#40536b transparent}
+.panel-head{padding:16px 16px 11px;color:#aebdd0;font:9px 'Press Start 2P';letter-spacing:.2px}
+.section{padding:0 14px 15px}.section+.section{border-top:1px solid #293548;padding-top:12px}.section-title{display:flex;justify-content:space-between;align-items:center;color:#d4dfed;font-size:11px;font-weight:800;margin:0 0 9px}
+.toolgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.tool{min-height:55px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#202b3a;border:1px solid #334257;border-radius:8px;color:#cbd7e5;cursor:pointer;font-size:10px;font-weight:700}.tool .ico{font-size:17px;line-height:18px}.tool:hover{border-color:#718ba0}.tool.active{background:#203e38;border-color:var(--mint2);color:#aaf1d4;box-shadow:inset 0 0 0 1px #3e9276}
+.material-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.material{display:flex;align-items:center;gap:9px;padding:8px 9px;min-width:0;background:#202a38;border:1px solid #334257;border-radius:8px;text-align:left;cursor:pointer;color:#d7e1ee;font-size:11px;font-weight:700}.material:hover{border-color:#718ba0;background:#263448}.material.active{border-color:var(--mint2);background:#203e38;color:#b4f5db;box-shadow:inset 0 0 0 1px #3e9276}.material .mico{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:6px;background:#0e141d;font-size:15px}.material .mname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.control{margin-top:13px}.control label{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:11px;margin-bottom:7px}.control output{color:#dfeaf7;font:11px 'DM Mono',monospace}.control input[type=range]{width:100%;accent-color:var(--mint)}.control input[type=text]{width:100%;padding:10px;background:#0e151f;border:1px solid var(--line);border-radius:7px;color:white;outline:none}.control input[type=text]:focus{border-color:var(--mint2)}
+.center{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}.toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.toolbar .divider{height:25px;width:1px;background:var(--line);margin:0 3px}.toolbar .grow{flex:1}.canvas-shell{position:relative;flex:1;min-height:200px;overflow:hidden;border:1px solid #35465b;border-radius:12px;background:#0b1018;box-shadow:var(--shadow);display:flex;align-items:stretch;justify-content:stretch}.canvas-shell:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,#ffffff08,transparent 35%);z-index:1}.canvas-shell canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-action:none;cursor:crosshair}.canvas-hud{position:absolute;z-index:2;left:12px;top:12px;display:flex;gap:7px;pointer-events:none}.hud-chip{background:#101923d9;border:1px solid #405168;border-radius:6px;padding:6px 8px;color:#c5d3e4;font:10px 'DM Mono',monospace}.canvas-hint{position:absolute;z-index:2;bottom:12px;left:14px;right:14px;color:#8b9db2;font-size:10px;text-shadow:0 1px 4px #000;pointer-events:none}.bottomline{display:flex;justify-content:space-between;gap:10px;color:#7f91a7;font:10px 'DM Mono',monospace}
+.right-panel .stat{display:flex;justify-content:space-between;align-items:center;padding:8px 15px;color:var(--muted);font-size:11px}.stat strong{color:#e5edf7;font:11px 'DM Mono',monospace}.player-list{padding:0 14px 12px}.player{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #293548;color:#c7d4e4;font-size:11px}.avatar{width:23px;height:23px;display:grid;place-items:center;background:#29443e;border-radius:7px;color:#9be9c9;font-weight:800}.you{margin-left:auto;color:#7f91a7;font-size:9px}.log{padding:0 14px 15px;max-height:180px;overflow:auto;color:#aebdd0;font-size:10px;line-height:1.55}.log-entry{padding:6px 0;border-bottom:1px solid #283446}.log-entry:first-child{color:#d4e5df}
+.temp-read{display:flex;align-items:center;gap:8px;padding:10px 11px;border-radius:8px;background:#202b39;border:1px solid #344357}.temp-icon{font-size:20px}.temp-value{font:18px 'DM Mono',monospace;color:#ffd29b}.temp-caption{font-size:10px;color:var(--muted);margin-top:2px}
+.modal{position:fixed;inset:0;background:#05080dcc;display:none;place-items:center;padding:18px;z-index:10;backdrop-filter:blur(7px)}.modal.open{display:grid}.dialog{width:min(510px,100%);max-height:90vh;overflow:auto;background:#18212d;border:1px solid #40516a;border-radius:14px;padding:22px;box-shadow:0 30px 90px #0009}.dialog h2{font:11px 'Press Start 2P';line-height:1.9;margin:0 0 12px;color:#a5f0d0}.dialog p,.dialog li{font-size:12px;line-height:1.7;color:#aebdd0}.dialog ol{padding-left:20px}.dialog code{font:11px 'DM Mono',monospace;color:#b5f3d8}.dialog textarea{width:100%;height:145px;resize:vertical;background:#0d141e;border:1px solid var(--line);border-radius:8px;color:#dce8f6;padding:11px;font:11px 'DM Mono',monospace}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.dialog .muted{color:var(--muted)}
+@media(max-width:1120px){.layout{grid-template-columns:220px minmax(0,1fr)}.right-panel{display:none}}
+@media(max-width:680px){body{overflow:auto}.app{min-height:100%;height:auto}header{height:56px;padding:0 12px;gap:8px}.brandtag{display:none}.brandname{font-size:8px}.status{font-size:9px}.room-pill{display:none}header .btn{padding:8px;font-size:10px}.layout{display:flex;flex-direction:column;padding:7px;gap:8px}.left-panel{order:2;max-height:360px}.center{order:1;min-height:62vh}.canvas-shell{min-height:45vh}.toolbar{gap:5px}.toolbar .btn{padding:8px;font-size:10px}.panel-head{padding:12px}.material-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.material{padding:6px;gap:5px}.material .mico{width:19px;height:19px}.toolgrid{grid-template-columns:repeat(4,minmax(0,1fr))}.bottomline{padding-bottom:5px}}
 </style>
 </head>
 <body>
-<header><div class="logo">PIXELPHYX</div><div class="sub">PHYSICS LAB / EXPERIMENT 01</div><div class="topright"><span class="pill" id="connection">OFFLINE MODE</span><span class="pill" id="roomLabel">ROOM: LOCAL</span><button class="btn" id="roomBtn">Multiplayer</button><button class="btn" id="configBtn">Firebase</button></div></header>
-<main>
-<aside class="panel"><h3>TOOLS</h3><div class="tools" id="tools"></div><h3>MATERIALS</h3><div class="swatches" id="swatches"></div><div class="group"><label>Brush size <b id="sizeVal">4</b></label><input id="brush" type="range" min="1" max="18" value="4"><label>Gravity <b id="gravityVal">1.0x</b></label><input id="gravity" type="range" min="0" max="25" value="10"><label>Simulation speed <b id="speedVal">1.0x</b></label><input id="speed" type="range" min="1" max="4" value="1"></div></aside>
-<section class="stage"><div class="stagebar"><button class="btn primary" id="play">Ⅱ Pause</button><button class="btn" id="step">Step</button><button class="btn" id="clear">Clear</button><button class="btn" id="save">Save PNG</button><span class="spacer"></span><span class="pill" id="fps">60 FPS</span></div><div class="canvaswrap"><canvas id="world" width="720" height="400"></canvas><div class="hint">LEFT CLICK / DRAG TO DRAW · RIGHT CLICK TO ERASE · SPACE TO PAUSE</div></div></section>
-<aside class="panel right"><h3>WORLD STATUS</h3><div class="stat"><span>Particles</span><b id="particleCount">0</b></div><div class="stat"><span>Temperature</span><b id="temperature">20°C</b></div><div class="stat"><span>Gravity</span><b id="gravityRead">1.0x</b></div><h3>MULTIPLAYER</h3><div class="players" id="players"><div class="player">Local experiment</div></div><div class="group"><label>Room code</label><input id="roomCode" type="text" maxlength="18" placeholder="e.g. LAB-204"><button class="btn primary" id="join" style="width:100%;margin-top:8px">Join / Create Room</button></div><h3>REACTION LOG</h3><div class="feed" id="feed"><div>Lab initialized. Ready for experiments.</div></div><h3>CONTROLS</h3><div class="feed"><div>Space — pause / resume</div><div>Right click — erase</div><div>Scroll — brush size</div><div>Draw materials to combine them</div><div>Multiplayer shares the entire world</div></div></aside>
-</main>
-<div class="modal" id="configModal"><div class="dialog"><h2>FIREBASE SETUP</h2><p>Paste your Firebase Web App config JSON. Enable Realtime Database in your Firebase project and set its databaseURL in this config. The app stores this config in this browser only.</p><textarea id="firebaseConfig" spellcheck="false" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://YOUR-PROJECT-default-rtdb.firebaseio.com","projectId":"...","appId":"..."}'></textarea><div class="actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="connect">Connect Firebase</button></div></div></div>
-<div class="modal" id="roomModal"><div class="dialog"><h2>JOIN THE LAB</h2><p>Enter a room name to share one experiment with friends. Everyone in the room can place materials and change the simulation.</p><input id="roomModalCode" type="text" placeholder="LAB-204" style="width:100%;background:#111722;border:1px solid var(--line);border-radius:6px;color:white;padding:11px"><div class="actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="roomGo">Join room</button></div></div></div>
+<div class="app">
+<header>
+ <div class="brand"><div class="brandmark">P</div><div><div class="brandname">PIXELPHYX</div><div class="brandtag">ONLINE PHYSICS LAB</div></div></div>
+ <div class="header-spacer"></div><div class="status" id="connection"><span class="status-dot"></span><span id="connectionText">LOCAL SESSION</span></div><span class="room-pill" id="roomLabel">ROOM · LOCAL</span>
+ <button class="btn" id="roomBtn">Multiplayer</button><button class="btn primary" id="firebaseBtn">Connect</button>
+</header>
+<div class="layout">
+<aside class="panel left-panel">
+ <div class="panel-head">EXPERIMENT TOOLS</div>
+ <div class="section"><div class="toolgrid" id="tools"></div></div>
+ <div class="section"><div class="section-title">Materials <span id="materialCount" style="color:var(--muted);font:10px 'DM Mono'">16</span></div><div class="material-grid" id="materials"></div></div>
+ <div class="section">
+  <div class="section-title">World controls</div>
+  <div class="control"><label>Brush size <output id="brushOut">5 px</output></label><input id="brush" type="range" min="1" max="22" value="5"></div>
+  <div class="control"><label>Gravity <output id="gravityOut">1.0×</output></label><input id="gravity" type="range" min="0" max="25" value="10"></div>
+  <div class="control"><label>Simulation speed <output id="speedOut">1×</output></label><input id="speed" type="range" min="1" max="5" value="1"></div>
+  <div class="control"><label>Ambient temperature <output id="tempOut">20°C</output></label><input id="temperatureControl" type="range" min="-100" max="1200" value="20"></div>
+ </div>
+</aside>
+<section class="center">
+ <div class="toolbar">
+  <button class="btn primary" id="play">Ⅱ Pause</button><button class="btn" id="step">Step</button><button class="btn" id="clear">Clear world</button><span class="divider"></span><button class="btn" id="save">Export PNG</button><button class="btn" id="share">Copy room</button><span class="grow"></span><span class="room-pill" id="fps">60 FPS</span>
+ </div>
+ <div class="canvas-shell" id="canvasShell">
+  <canvas id="world" width="320" height="180" aria-label="PixelPhyx physics sandbox"></canvas>
+  <div class="canvas-hud"><span class="hud-chip" id="toolHud">TOOL · DRAW</span><span class="hud-chip" id="particleHud">0 PARTICLES</span></div>
+  <div class="canvas-hint">CLICK + DRAG TO BUILD · RIGHT CLICK TO ERASE · SCROLL TO RESIZE BRUSH · SPACE TO PAUSE</div>
+ </div>
+ <div class="bottomline"><span>PIXELPHYX ENGINE · 320 × 180</span><span id="worldState">SIMULATION RUNNING</span></div>
+</section>
+<aside class="panel right-panel">
+ <div class="panel-head">WORLD INSPECTOR</div>
+ <div class="section">
+  <div class="section-title">Temperature</div><div class="temp-read"><span class="temp-icon">♨</span><div><div class="temp-value" id="tempBig">20°C</div><div class="temp-caption">Ambient world temperature</div></div></div>
+  <div class="stat"><span>Particles</span><strong id="particleCount">0</strong></div><div class="stat"><span>Rope segments</span><strong id="ropeCount">0</strong></div><div class="stat"><span>Gravity</span><strong id="gravityRead">1.0×</strong></div>
+ </div>
+ <div class="section"><div class="section-title">Multiplayer <span id="playerCount" style="color:var(--muted)">0 online</span></div><div class="player-list" id="players"><div class="player">Local experiment</div></div>
+  <div class="control"><label>Room code</label><input id="roomCode" type="text" maxlength="24" placeholder="e.g. PIXEL-204"></div><button class="btn primary" id="join" style="width:100%;margin-top:9px">Join / Create room</button>
+ </div>
+ <div class="section"><div class="section-title">Experiment log</div><div class="log" id="feed"><div class="log-entry">Welcome to the lab. Select a material and start experimenting.</div></div></div>
+ <div class="section"><div class="section-title">Quick controls</div><div class="log"><div class="log-entry">Space — pause / resume</div><div class="log-entry">Right click — erase</div><div class="log-entry">Scroll — brush size</div><div class="log-entry">Rope tool — drag between two anchors</div><div class="log-entry">Share a room code with friends</div></div></div>
+</aside>
+</div>
+</div>
+<div class="modal" id="firebaseModal"><div class="dialog"><h2>CONNECT YOUR LAB</h2><p>Paste the Firebase Web App config from Project settings → General → Your apps. Your config is stored only in this browser. The Firebase API key is a public client identifier; secure your database with the rules in the README.</p><textarea id="firebaseConfig" spellcheck="false" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://YOUR-PROJECT-default-rtdb.firebaseio.com","projectId":"...","appId":"..."}'></textarea><div class="dialog-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="connectFirebase">Connect to Firebase</button></div></div></div>
+<div class="modal" id="roomModal"><div class="dialog"><h2>PLAY TOGETHER</h2><p>Choose a room code and share it with your friends. Everyone who joins the same room can build in the same world in real time.</p><div class="control"><label>Room code</label><input id="roomModalCode" type="text" maxlength="24" placeholder="PIXEL-204"></div><div class="dialog-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="roomGo">Join room</button></div></div></div>
 <script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import {getDatabase,ref,onValue,set,update,onDisconnect} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-const W=180,H=100,N=W*H,canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false}),image=ctx.createImageData(W,H);
-const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,EXPLOSIVE:12,PLANT:13,SALT:14,ROPE:15,GLASS:16};
-const materials=[['Sand',1,'#d9b45f'],['Water',2,'#398cdb'],['Stone',3,'#818995'],['Wood',4,'#9b653d'],['Fire',5,'#ff743d'],['Oil',6,'#b6a13b'],['Acid',7,'#7ee45b'],['Steam',8,'#c5d6df'],['Smoke',9,'#66717d'],['Ice',10,'#9de8f2'],['Lava',11,'#ff4d1c'],['TNT',12,'#d64b50'],['Plant',13,'#55a85e'],['Salt',14,'#e8e8d9'],['Rope',15,'#b28a5c'],['Glass',16,'#b8dce8']];
-const colors={0:[12,16,24],1:[217,180,95],2:[57,140,219],3:[129,137,149],4:[155,101,61],5:[255,116,61],6:[182,161,59],7:[126,228,91],8:[197,214,223],9:[102,113,125],10:[157,232,242],11:[255,77,28],12:[214,75,80],13:[85,168,94],14:[232,232,217],15:[178,138,92],16:[184,220,232]};
-let cells=new Uint8Array(N),next=new Uint8Array(N),updated=new Uint8Array(N),running=true,tool='draw',selected=1,brush=4,gravity=1,speed=1,db=null,room='LOCAL',syncing=false,lastSync=0,playerId='p'+Math.random().toString(36).slice(2,9),playerName='Lab guest',playersRef=null,roomRef=null,frame=0;
+import {getDatabase,ref,onValue,set,onDisconnect,serverTimestamp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+import {getAuth,signInAnonymously,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+
+const W=320,H=180,N=W*H,canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false}),frameImage=ctx.createImageData(W,H);
+const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15};
+const materials=[
+ {id:1,name:'Sand',icon:'▨',color:'#d9b45f',rgb:[217,180,95],type:'powder'},
+ {id:2,name:'Water',icon:'≈',color:'#398cdb',rgb:[57,140,219],type:'liquid'},
+ {id:3,name:'Stone',icon:'◆',color:'#818995',rgb:[129,137,149],type:'solid'},
+ {id:4,name:'Wood',icon:'▥',color:'#9b653d',rgb:[155,101,61],type:'solid'},
+ {id:5,name:'Fire',icon:'♨',color:'#ff743d',rgb:[255,116,61],type:'gas'},
+ {id:6,name:'Oil',icon:'◉',color:'#b6a13b',rgb:[182,161,59],type:'liquid'},
+ {id:7,name:'Acid',icon:'☣',color:'#7ee45b',rgb:[126,228,91],type:'liquid'},
+ {id:8,name:'Steam',icon:'≋',color:'#c5d6df',rgb:[197,214,223],type:'gas'},
+ {id:9,name:'Smoke',icon:'☁',color:'#66717d',rgb:[102,113,125],type:'gas'},
+ {id:10,name:'Ice',icon:'❄',color:'#9de8f2',rgb:[157,232,242],type:'solid'},
+ {id:11,name:'Lava',icon:'◈',color:'#ff4d1c',rgb:[255,77,28],type:'liquid'},
+ {id:12,name:'TNT',icon:'✹',color:'#d64b50',rgb:[214,75,80],type:'solid'},
+ {id:13,name:'Plant',icon:'♣',color:'#55a85e',rgb:[85,168,94],type:'solid'},
+ {id:14,name:'Salt',icon:'✧',color:'#e8e8d9',rgb:[232,232,217],type:'powder'},
+ {id:15,name:'Glass',icon:'◇',color:'#b8dce8',rgb:[184,220,232],type:'solid'}
+];
+const colors=[[12,16,24],...materials.map(m=>m.rgb)];
+let cells=new Uint8Array(N),updated=new Uint8Array(N),running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
+let ropes=[],db=null,auth=null,app=null,room='',roomRef=null,playerId='guest-'+Math.random().toString(36).slice(2,9),playerName='Lab guest',syncTimer=0,lastWorldWrite=0,remoteApplying=false,joined=false,authUser=null,frame=0;
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
-function log(s){let el=document.querySelector('#feed'),d=document.createElement('div');d.textContent=s;el.prepend(d);while(el.children.length>12)el.lastChild.remove()}
-const tools=[['draw','Draw','Place material'],['line','Line','Straight strokes'],['rope','Rope','Connect two points'],['erase','Erase','Remove particles'],['box','Box','Drop a solid block'],['bomb','Detonate','Trigger explosives'],['heat','Heat','Ignite materials'],['cool','Cool','Freeze water']];
-const toolEl=document.querySelector('#tools');tools.forEach(([id,name,desc])=>{let b=document.createElement('button');b.className='tool'+(id==='draw'?' selected':'');b.innerHTML=name+'<small>'+desc+'</small>';b.onclick=()=>{tool=id;document.querySelectorAll('.tool').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')};toolEl.append(b)});
-const sw=document.querySelector('#swatches');materials.forEach(([name,id,color])=>{let b=document.createElement('button');b.className='swatch'+(id===1?' selected':'');b.title=name;b.style.background=color;b.onclick=()=>{selected=id;document.querySelectorAll('.swatch').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')};sw.append(b)});
-function put(x,y,m){if(!inside(x,y))return;cells[idx(x,y)]=m}
+function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
+function setConnection(state,label){const el=document.querySelector('#connection');el.className='status '+state;document.querySelector('#connectionText').textContent=label}
+const toolDefs=[['draw','✎','Draw'],['line','／','Line'],['rope','⌁','Rope'],['erase','⌫','Erase'],['box','▦','Box'],['bomb','✹','Blast'],['heat','♨','Heat'],['cool','❄','Cool']];
+const toolsEl=document.querySelector('#tools');
+toolDefs.forEach(([id,icon,name])=>{const b=document.createElement('button');b.className='tool'+(id==='draw'?' active':'');b.innerHTML='<span class="ico">'+icon+'</span><span>'+name+'</span>';b.onclick=()=>selectTool(id,b);toolsEl.append(b)});
+function selectTool(id,button){tool=id;document.querySelectorAll('.tool').forEach(b=>b.classList.remove('active'));button.classList.add('active');document.querySelector('#toolHud').textContent='TOOL · '+id.toUpperCase()}
+const matEl=document.querySelector('#materials');
+materials.forEach(m=>{const b=document.createElement('button');b.className='material'+(m.id===selected?' active':'');b.innerHTML='<span class="mico" style="color:'+m.color+'">'+m.icon+'</span><span class="mname">'+m.name+'</span>';b.title=m.name+' · '+m.type;b.onclick=()=>{selected=m.id;document.querySelectorAll('.material').forEach(x=>x.classList.remove('active'));b.classList.add('active')};matEl.append(b)});
+document.querySelector('#materialCount').textContent=materials.length+' TYPES';
+function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
 function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx*xx+yy*yy<=r*r)put(x+xx,y+yy,m)}
-function line(x0,y0,x1,y1,m,r=1){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
-let drawing=false,last=null;
-function pointer(e){let r=canvas.getBoundingClientRect(),scale=Math.min(r.width/W,r.height/H),ox=(r.width-W*scale)/2,oy=(r.height-H*scale)/2;return{x:Math.floor((e.clientX-r.left-ox)/scale),y:Math.floor((e.clientY-r.top-oy)/scale)}}
-function act(p,e){if(!inside(p.x,p.y))return;let m=e.button===2||tool==='erase'?0:selected;if(tool==='box'){for(let y=-brush;y<=brush;y++)for(let x=-brush;x<=brush;x++)put(p.x+x,p.y+y,selected===2?3:selected);return}if(tool==='bomb'){circle(p.x,p.y,2,M.EXPLOSIVE);return}if(tool==='heat'){circle(p.x,p.y,brush,M.FIRE);return}if(tool==='cool'){circle(p.x,p.y,brush,M.ICE);return}if(tool==='rope'){if(last)line(last.x,last.y,p.x,p.y,M.ROPE,0);last=p;return}if(tool==='line'&&last){line(last.x,last.y,p.x,p.y,m,Math.max(0,Math.floor(brush/3)));last=p;return}circle(p.x,p.y,brush,m);last=p}
-canvas.addEventListener('contextmenu',e=>e.preventDefault());canvas.addEventListener('pointerdown',e=>{drawing=true;last=null;canvas.setPointerCapture(e.pointerId);act(pointer(e),e)});canvas.addEventListener('pointermove',e=>{if(drawing)act(pointer(e),e)});canvas.addEventListener('pointerup',()=>{drawing=false;last=null;syncWorld()});canvas.addEventListener('wheel',e=>{brush=Math.max(1,Math.min(18,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#sizeVal').textContent=brush});
-function swap(a,b){let t=cells[a];cells[a]=cells[b];cells[b]=t;updated[a]=updated[b]=1}
-function reaction(i,x,y,m){let neighbors=[i-1,i+1,i-W,i+W];for(let j of neighbors){if(j<0||j>=N)continue;let n=cells[j];if(m===M.FIRE){if(n===M.WOOD||n===M.OIL||n===M.PLANT){cells[j]=M.FIRE;log(n===M.OIL?'Oil ignited!':'Combustion: material burning')}if(n===M.WATER){cells[i]=M.STEAM;cells[j]=M.STEAM;log('Water evaporated into steam')}if(n===M.ICE){cells[j]=M.WATER}}else if(m===M.ACID&&(n===M.STONE||n===M.WOOD||n===M.GLASS)){cells[j]=M.EMPTY;if(Math.random()<.08)log('Acid dissolved a material')}else if(m===M.LAVA&&(n===M.WATER||n===M.ICE)){cells[i]=M.STONE;cells[j]=M.STEAM;log('Thermal shock: lava cooled into stone')}else if(m===M.WATER&&n===M.FIRE){cells[i]=M.STEAM;cells[j]=M.STEAM}else if(m===M.SALT&&n===M.WATER){cells[i]=M.EMPTY;cells[j]=M.WATER}else if(m===M.PLANT&&n===M.WATER&&Math.random()<.004){cells[i]=M.PLANT}}}
-function explode(x,y){const radius=13;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){let d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){let i=idx(px,py);if(d<radius*(.35+Math.random()*.5)){cells[i]=M.EMPTY;if(Math.random()<.28)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.3?M.FIRE:M.SMOKE}}log('Explosion triggered');}
-function tick(){updated.fill(0);for(let y=H-2;y>=0;y--){let dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){let x=dir===1?k:W-1-k,i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
-if(gravity<1&&[M.SAND,M.SALT,M.WATER,M.OIL,M.LAVA].includes(m)&&Math.random()>gravity)continue;
-if(m===M.EXPLOSIVE){if(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE){explode(x,y);continue}if(Math.random()<.00002)continue}
-if([M.SAND,M.SALT,M.WATER,M.OIL,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){let down=m===M.STEAM||m===M.SMOKE||m===M.FIRE?-1:1;let ny=y+down,fall=inside(x,ny)?idx(x,ny):-1;
-if(fall>=0&&cells[fall]===M.EMPTY){swap(i,fall);i=fall;y; if(m===M.FIRE&&Math.random()<.025)cells[i]=M.SMOKE}
-else if(m===M.SAND||m===M.SALT||m===M.WATER||m===M.OIL||m===M.LAVA){let d=Math.random()<.5?-1:1;if(at(x+d,y+down)===M.EMPTY)swap(i,idx(x+d,y+down));else if(m===M.WATER||m===M.OIL){if(at(x+d,y)===M.EMPTY&&Math.random()<.35)swap(i,idx(x+d,y))}}
-if(m===M.WATER&&Math.random()<.0003)cells[i]=M.STEAM;
-if(m===M.FIRE&&Math.random()<.045)cells[i]=M.SMOKE;
-if(m===M.STEAM&&Math.random()<.002)cells[i]=M.WATER;
-if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
+function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
+function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
+let drawing=false,lastPoint=null,ropeStart=null;
+function act(p,e){if(!inside(p.x,p.y))return;const erase=e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
+ if(tool==='rope'){if(!ropeStart){ropeStart={x:p.x,y:p.y};log('Rope anchor selected. Drag to its other end.')}return}
+ if(tool==='box'){for(let yy=-brush;yy<=brush;yy++)for(let xx=-brush;xx<=brush;xx++)put(p.x+xx,p.y+yy,selected);return}
+ if(tool==='bomb'){circle(p.x,p.y,2,M.TNT);return}
+ if(tool==='heat'){circle(p.x,p.y,brush,M.FIRE);return}
+ if(tool==='cool'){circle(p.x,p.y,brush,M.ICE);return}
+ if(tool==='line'&&lastPoint){drawLine(lastPoint.x,lastPoint.y,p.x,p.y,mat,Math.max(0,Math.floor(brush/4)));lastPoint=p;return}
+ circle(p.x,p.y,brush,mat);lastPoint=p;
 }
-if(m===M.FIRE||m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
-if(m===M.ICE&&Math.random()<.0001)cells[i]=M.WATER;
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('pointerdown',e=>{if(e.button===2){drawing=true;act(canvasPoint(e),e);return}drawing=true;canvas.setPointerCapture(e.pointerId);const p=canvasPoint(e);if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)});
+canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=canvasPoint(e);if(tool==='rope'){lastPoint=p;return}act(p,e)});
+canvas.addEventListener('pointerup',e=>{if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3)createRope(ropeStart,end);ropeStart=null}drawing=false;lastPoint=null;queueSync()});
+canvas.addEventListener('pointercancel',()=>{drawing=false;ropeStart=null;lastPoint=null});
+canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
+
+function createRope(a,b){const distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/4)),points=[];for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}ropes.push({points,length:distance/segments,stiffness:1});log('Rope attached with '+segments+' physics segments');queueSync()}
+function solidAt(x,y){const gx=Math.floor(x),gy=Math.floor(y);return !inside(gx,gy)||[M.STONE,M.WOOD,M.ICE,M.TNT,M.GLASS].includes(at(gx,gy))}
+function stepRopes(){for(const rope of ropes){const p=rope.points;for(let i=0;i<p.length;i++){const n=p[i];if(n.anchor)continue;const vx=(n.x-n.px)*.985,vy=(n.y-n.py)*.985;n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+0.12*gravity;if(solidAt(n.x,n.y)){n.x=n.px;n.y=n.py}}
+ for(let pass=0;pass<6;pass++){for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.001,diff=(d-rope.length)/d*.5*rope.stiffness;if(!a.anchor){a.x+=dx*diff;a.y+=dy*diff}if(!b.anchor){b.x-=dx*diff;b.y-=dy*diff}}}
+ for(const n of p){n.x=Math.max(0,Math.min(W-1,n.x));n.y=Math.max(0,Math.min(H-1,n.y))}
 }}
-if(Math.random()<.001){let t=0;for(let c of cells)if(c===M.FIRE)t++;if(t)document.querySelector('#temperature').textContent=(20+t*2)+'°C'}
-}
-function render(){let count=0;for(let i=0;i<N;i++){let m=cells[i],c=colors[m]||colors[0],p=i*4;image.data[p]=c[0];image.data[p+1]=c[1];image.data[p+2]=c[2];image.data[p+3]=255;if(m)count++}ctx.putImageData(image,0,0);document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#gravityRead').textContent=(gravity/10).toFixed(1)+'x'}
-let lastTime=performance.now(),fpsFrames=0;
-function loop(t){if(running){for(let s=0;s<speed;s++)tick()}render();fpsFrames++;if(t-lastTime>1000){document.querySelector('#fps').textContent=fpsFrames+' FPS';fpsFrames=0;lastTime=t}requestAnimationFrame(loop)}requestAnimationFrame(loop);
-document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume'};
+function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
+function reaction(i,x,y,m){for(const j of [i-1,i+1,i-W,i+W]){if(j<0||j>=N)continue;const n=cells[j];if(m===M.FIRE){if(n===M.WOOD||n===M.OIL||n===M.PLANT){cells[j]=M.FIRE}if(n===M.WATER){cells[i]=M.STEAM;cells[j]=M.STEAM}if(n===M.ICE)cells[j]=M.WATER}
+ else if(m===M.ACID&&(n===M.STONE||n===M.WOOD||n===M.GLASS)){cells[j]=M.EMPTY}
+ else if(m===M.LAVA&&(n===M.WATER||n===M.ICE)){cells[i]=M.STONE;cells[j]=M.STEAM}
+ else if(m===M.WATER&&n===M.FIRE){cells[i]=M.STEAM;cells[j]=M.STEAM}
+ else if(m===M.SALT&&n===M.WATER){cells[i]=M.EMPTY}
+ }}
+function tick(){updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+ if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
+ if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
+ if(m===M.WATER&&ambient<0&&Math.random()<Math.min(.04,Math.abs(ambient)/3000)){cells[i]=M.ICE;continue}
+ if(ambient>180&&m===M.WATER&&Math.random()<.012){cells[i]=M.STEAM;continue}
+ if([M.SAND,M.SALT,M.WATER,M.OIL,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
+ const gas=m===M.STEAM||m===M.SMOKE||m===M.FIRE,dy=gas?-1:1,ny=y+dy,ni=inside(x,ny)?idx(x,ny):-1;
+ if(ni>=0&&cells[ni]===M.EMPTY){cells[ni]=m;cells[i]=M.EMPTY;updated[ni]=1;i=ni;y=gas?y:y}
+ else if([M.SAND,M.SALT,M.WATER,M.OIL,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY){cells[side]=m;cells[i]=M.EMPTY;updated[side]=1}else if((m===M.WATER||m===M.OIL)&&at(x+d,y)===M.EMPTY&&Math.random()<.4){cells[idx(x+d,y)]=m;cells[i]=M.EMPTY}}
+ if(m===M.FIRE&&Math.random()<.045)cells[i]=M.SMOKE;
+ if(m===M.STEAM&&Math.random()<.002)cells[i]=M.WATER;
+ if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
+ if(m===M.WATER&&ambient>100&&Math.random()<.0005)cells[i]=M.STEAM;
+ }
+ if(m===M.FIRE||m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
+ }}stepRopes()}
+function render(){let count=0;for(let i=0;i<N;i++){const m=cells[i],c=colors[m]||colors[0],p=i*4;frameImage.data[p]=c[0];frameImage.data[p+1]=c[1];frameImage.data[p+2]=c[2];frameImage.data[p+3]=255;if(m)count++}ctx.putImageData(frameImage,0,0);ctx.lineCap='round';ctx.lineJoin='round';for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
+ document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}
+let fpsAt=performance.now(),fpsCount=0;
+function loop(now){if(running){for(let s=0;s<speed;s++)tick()}render();fpsCount++;if(now-fpsAt>1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop)}requestAnimationFrame(loop);
+
+function updateTemperature(){document.querySelector('#tempOut').textContent=ambient+'°C';document.querySelector('#tempBig').textContent=ambient+'°C';document.querySelector('#temperatureControl').value=ambient}
+document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
 document.querySelector('#step').onclick=()=>{if(!running)tick()};
-document.querySelector('#clear').onclick=()=>{cells.fill(0);syncWorld();log('World cleared')};
-document.querySelector('#save').onclick=()=>{let a=document.createElement('a');a.download='pixelphyx-lab.png';a.href=canvas.toDataURL();a.click()};
-document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#sizeVal').textContent=brush};
-document.querySelector('#gravity').oninput=e=>{gravity=+e.target.value/10;document.querySelector('#gravityVal').textContent=gravity.toFixed(1)+'x'};
-document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.querySelector('#speedVal').textContent=speed.toFixed(1)+'x'};
-addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();document.querySelector('#play').click()}});
-document.querySelector('#configBtn').onclick=()=>document.querySelector('#configModal').classList.add('show');
-document.querySelector('#roomBtn').onclick=()=>document.querySelector('#roomModal').classList.add('show');
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('show'));
-let app=null;
-document.querySelector('#connect').onclick=async()=>{try{let config=JSON.parse(document.querySelector('#firebaseConfig').value);if(!config.databaseURL)throw Error('Firebase config needs databaseURL');localStorage.setItem('pixelphyx-firebase',JSON.stringify(config));await connectFirebase(config);document.querySelector('#configModal').classList.remove('show')}catch(e){alert('Firebase connection failed: '+e.message)}};
-async function connectFirebase(config){if(!app){app=initializeApp(config);db=getDatabase(app)}document.querySelector('#connection').textContent='FIREBASE CONNECTED';document.querySelector('#connection').style.color='#8be3bd';log('Connected to Firebase Realtime Database');}
-try{let saved=localStorage.getItem('pixelphyx-firebase');if(saved){document.querySelector('#firebaseConfig').value=saved;await connectFirebase(JSON.parse(saved))}}catch(e){console.warn(e)}
+document.querySelector('#clear').onclick=()=>{cells.fill(0);ropes=[];queueSync();log('World cleared')};
+document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
+document.querySelector('#share').onclick=()=>{if(!room){log('Join a room first to share its code');return}navigator.clipboard?.writeText(room).then(()=>log('Room code copied: '+room)).catch(()=>log('Room code: '+room))};
+document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#brushOut').textContent=brush+' px'};
+document.querySelector('#gravity').oninput=e=>{gravity=+e.target.value/10;document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';queueSync()};
+document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.querySelector('#speedOut').textContent=speed+'×'};
+document.querySelector('#temperatureControl').oninput=e=>{ambient=+e.target.value;updateTemperature();queueSync()};
+addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){e.preventDefault();document.querySelector('#play').click()}});
+const openModal=id=>document.querySelector('#'+id).classList.add('open');
+document.querySelector('#firebaseBtn').onclick=()=>openModal('firebaseModal');document.querySelector('#roomBtn').onclick=()=>openModal('roomModal');
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+document.querySelector('#connectFirebase').onclick=async()=>{try{const config=JSON.parse(document.querySelector('#firebaseConfig').value);if(!config.apiKey||!config.databaseURL||!config.projectId||!config.appId)throw Error('Config must include apiKey, databaseURL, projectId and appId');localStorage.setItem('pixelphyx-firebase',JSON.stringify(config));await connectFirebase(config);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
+async function connectFirebase(config){setConnection('connecting','CONNECTING');try{if(!app){app=initializeApp(config);db=getDatabase(app);auth=getAuth(app)}if(!auth.currentUser)await signInAnonymously(auth);authUser=auth.currentUser;playerId=authUser.uid;setConnection('online','FIREBASE ONLINE');log('Signed in anonymously. Online multiplayer is ready.');if(room)await joinRoom(room)}catch(e){setConnection('','CONNECTION FAILED');throw e}}
+try{const saved=localStorage.getItem('pixelphyx-firebase');if(saved){document.querySelector('#firebaseConfig').value=saved;await connectFirebase(JSON.parse(saved))}}catch(e){console.warn(e);log('Firebase unavailable: '+e.message)}
 document.querySelector('#join').onclick=()=>joinRoom(document.querySelector('#roomCode').value);
-document.querySelector('#roomGo').onclick=()=>{let v=document.querySelector('#roomModalCode').value;document.querySelector('#roomCode').value=v;document.querySelector('#roomModal').classList.remove('show');joinRoom(v)};
-async function joinRoom(code){if(!db){document.querySelector('#configModal').classList.add('show');log('Connect Firebase before joining multiplayer');return}code=code.trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,18);if(!code)return alert('Enter a room code');room=code;roomRef=ref(db,'rooms/'+room);playersRef=ref(db,'rooms/'+room+'/players');document.querySelector('#roomLabel').textContent='ROOM: '+room;document.querySelector('#roomCode').value=room;
-onValue(ref(db,'rooms/'+room+'/world'),snap=>{if(syncing)return;let v=snap.val();if(v&&Array.isArray(v.cells)&&v.cells.length===N){cells.set(v.cells);log('World synchronized')}});onValue(playersRef,snap=>{let p=snap.val()||{},el=document.querySelector('#players');el.innerHTML='';Object.entries(p).forEach(([id,v])=>{let d=document.createElement('div');d.className='player';d.textContent=(id===playerId?'You':v.name||'Guest');el.append(d)});if(!Object.keys(p).length)el.textContent='No other players yet'});
-await set(ref(db,'rooms/'+room+'/players/'+playerId),{name:playerName,joined:Date.now()});onDisconnect(ref(db,'rooms/'+room+'/players/'+playerId)).remove();log('Joined multiplayer room '+room)}
-function syncWorld(){if(!db||!roomRef||syncing)return;let now=Date.now();if(now-lastSync<700)return;lastSync=now;syncing=true;set(ref(db,'rooms/'+room+'/world'),{cells:Array.from(cells),updated:now,by:playerId}).catch(e=>log('Sync error: '+e.message)).finally(()=>syncing=false)}
-setInterval(()=>{if(db&&roomRef)syncWorld()},1600);
+document.querySelector('#roomGo').onclick=async()=>{const v=document.querySelector('#roomModalCode').value;document.querySelector('#roomCode').value=v;document.querySelector('#roomModal').classList.remove('open');await joinRoom(v)};
+function serialize(){return{cells:Array.from(cells),ropes:ropes.map(r=>r.points.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),p.anchor?1:0])),gravity,ambient,updatedAt:Date.now(),by:playerId}}
+function applyWorld(data){if(!data||!Array.isArray(data.cells)||data.cells.length!==N)return;remoteApplying=true;cells.set(data.cells);if(Array.isArray(data.ropes))ropes=data.ropes.slice(0,100).map(points=>({length:4,stiffness:1,points:Array.isArray(points)?points.map(p=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]})):[]})).filter(r=>r.points.length>1);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false}
+async function joinRoom(code){if(!db||!auth?.currentUser){openModal('firebaseModal');log('Connect Firebase before joining an online room');return}code=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);if(!code){alert('Enter a room code');return}if(room===code&&joined)return;room=code;joined=false;roomRef=ref(db,'rooms/'+room);document.querySelector('#roomLabel').textContent='ROOM · '+room;document.querySelector('#roomCode').value=room;setConnection('connecting','JOINING ROOM');try{const worldRef=ref(db,'rooms/'+room+'/world');onValue(worldRef,snap=>{if(!remoteApplying&&snap.exists()){applyWorld(snap.val());log('World state received from room')}});const presenceRef=ref(db,'rooms/'+room+'/players/'+playerId);await set(presenceRef,{name:playerName,joinedAt:serverTimestamp()});onDisconnect(presenceRef).remove();onValue(ref(db,'rooms/'+room+'/players'),snap=>{const people=snap.val()||{},el=document.querySelector('#players');el.replaceChildren();const entries=Object.entries(people);document.querySelector('#playerCount').textContent=entries.length+' online';if(!entries.length){el.textContent='No players connected';return}for(const [id,p] of entries){const d=document.createElement('div');d.className='player';const av=document.createElement('span');av.className='avatar';av.textContent=(p.name||'G').slice(0,1).toUpperCase();const nm=document.createElement('span');nm.textContent=p.name||'Guest';const you=document.createElement('span');you.className='you';you.textContent=id===playerId?'YOU':'';d.append(av,nm,you);el.append(d)}});joined=true;setConnection('online','ROOM ONLINE');log('Joined room '+room+' — invite friends with this code');queueSync()}catch(e){setConnection('','ROOM ERROR');log('Could not join room: '+e.message);alert('Could not join room: '+e.message)}}
+function queueSync(){if(!db||!roomRef||!joined||remoteApplying)return;clearTimeout(syncTimer);syncTimer=setTimeout(async()=>{const now=Date.now();if(now-lastWorldWrite<250)return;lastWorldWrite=now;try{await set(ref(db,'rooms/'+room+'/world'),serialize())}catch(e){log('World sync failed: '+e.message)}},250)}
+setInterval(()=>{if(db&&roomRef&&joined)queueSync()},1800);
+updateTemperature();
 </script>
-</body></html>
+</body>
+</html>
