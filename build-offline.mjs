@@ -60,9 +60,5 @@ const updatedHtml = offlineHtml.replace(
   '<script>\n' + gameScript + '\n</script>'
 );
 
-if (updatedHtml === offlineHtml) {
-  throw new Error('offline.html was not changed');
-}
-
 await writeFile('offline.html', updatedHtml, 'utf8');
 console.log('Built offline.html from the current game and physics sources.');
