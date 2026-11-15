@@ -79,7 +79,6 @@ canvas.addEventListener('pointerdown',e=>{
   if(e.button===2){if(stickFigure){stickFigure=null;publishOperation({type:'stickState',owner:playerId,removed:true});log('Your stick figure was removed')}return}
   if(e.button===0){if(!stickFigure)stickFigure=createStickFigure(p.x,p.y);else{stickFigure.x=p.x;stickFigure.y=p.y;stickFigure.vx=0;stickFigure.vy=0;stickFigure.joints=createStickJoints(p.x,p.y)}publishStickState(true);log('Stick figure placed — use the arrow keys to move it')}return;
  }
- if(e.button===2&&tool!=='erase')return;
  drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)
 });
 canvas.addEventListener('pointermove',e=>{
