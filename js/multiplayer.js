@@ -10,7 +10,7 @@ export function createMultiplayer(callbacks = {}) {
   let playerId = 'guest-' + Math.random().toString(36).slice(2, 9);
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null;
-  let joinStartedAt = 0, lastWorldWrite = 0;
+  let lastWorldWrite = 0;
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -50,7 +50,6 @@ export function createMultiplayer(callbacks = {}) {
     if (presenceRef) await remove(presenceRef).catch(() => {});
     room = nextRoom;
     hostId = null;
-    joinStartedAt = Date.now();
     report('connecting', 'JOINING ROOM');
 
     const roomPath = 'rooms/' + room;
@@ -73,11 +72,15 @@ export function createMultiplayer(callbacks = {}) {
         if (world) callbacks.onWorld?.(world);
       }, error => log('World sync error: ' + error.message));
 
-      stopOperations = onChildAdded(ref(db, roomPath + '/operations'), snapshot => {
+      const operationsRef = ref(db, roomPath + '/operations');
+      // Snapshot existing keys before subscribing. This avoids comparing Firebase server
+      // timestamps with a potentially inaccurate device clock, while ignoring old history.
+      const existingOperations = await get(operationsRef);
+      const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
+      stopOperations = onChildAdded(operationsRef, snapshot => {
+        if (existingKeys.has(snapshot.key)) return;
         const operation = snapshot.val();
         if (!operation || operation.by === playerId) return;
-        const createdAt = Number(operation.createdAt) || 0;
-        if (createdAt && createdAt < joinStartedAt - 1500) return;
         callbacks.onOperation?.(operation);
       }, error => log('Edit sync error: ' + error.message));
 
@@ -117,7 +120,7 @@ export function createMultiplayer(callbacks = {}) {
   function publishWorld(world) {
     if (!db || !joined || !room || hostId !== playerId) return;
     const now = Date.now();
-    if (now - lastWorldWrite < 900) return;
+    if (now - lastWorldWrite < 100) return;
     lastWorldWrite = now;
     set(ref(db, 'rooms/' + room + '/world'), {
       ...world, by: playerId, updatedAt: serverTimestamp()
