@@ -5,7 +5,7 @@ const logger = require("firebase-functions/logger");
 
 initializeApp();
 
-const CLEANUP_GRACE_MS = 2000;
+const CLEANUP_GRACE_MS = 1500;
 
 exports.clearEmptyRoom = onValueDeleted(
   "/rooms/{roomId}/players/{playerId}",
@@ -13,25 +13,20 @@ exports.clearEmptyRoom = onValueDeleted(
     const roomId = event.params.roomId;
     const roomRef = getDatabase().ref(`rooms/${roomId}`);
 
-    // Allow concurrent disconnects to finish before deciding the room is empty.
+    // Wait for other clients' onDisconnect handlers to remove their presence too.
     await new Promise((resolve) => setTimeout(resolve, CLEANUP_GRACE_MS));
 
-    const players = await roomRef.child("players").get();
-    if (players.exists() && players.hasChildren()) {
-      return;
+    // Delete the complete room atomically only if it is still empty. A concurrent
+    // join changes the room value and prevents this transaction from deleting it.
+    const result = await roomRef.transaction((room) => {
+      if (!room || !room.players || Object.keys(room.players).length > 0) {
+        return;
+      }
+      return null;
+    });
+
+    if (result.committed) {
+      logger.info("Deleted empty PixelPhyx room", { roomId });
     }
-
-    // Recheck immediately before clearing so a newly joined player keeps the room.
-    const latestPlayers = await roomRef.child("players").get();
-    if (latestPlayers.exists() && latestPlayers.hasChildren()) {
-      return;
-    }
-
-    await Promise.all([
-      roomRef.child("world").remove(),
-      roomRef.child("operations").remove(),
-    ]);
-
-    logger.info("Cleared empty PixelPhyx room", { roomId });
   }
 );
