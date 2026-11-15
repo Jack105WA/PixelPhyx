@@ -284,7 +284,16 @@ function render(){
   current.color=target.color;current.name=target.name;
  }
  for(const id of Object.keys(remoteCursors))if(!remoteCursorTargets[id])delete remoteCursors[id];
- for(const c of Object.values(remoteCursors))drawPlayerCursor(c,false);
+ const cursorCtx=localCursorCtx;
+ cursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);
+ if(localCursor){
+  cursorCtx.save();cursorCtx.translate(localCursor.x/W*localCursorCanvas.width,localCursor.y/H*localCursorCanvas.height);cursorCtx.scale(.8,.8);
+  drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
+ }
+ for(const c of Object.values(remoteCursors)){
+  cursorCtx.save();cursorCtx.translate(c.x/W*localCursorCanvas.width,c.y/H*localCursorCanvas.height);cursorCtx.scale(.8,.8);
+  drawPlayerCursor({x:0,y:0,name:c.name,color:c.color},false,cursorCtx);cursorCtx.restore();
+ }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4,MP_SYNC_INTERVAL=1000;
@@ -467,8 +476,6 @@ let localCursor=null;
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 localCursorCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=CANVAS_SIZES.medium.height;
-function drawLocalCursor(e){const shell=document.querySelector('#canvasShell'),r=shell.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*CANVAS_SIZES.medium.width,y=(e.clientY-r.top)/r.height*CANVAS_SIZES.medium.height;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);localCursorCtx.save();localCursorCtx.translate(x,y);localCursorCtx.scale(.8,.8);drawPlayerCursor({x:0,y:0},true,localCursorCtx);localCursorCtx.restore()}
-canvas.addEventListener('pointermove',drawLocalCursor);
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 document.querySelector('#playerColor').value=playerColor;
