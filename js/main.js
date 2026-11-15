@@ -534,8 +534,8 @@ function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;retur
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size})});
 document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
-document.querySelector('#step').onclick=()=>{if(!running){tick();render()}};
-document.querySelector('#clear').onclick=()=>{cells.fill(0);visualParticles.length=0;resetMaterialState(N);ropes=[];publishOperation({type:'clear'});log('World cleared')};
+document.querySelector('#step').onclick=()=>{if(!running){tick();rebuildCellInterpolation();cellRenderAlpha=0;render()}};
+document.querySelector('#clear').onclick=()=>{cells.fill(0);movingParticles.length=0;movingDestinations.fill(0);moveByDestination.fill(-1);visualParticles.length=0;resetMaterialState(N);ropes=[];publishOperation({type:'clear'});render();log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
 
 document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#brushOut').textContent=brush+' px'};
