@@ -1,5 +1,4 @@
 import { firebaseConfig } from './firebase-config.js';
-import { createMultiplayer } from './multiplayer.js';
 
 const W=320,H=180,N=W*H,canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false}),frameImage=ctx.createImageData(W,H);
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15};
@@ -244,11 +243,17 @@ document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFireba
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 document.querySelector('#connectFirebase').onclick=async()=>{try{await connectFirebase(firebaseConfig);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
-async function connectFirebase(config){playerId=await multiplayer.connect(config);return playerId}
-multiplayer=createMultiplayer({
- onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
- onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,name:p.name||'Guest'}}}
-});
+async function connectFirebase(config){
+ if(!multiplayer){
+  const {createMultiplayer}=await import('./multiplayer.js');
+  multiplayer=createMultiplayer({
+   onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
+   onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,name:p.name||'Guest'}}}
+  });
+ }
+ playerId=await multiplayer.connect(config);
+ return playerId;
+}
 connectFirebase(firebaseConfig).catch(e=>{console.warn(e);log('Firebase connection unavailable: '+e.message)});
 document.querySelector('#join').onclick=()=>joinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#roomGo').onclick=async()=>{const v=document.querySelector('#roomModalCode').value;document.querySelector('#roomCode').value=v;document.querySelector('#roomModal').classList.remove('open');await joinRoom(v)};
