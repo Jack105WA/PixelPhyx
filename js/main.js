@@ -276,74 +276,75 @@ function pushParticlesFromRopeSweep(){
   }
  }
 }
-// Lightweight visual particles have their own velocity, gravity, drag and world collisions.
+// Small sub-cell particles add subtle material effects without obscuring the pixel world.
 const visualParticles=[];
-const MAX_VISUAL_PARTICLES=520;
+const MAX_VISUAL_PARTICLES=360;
 function emitVisualParticle(x,y,kind){
  if(visualParticles.length>=MAX_VISUAL_PARTICLES)return;
- const molten=kind==='molten',smoke=kind==='smoke';
+ const settings={
+  molten:{vx:.42,vy:.62,life:34,size:.38,color:'#ff5a18',gravity:.025},
+  ember:{vx:.28,vy:.48,life:25,size:.28,color:'#ffe36a',gravity:.008},
+  smoke:{vx:.16,vy:.24,life:55,size:.42,color:'#8b9299',gravity:-.008},
+  splash:{vx:.32,vy:.38,life:17,size:.25,color:'#69baff',gravity:.018},
+  acid:{vx:.3,vy:.36,life:20,size:.26,color:'#9bff58',gravity:.02},
+  dust:{vx:.18,vy:.22,life:22,size:.24,color:'#c9b58a',gravity:-.004},
+  steam:{vx:.15,vy:.2,life:35,size:.34,color:'#d5e3e9',gravity:-.006}
+ };
+ const cfg=settings[kind]||settings.dust;
  visualParticles.push({
-  kind,x:x+.15+Math.random()*.7,y:y-.15,
-  vx:(Math.random()-.5)*(molten?2.1:1.25),
-  vy:molten?-(.55+Math.random()*2.2):smoke?-(.25+Math.random()*.9):-(.8+Math.random()*2.4),
-  life:molten?35+Math.random()*55:smoke?45+Math.random()*75:22+Math.random()*38,
-  maxLife:molten?90:smoke?120:60,
-  size:molten?.8+Math.random()*1.5:smoke?1.1+Math.random()*1.8:.55+Math.random()*.9,
-  bounce:0,heat:molten?850:620
+  kind,x:x+.2+Math.random()*.6,y:y-.05,
+  vx:(Math.random()-.5)*cfg.vx,
+  vy:-(.04+Math.random()*cfg.vy),
+  life:cfg.life*.65+Math.random()*cfg.life*.7,
+  maxLife:cfg.life*1.35,
+  size:cfg.size*(.7+Math.random()*.6),
+  color:cfg.color,gravity:cfg.gravity,bounce:0
  });
 }
 function stepVisualParticles(){
  for(let i=visualParticles.length-1;i>=0;i--){
   const p=visualParticles[i];
   p.life--;
-  if(p.kind==='smoke'){
-   p.vy-=.012;p.vx+=(Math.random()-.5)*.035;p.vx*=.985;p.vy*=.99;
-  }else{
-   p.vy+=p.kind==='molten'?.075:.025;
-   p.vx*=p.kind==='molten'?.992:.985;p.vy*=.995;
-  }
-  const speed=Math.hypot(p.vx,p.vy),steps=Math.max(1,Math.min(5,Math.ceil(speed*1.5)));
-  let alive=true;
-  for(let n=0;n<steps;n++){
-   const nx=p.x+p.vx/steps,ny=p.y+p.vy/steps,gx=Math.floor(nx),gy=Math.floor(ny);
-   if(!inside(gx,gy)){alive=false;break}
+  p.vy+=p.gravity;
+  p.vx+=(Math.random()-.5)*(p.kind==='smoke'||p.kind==='dust'?.006:.002);
+  p.vx*=.992;p.vy*=.994;
+  const nx=p.x+p.vx,ny=p.y+p.vy,gx=Math.floor(nx),gy=Math.floor(ny);
+  let alive=inside(gx,gy);
+  if(alive){
    const m=cells[idx(gx,gy)];
    if(m!==M.EMPTY){
     if(p.kind==='molten'&&(m===M.WATER||m===M.ICE)){
-     if(Math.random()<.7)emitVisualParticle(p.x,p.y,'smoke');
-     alive=false;break;
-    }
-    if(p.kind==='molten'&&p.bounce===0&&p.vy>.15){
-     p.vy=-Math.abs(p.vy)*.28;p.vx*=.58;p.bounce=1;p.life=Math.min(p.life,18);
-     break;
-    }
-    if(p.kind==='ember'&&(m===M.WOOD||m===M.PLANT||m===M.OIL||m===M.TNT)){
-     const heatIndex=idx(gx,gy);materialState.heat[heatIndex]=Math.min(1600,materialState.heat[heatIndex]+28);
-    }
-    alive=false;break;
-   }
-   p.x=nx;p.y=ny;
+     if(Math.random()<.45)emitVisualParticle(p.x,p.y,'steam');
+     alive=false;
+    }else if(p.kind==='ember'&&(m===M.WOOD||m===M.PLANT||m===M.OIL||m===M.TNT)){
+     const heatIndex=idx(gx,gy);materialState.heat[heatIndex]=Math.min(1600,materialState.heat[heatIndex]+12);alive=false;
+    }else if(p.kind==='molten'&&p.bounce===0&&p.vy>.08){
+     p.vy=-Math.abs(p.vy)*.12;p.vx*=.35;p.bounce=1;p.life=Math.min(p.life,8);
+    }else alive=false;
+   }else{p.x=nx;p.y=ny}
   }
-  if(!alive||p.life<=0){visualParticles.splice(i,1)}
+  if(!alive||p.life<=0)visualParticles.splice(i,1);
  }
 }
 function drawVisualParticles(){
  for(const p of visualParticles){
-  const fade=Math.max(0,Math.min(1,p.life/(p.maxLife*.35)));
-  ctx.globalAlpha=p.kind==='smoke'?.28*fade:.92*fade;
-  if(p.kind==='molten')ctx.fillStyle=p.bounce?'#ff9b32':'#ff5a18';
-  else if(p.kind==='smoke')ctx.fillStyle='#8b9299';
-  else ctx.fillStyle=p.life<8?'#ffb34d':'#ffe36a';
-  ctx.beginPath();ctx.arc(p.x,p.y,p.size*(p.kind==='smoke'?1.15:1),0,Math.PI*2);ctx.fill();
+  const fade=Math.max(0,Math.min(1,p.life/(p.maxLife*.3)));
+  ctx.globalAlpha=(p.kind==='smoke'||p.kind==='dust'||p.kind==='steam'?.2:.72)*fade;
+  ctx.fillStyle=p.color;
+  ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
  }
  ctx.globalAlpha=1;
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
 function tick(){rebuildRopeCollisionIndex();updated.fill(0);for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
- if(m===M.LAVA&&Math.random()<.00035)emitVisualParticle(x,y,'molten');
- else if(m===M.FIRE&&Math.random()<.00012)emitVisualParticle(x,y,'ember');
- else if(m===M.FIRE&&Math.random()<.00008)emitVisualParticle(x,y,'smoke');
+ if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
+ else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
+ else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
+ else if(m===M.WATER&&Math.random()<.000018)emitVisualParticle(x,y,'splash');
+ else if(m===M.ACID&&Math.random()<.000035)emitVisualParticle(x,y,'acid');
+ else if((m===M.SAND||m===M.SALT||m===M.CHARCOAL)&&Math.random()<.000012)emitVisualParticle(x,y,'dust');
+ else if(m===M.STEAM&&Math.random()<.000025)emitVisualParticle(x,y,'steam');
  if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
  if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
  if(m===M.WATER&&ambient<0&&Math.random()<Math.min(.04,Math.abs(ambient)/3000)){cells[i]=M.ICE;continue}
