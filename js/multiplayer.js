@@ -39,7 +39,7 @@ export function createMultiplayer(callbacks = {}) {
     }
   }
 
-  async function joinRoom(code) {
+  async function joinRoom(code, identity = {}) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a room code');
@@ -61,8 +61,8 @@ export function createMultiplayer(callbacks = {}) {
       hostId = hostResult.snapshot.val() || playerId;
 
       await set(presenceRef, {
-        name: 'Lab guest',
-        color: ['#65d6ad','#ff9b71','#78a9ff','#d6a0ff','#ffd166','#ff719a','#70d6c8'][Math.floor(Math.random() * 7)],
+        name: String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest',
+        color: /^#[0-9a-f]{6}$/i.test(identity.color || '') ? identity.color : '#65d6ad',
         joinedAt: serverTimestamp()
       });
       await onDisconnect(presenceRef).remove();
@@ -117,10 +117,17 @@ export function createMultiplayer(callbacks = {}) {
     }).catch(error => log('Edit sync failed: ' + error.message));
   }
 
+  function updateIdentity(name, color) {
+    if (!db || !joined || !presenceRef) return;
+    const safeName = String(name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
+    const safeColor = /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#65d6ad';
+    update(presenceRef, { name: safeName, color: safeColor }).catch(error => log('Profile update failed: ' + error.message));
+  }
+
   function publishWorld(world) {
     if (!db || !joined || !room || hostId !== playerId) return;
     const now = Date.now();
-    if (now - lastWorldWrite < 100) return;
+    if (now - lastWorldWrite < 90) return;
     lastWorldWrite = now;
     set(ref(db, 'rooms/' + room + '/world'), {
       ...world, by: playerId, updatedAt: serverTimestamp()
@@ -135,7 +142,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, publishOperation, publishWorld, updateCursor,
+    connect, joinRoom, publishOperation, publishWorld, updateCursor, updateIdentity,
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
