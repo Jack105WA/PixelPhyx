@@ -712,52 +712,77 @@ function stepStickFigure(figure,dt,controlled=false){
  if(!j||j.length!==16)return;
  const direction=controlled?((stickKeys.right?1:0)-(stickKeys.left?1:0)):0;
  const crouch=controlled&&stickKeys.down;
- if(controlled&&stickKeys.up&&figure.grounded){
-  for(const point of j)point.py+=2.15;
-  figure.grounded=false;
+ const jump=controlled&&stickKeys.up&&figure.grounded;
+ if(jump){
+  for(const point of j)point.py+=3.1;
+  figure.grounded=false;figure.ragdoll=true;figure.uprightTime=0;
  }
- // Verlet integration gives every limb its own momentum; there is no invisible body
- // controller pulling the figure upright or teleporting it along the canvas.
- let grounded=false;
+ const oldPelvisX=j[3].x,oldPelvisY=j[3].y;
+ let touchedGround=false;
+ // Every joint has its own momentum. Horizontal input accelerates the whole body,
+ // while the feet receive extra traction only when they are actually supported.
  for(let i=0;i<j.length;i++){
   const point=j[i];if(point.grabbed)continue;
-  const oldX=point.x,oldY=point.y;
-  let vx=(point.x-point.px)*.985,vy=(point.y-point.py)*.992;
-  if(i===14||i===15)vx*=grounded ? .72 : .985;
+  const vx=(point.x-point.px)*.986,vy=(point.y-point.py)*.994;
+  const foot=i===14||i===15;
+  const drive=(foot?.105:(i===3||i===10||i===11)?.075:.035)*direction*step;
   point.px=point.x;point.py=point.y;
-  const drive=(i===3||i===10||i===11||i===12||i===13||i===14||i===15)?direction*.105*step:direction*.025*step;
   point.x+=vx+drive;
   point.y+=vy+.145*gravity*step*step;
-  if(crouch&&(i===0||i===1||i===2))point.y+=.045*step;
+  if(crouch&&(i===0||i===1||i===2))point.y+=.07*step;
   point.x=Math.max(.5,Math.min(W-.5,point.x));
   point.y=Math.max(.5,Math.min(H-.5,point.y));
-  if(collisionStickFloor(point))grounded=true;
-  collideStickJoint(point);
-  if(i===14||i===15){
-   const nowSolid=stickSolidAt(Math.floor(point.x),Math.floor(point.y))||point.y>=H-1;
-   if(nowSolid){grounded=true;point.px=point.x-(point.x-oldX)*.16}
+  if(collisionStickFloor(point))touchedGround=true;
+  if(collideStickJoint(point))touchedGround=touchedGround||foot;
+ }
+ // Determine support from both feet and nearby solid cells, not from any arbitrary
+ // joint touching the floor. This keeps wall/hand contact from enabling a ground jump.
+ const supported=(i)=>{
+  const p=j[i],x=Math.floor(p.x),y=Math.floor(p.y);
+  return p.y>=H-1||stickSolidAt(x,y+1)||stickSolidAt(x-1,y+1)||stickSolidAt(x+1,y+1);
+ };
+ const grounded=supported(14)||supported(15)||((touchedGround)&&(supported(12)||supported(13)));
+ const torsoDX=j[3].x-j[0].x,torsoDY=j[3].y-j[0].y;
+ const lean=Math.atan2(torsoDX,Math.max(.001,torsoDY));
+ const pelvisVy=j[3].y-j[3].py;
+ if(!grounded||pelvisVy>.85||Math.abs(lean)>.78){
+  figure.ragdoll=true;figure.uprightTime=0;
+ }else if(figure.ragdoll&&grounded&&Math.abs(lean)<.62&&Math.abs(pelvisVy)<1.15){
+  figure.uprightTime=(figure.uprightTime||0)+step;
+  if(figure.uprightTime>.32){figure.ragdoll=false;figure.uprightTime=0}
+ }else if(!grounded){
+  figure.uprightTime=0;
+ }
+ // When standing on the ground, gently guide the joints into a walkable stance.
+ // The pose has no authority in the air: falling, jumping, and impacts stay ragdoll.
+ if(grounded&&!figure.ragdoll){
+  const gait=direction?Math.sin((figure.walk||0)+step*.22)*.7*direction:0;
+  if(direction)figure.walk=(figure.walk||0)+step*.22;
+  const stance=[
+   [0,-15],[0,-10],[0,-5],[0,0],
+   [-3,-9],[3,-9],[-5,-5],[5,-5],
+   [-7,-2],[7,-2],[-2,-1],[2,-1],
+   [-2+gait,5],[2-gait,5],[-2+gait*1.8,11],[2-gait*1.8,11]
+  ];
+  const strength=direction?.24:.19;
+  for(let i=0;i<j.length;i++){
+   if(i===3||j[i].grabbed)continue;
+   const targetX=j[3].x+stance[i][0],targetY=j[3].y+stance[i][1]+(crouch&&i<3?3:0);
+   j[i].x+=(targetX-j[i].x)*strength*step;
+   j[i].y+=(targetY-j[i].y)*strength*step;
+   j[i].px+=(targetX-j[i].px)*strength*.32*step;
+   j[i].py+=(targetY-j[i].py)*strength*.32*step;
   }
  }
- // A little alternating foot drive creates a walking gait without overriding ragdoll motion.
- const moving=Math.abs(direction)>0;
- if(moving&&grounded){
-  figure.walk+=step*.22;
-  const swing=Math.sin(figure.walk)*.42*direction;
-  for(const index of [12,13,14,15])j[index].px-=swing;
- }
- for(let pass=0;pass<7;pass++){
-  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,pass<2?.72:.9);
-  for(const point of j)collideStickJoint(point);
- }
- grounded=grounded||j[14].y>=H-1||j[15].y>=H-1||
-  stickSolidAt(Math.floor(j[14].x),Math.floor(j[14].y+1))||
-  stickSolidAt(Math.floor(j[15].x),Math.floor(j[15].y+1));
- if(grounded){
-  for(const index of [14,15]){const foot=j[index];foot.py=foot.y-(foot.y-foot.py)*.12}
+ // Solve limb lengths and repeatedly resolve contacts so the figure cannot sink
+ // into walls, floors, or piles of movable particles.
+ for(let pass=0;pass<8;pass++){
+  for(const [a,b,length] of stickBones)solveStickDistance(j[a],j[b],length,pass<2?.78:.92);
+  for(let i=0;i<j.length;i++)if(!j[i].grabbed)collideStickJoint(j[i]);
  }
  figure.grounded=grounded;
  figure.x=j[3].x;figure.y=j[3].y;
- figure.vx=(j[3].x-j[3].px);figure.vy=(j[3].y-j[3].py);
+ figure.vx=j[3].x-j[3].px;figure.vy=j[3].y-j[3].py;
 }
 function collisionStickFloor(point){return point.y>=H-1}
 function stickSnapshot(figure){return{x:+figure.x.toFixed(2),y:+figure.y.toFixed(2),vx:+figure.vx.toFixed(3),vy:+figure.vy.toFixed(3),grounded:!!figure.grounded,walk:+figure.walk.toFixed(3),joints:figure.joints.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2)])}}
