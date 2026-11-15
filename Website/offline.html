@@ -721,39 +721,17 @@ function drawInterpolatedCells(){
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- const points=[
-  [c.x,c.y],
-  [c.x+3.5*scale,c.y+8*scale],
-  [c.x+5.5*scale,c.y+5*scale],
-  [c.x+8.5*scale,c.y+4.5*scale]
- ];
- const left=Math.max(0,Math.floor(Math.min(...points.map(p=>p[0]))-2));
- const top=Math.max(0,Math.floor(Math.min(...points.map(p=>p[1]))-2));
- const right=Math.min(targetCtx.canvas.width,Math.ceil(Math.max(...points.map(p=>p[0]))+2));
- const bottom=Math.min(targetCtx.canvas.height,Math.ceil(Math.max(...points.map(p=>p[1]))+2));
  targetCtx.save();
  targetCtx.globalAlpha=1;
  targetCtx.globalCompositeOperation='source-over';
  targetCtx.fillStyle=cursorColor;
- targetCtx.strokeStyle=cursorColor;
- targetCtx.lineWidth=.8*scale;
  targetCtx.beginPath();
- targetCtx.moveTo(...points[0]);
- targetCtx.lineTo(...points[1]);
- targetCtx.lineTo(...points[2]);
- targetCtx.lineTo(...points[3]);
+ targetCtx.moveTo(c.x,c.y);
+ targetCtx.lineTo(c.x+3.5*scale,c.y+8*scale);
+ targetCtx.lineTo(c.x+5.5*scale,c.y+5*scale);
+ targetCtx.lineTo(c.x+8.5*scale,c.y+4.5*scale);
  targetCtx.closePath();
  targetCtx.fill();
- // Keep the exact original antialiased silhouette, but make every visible
- // cursor pixel fully opaque instead of leaving semitransparent edge pixels.
- if(right>left&&bottom>top){
-  const pixels=targetCtx.getImageData(left,top,right-left,bottom-top);
-  const data=pixels.data;
-  for(let i=3;i<data.length;i+=4){
-   if(data[i]>0)data[i]=255;
-  }
-  targetCtx.putImageData(pixels,left,top);
- }
  targetCtx.restore();
 }
 function drawCursorName(c,targetCtx){
