@@ -381,17 +381,17 @@ function rebuildCellInterpolation(){
  for(const move of movingParticles)if(cells[move.toIndex]===move.material)movingDestinations[move.toIndex]=1;
 }
 function drawInterpolatedCells(){
- const target=particleInterpolationCtx,rect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
- const width=Math.max(1,Math.round(rect.width*dpr)),height=Math.max(1,Math.round(rect.height*dpr));
+ const target=particleInterpolationCtx,rect=canvas.getBoundingClientRect(),scale=4;
+ const width=W*scale,height=H*scale;
  if(particleInterpolationCanvas.width!==width||particleInterpolationCanvas.height!==height){
   particleInterpolationCanvas.width=width;particleInterpolationCanvas.height=height;
  }
  particleInterpolationCanvas.style.width=rect.width+'px';particleInterpolationCanvas.style.height=rect.height+'px';
- // Draw on whole physical-device pixels. Fractional canvas rectangles were being
- // antialiased against the dark destination cell, leaving a visible rim on landing.
+ // Keep the interpolation surface on an exact integer multiple of the world grid.
+ // This makes its pixels scale identically to the base canvas instead of creating
+ // a second, device-pixel grid that can drift and form halos around landed cells.
  target.setTransform(1,0,0,1,0,0);target.clearRect(0,0,width,height);
  const alpha=cellRenderAlpha;if(alpha>=.999||!movingParticles.length)return;
- const cellWidth=rect.width/W,cellHeight=rect.height/H;
  for(const particle of movingParticles){
   if(cells[particle.toIndex]!==particle.material)continue;
   const material=particle.material,base=colors[material]||colors[0];
@@ -400,12 +400,9 @@ function drawInterpolatedCells(){
   if(material===M.SAND&&wet){const f=1-wet*.38;r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f)}
   if(heat>0&&material!==M.FIRE){const f=Math.min(.35,heat/900);r=Math.min(255,Math.round(r+(255-r)*f));g=Math.round(g+(100-g)*f);b=Math.round(b*(1-f*.7))}
   target.fillStyle=`rgb(${r},${g},${b})`;
-  const x=(particle.fromX+(particle.toX-particle.fromX)*alpha)*cellWidth*dpr;
-  const y=(particle.fromY+(particle.toY-particle.fromY)*alpha)*cellHeight*dpr;
-  // Snap each edge independently so adjacent particles share exact pixel boundaries.
-  const left=Math.round(x),top=Math.round(y);
-  const right=Math.round(x+cellWidth*dpr),bottom=Math.round(y+cellHeight*dpr);
-  target.fillRect(left,top,Math.max(1,right-left),Math.max(1,bottom-top));
+  const x=(particle.fromX+(particle.toX-particle.fromX)*alpha)*scale;
+  const y=(particle.fromY+(particle.toY-particle.fromY)*alpha)*scale;
+  target.fillRect(x,y,scale,scale);
  }
 }
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
