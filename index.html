@@ -79,9 +79,19 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 <div class="modal" id="firebaseModal"><div class="dialog"><h2>CONNECT YOUR LAB</h2><p>Paste the Firebase Web App config from Project settings → General → Your apps. Your config is stored only in this browser. The Firebase API key is a public client identifier; secure your database with the rules in the README.</p><textarea id="firebaseConfig" spellcheck="false" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://YOUR-PROJECT-default-rtdb.firebaseio.com","projectId":"...","appId":"..."}'></textarea><div class="dialog-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="connectFirebase">Connect to Firebase</button></div></div></div>
 <div class="modal" id="roomModal"><div class="dialog"><h2>PLAY TOGETHER</h2><p>Choose a room code and share it with your friends. Everyone who joins the same room can build in the same world in real time.</p><div class="control"><label>Room code</label><input id="roomModalCode" type="text" maxlength="24" placeholder="PIXEL-204"></div><div class="dialog-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="roomGo">Join room</button></div></div></div>
 <script type="module">
-import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import {getDatabase,ref,onValue,set,onDisconnect,serverTimestamp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import {getAuth,signInAnonymously,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
+import {getDatabase,ref,onValue,set,onDisconnect,serverTimestamp} from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
+import {getAuth,signInAnonymously} from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
+
+const firebaseConfig={
+ apiKey:'AIzaSyCCrmWO5-n1mK48RsMDgBJkulEujXwGyjs',
+ authDomain:'pixelphyx-backend.firebaseapp.com',
+ databaseURL:'https://pixelphyx-backend-default-rtdb.firebaseio.com',
+ projectId:'pixelphyx-backend',
+ storageBucket:'pixelphyx-backend.firebasestorage.app',
+ messagingSenderId:'971265417459',
+ appId:'1:971265417459:web:56229f26b16fcb30135786'
+};
 
 const W=320,H=180,N=W*H,canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false}),frameImage=ctx.createImageData(W,H);
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15};
@@ -182,12 +192,12 @@ document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.quer
 document.querySelector('#temperatureControl').oninput=e=>{ambient=+e.target.value;updateTemperature();queueSync()};
 addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){e.preventDefault();document.querySelector('#play').click()}});
 const openModal=id=>document.querySelector('#'+id).classList.add('open');
-document.querySelector('#firebaseBtn').onclick=()=>openModal('firebaseModal');document.querySelector('#roomBtn').onclick=()=>openModal('roomModal');
+document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFirebase(firebaseConfig)}catch(e){alert('Firebase connection failed: '+e.message)}};document.querySelector('#roomBtn').onclick=()=>openModal('roomModal');
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
-document.querySelector('#connectFirebase').onclick=async()=>{try{const config=JSON.parse(document.querySelector('#firebaseConfig').value);if(!config.apiKey||!config.databaseURL||!config.projectId||!config.appId)throw Error('Config must include apiKey, databaseURL, projectId and appId');localStorage.setItem('pixelphyx-firebase',JSON.stringify(config));await connectFirebase(config);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
+document.querySelector('#connectFirebase').onclick=async()=>{try{await connectFirebase(firebaseConfig);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
 async function connectFirebase(config){setConnection('connecting','CONNECTING');try{if(!app){app=initializeApp(config);db=getDatabase(app);auth=getAuth(app)}if(!auth.currentUser)await signInAnonymously(auth);authUser=auth.currentUser;playerId=authUser.uid;setConnection('online','FIREBASE ONLINE');log('Signed in anonymously. Online multiplayer is ready.');if(room)await joinRoom(room)}catch(e){setConnection('','CONNECTION FAILED');throw e}}
-try{const saved=localStorage.getItem('pixelphyx-firebase');if(saved){document.querySelector('#firebaseConfig').value=saved;await connectFirebase(JSON.parse(saved))}}catch(e){console.warn(e);log('Firebase unavailable: '+e.message)}
+try{await connectFirebase(firebaseConfig)}catch(e){console.warn(e);log('Firebase connection unavailable: '+e.message)}
 document.querySelector('#join').onclick=()=>joinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#roomGo').onclick=async()=>{const v=document.querySelector('#roomModalCode').value;document.querySelector('#roomCode').value=v;document.querySelector('#roomModal').classList.remove('open');await joinRoom(v)};
 function serialize(){return{cells:Array.from(cells),ropes:ropes.map(r=>r.points.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),p.anchor?1:0])),gravity,ambient,updatedAt:Date.now(),by:playerId}}
