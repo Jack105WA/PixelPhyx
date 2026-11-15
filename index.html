@@ -73,6 +73,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
  </div>
  <div class="section"><div class="section-title">Experiment log</div><div class="log" id="feed"><div class="log-entry">Welcome to the lab. Select a material and start experimenting.</div></div></div>
  <div class="section"><div class="section-title">Quick controls</div><div class="log"><div class="log-entry">Space — pause / resume</div><div class="log-entry">Right click — erase</div><div class="log-entry">Scroll — brush size</div><div class="log-entry">Rope tool — drag between two anchors</div></div></div>
+ <div class="section"><div class="section-title">Join approvals <span class="muted">Host only</span></div><div id="joinRequests"><div class="lobby-empty">No pending join requests</div></div></div>
 </aside>
 </div>
 </div>
@@ -83,7 +84,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
   <div class="control"><label>Color</label><input id="playerColor" type="color" value="#65d6ad"></div>
  </div>
  <div class="online-section" id="currentRoomSection" hidden><div class="section-title">Your current server</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><code id="currentRoomCode" style="font:12px 'DM Mono',monospace;color:#a5f0d0;letter-spacing:.5px">—</code><button class="btn" id="copyRoomCode" type="button" aria-label="Copy room code" title="Copy room code" style="padding:7px 9px;display:grid;place-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg></button></div></div>
- <div class="online-section"><div class="section-title">Join requests <span class="muted">Host only</span></div><div id="joinRequests"><div class="lobby-empty">No pending join requests</div></div></div>
+ 
  <div class="online-section"><div class="section-title">Players <span id="playerCount" style="color:var(--muted)">0 online</span></div><div class="player-list online-player-list" id="players"><div class="player">Local experiment</div></div></div>
  <div class="online-section"><div class="section-title">Join by server code</div><div class="control"><label>Server code</label><input id="roomCode" type="text" maxlength="24" placeholder="e.g. PX-ABCDE"></div><button class="btn primary" id="join" style="width:100%;margin-top:9px">Request to join</button></div>
  <div class="online-section"><div class="dialog-actions" style="justify-content:space-between;margin-top:0"><span class="muted" id="lobbyCapacity">0 / 20 active servers</span><button class="btn primary" id="createLobby">+ Create server</button></div><div class="lobby-gallery" id="lobbyGallery"><div class="lobby-empty">Connecting to servers…</div></div></div>
