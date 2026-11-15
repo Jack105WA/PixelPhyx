@@ -4,6 +4,9 @@ import { stepMaterialPhysics, materialState, resetMaterialState } from './materi
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
 const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});let frameImage=ctx.createImageData(W,H);
+const bloomCanvas=document.createElement('canvas'),bloomCtx=bloomCanvas.getContext('2d');
+function resizeBloomBuffer(){bloomCanvas.width=Math.max(1,Math.ceil(W/3));bloomCanvas.height=Math.max(1,Math.ceil(H/3));}
+resizeBloomBuffer();
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15,CHARCOAL:16};
 const materials=[
  {id:1,name:'Sand',icon:'▨',color:'#d9b45f',rgb:[217,180,95],type:'powder'},
@@ -40,7 +43,7 @@ materials.forEach(m=>{const b=document.createElement('button');b.className='mate
 document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
- W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
+ W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
  cells=new Uint8Array(N);updated=new Uint8Array(N);carriedParticles=new Uint8Array(N);resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
@@ -289,10 +292,30 @@ function drawCursorName(c,targetCtx){
  targetCtx.fillText(label,x,y);
  targetCtx.restore();
 }
+function renderBloom(){
+ // Render the glow at one-third resolution so soft light stays smooth without
+ // adding a full-resolution blur pass to every simulation frame.
+ bloomCtx.clearRect(0,0,bloomCanvas.width,bloomCanvas.height);
+ bloomCtx.save();bloomCtx.globalCompositeOperation='lighter';bloomCtx.shadowBlur=3.2;
+ for(let i=0;i<N;i++){
+  const m=cells[i];if(!m)continue;
+  const heat=materialState.heat[i]||0;
+  let color=null,intensity=0;
+  if(m===M.FIRE){color='#ff8a32';intensity=1}
+  else if(m===M.LAVA){color='#ff3b12';intensity=.95}
+  else if(heat>95&&m!==M.WATER&&m!==M.ICE&&m!==M.STEAM&&m!==M.SMOKE){color=heat>500?'#ff6a24':'#ffb34d';intensity=Math.min(.72,(heat-95)/700)}
+  if(!color||intensity<.025)continue;
+  const x=(i%W)/3,y=Math.floor(i/W)/3;
+  bloomCtx.globalAlpha=intensity;bloomCtx.shadowColor=color;bloomCtx.fillStyle=color;bloomCtx.fillRect(x,y,.38,.38);
+ }
+ bloomCtx.restore();
+ ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.72;ctx.imageSmoothingEnabled=true;
+ ctx.drawImage(bloomCanvas,0,0,W,H);ctx.restore();
+}
 function render(){
  let count=0;
  for(let i=0;i<N;i++){const m=cells[i],base=colors[m]||colors[0],p=i*4,wet=materialState.wetness[i]||0,heat=materialState.heat[i]||0;let r=base[0],g=base[1],b=base[2];if(m===M.SAND&&wet){const f=1-wet*.38;r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f)}if(heat>0&&m!==M.FIRE){const f=Math.min(.35,heat/900);r=Math.min(255,Math.round(r+(255-r)*f));g=Math.round(g+(100-g)*f);b=Math.round(b*(1-f*.7))}frameImage.data[p]=r;frameImage.data[p+1]=g;frameImage.data[p+2]=b;frameImage.data[p+3]=255;if(m)count++}
- ctx.putImageData(frameImage,0,0);ctx.lineCap='round';ctx.lineJoin='round';
+ ctx.putImageData(frameImage,0,0);renderBloom();ctx.lineCap='round';ctx.lineJoin='round';
  for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
  for(const [id,target] of Object.entries(remoteCursorTargets)){
   let current=remoteCursors[id];
