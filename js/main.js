@@ -274,15 +274,17 @@ function drawCursorName(c,targetCtx){
  if(!c||!c.name)return;
  const label=String(c.name).slice(0,16);
  targetCtx.save();
- targetCtx.font='600 6px Inter,system-ui,sans-serif';
+ targetCtx.font='500 8px Inter,Arial,sans-serif';
  targetCtx.textBaseline='middle';
- const x=Math.max(2,Math.min(localCursorCanvas.width-targetCtx.measureText(label).width-4,c.x+10));
- let y=c.y-5;
- if(y<5)y=c.y+10;
- y=Math.max(5,Math.min(localCursorCanvas.height-5,y));
+ const width=targetCtx.measureText(label).width;
+ const x=Math.max(3,Math.min(cursorNamesCanvas.clientWidth-width-3,c.x+9));
+ let y=c.y+13;
+ // Keep player names clear of the canvas HUD in the upper-left corner.
+ if(x<170&&y<45)y=51;
+ y=Math.max(9,Math.min(cursorNamesCanvas.clientHeight-8,y));
  targetCtx.lineJoin='round';
- targetCtx.lineWidth=2.5;
- targetCtx.strokeStyle='rgba(4,9,16,.95)';
+ targetCtx.lineWidth=2;
+ targetCtx.strokeStyle='rgba(4,9,16,.98)';
  targetCtx.strokeText(label,x,y);
  targetCtx.fillStyle='#f4f7fb';
  targetCtx.fillText(label,x,y);
@@ -301,8 +303,14 @@ function render(){
  }
  for(const id of Object.keys(remoteCursors))if(!remoteCursorTargets[id])delete remoteCursors[id];
  const cursorCtx=localCursorCtx,nameCtx=cursorNamesCtx;
+ const shellRect=canvasShell.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+ const nameWidth=Math.max(1,Math.round(shellRect.width*dpr)),nameHeight=Math.max(1,Math.round(shellRect.height*dpr));
+ if(cursorNamesCanvas.width!==nameWidth||cursorNamesCanvas.height!==nameHeight){
+  cursorNamesCanvas.width=nameWidth;cursorNamesCanvas.height=nameHeight;
+ }
+ nameCtx.setTransform(dpr,0,0,dpr,0,0);
+ nameCtx.clearRect(0,0,shellRect.width,shellRect.height);
  cursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height);
- nameCtx.clearRect(0,0,cursorNamesCanvas.width,cursorNamesCanvas.height);
  if(localCursor){
   cursorCtx.save();cursorCtx.translate(localCursor.x/W*localCursorCanvas.width,localCursor.y/H*localCursorCanvas.height);cursorCtx.scale(.8,.8);
   drawPlayerCursor({x:0,y:0},true,cursorCtx);cursorCtx.restore();
@@ -311,7 +319,7 @@ function render(){
   const x=c.x/W*localCursorCanvas.width,y=c.y/H*localCursorCanvas.height;
   cursorCtx.save();cursorCtx.translate(x,y);cursorCtx.scale(.8,.8);
   drawPlayerCursor({x:0,y:0,color:c.color},false,cursorCtx);cursorCtx.restore();
-  drawCursorName({x,y,name:c.name},nameCtx);
+  drawCursorName({x:c.x/W*shellRect.width,y:c.y/H*shellRect.height,name:c.name},nameCtx);
  }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
@@ -495,7 +503,10 @@ let localCursor=null;
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
-localCursorCanvas.width=cursorNamesCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=cursorNamesCanvas.height=CANVAS_SIZES.medium.height;
+const canvasShell=document.querySelector('#canvasShell');
+localCursorCanvas.width=CANVAS_SIZES.medium.width;localCursorCanvas.height=CANVAS_SIZES.medium.height;
+cursorNamesCanvas.width=Math.max(1,Math.round(canvasShell.clientWidth*(window.devicePixelRatio||1)));
+cursorNamesCanvas.height=Math.max(1,Math.round(canvasShell.clientHeight*(window.devicePixelRatio||1)));
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 document.querySelector('#playerColor').value=playerColor;
