@@ -23,8 +23,9 @@ const PROPERTIES={
  15:{density:2.5,conductivity:.9},
  16:{density:1.15,conductivity:.12,flammability:.12,ignition:520,fuel:.12}
 };
-function swap(cells,state,a,b){
- const v=cells[a];cells[a]=cells[b];cells[b]=v;
+function swap(cells,state,a,b,recordMove){
+ const first=cells[a],second=cells[b];cells[a]=second;cells[b]=first;
+ if(recordMove){if(first)recordMove(a,b,first);if(second)recordMove(b,a,second)}
  for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const arr=state[key];const t=arr[a];arr[a]=arr[b];arr[b]=t}
 }
 function ignite(cells,state,i,m){
@@ -34,7 +35,7 @@ function ignite(cells,state,i,m){
  state.heat[i]=Math.max(state.heat[i],p.ignition||100);
  return true;
 }
-export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state}){
+export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state,recordMove}){
  const M=materials,W=width,H=height,N=W*H;
  if(s.wetness.length!==N)resetMaterialState(N);
  const wet=s.wetness,heat=s.heat,fuel=s.fuel,burn=s.burn,age=s.age,corrosion=s.corrosion;
@@ -48,14 +49,14 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
    if(m===M.SAND){
     const below=index(x,y+1),under=cells[below];
     if(under===M.WATER||under===M.OIL){
-     if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below);
+     if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below,recordMove);
     }else if(under===M.EMPTY&&Math.random()<clamp((.95*(1-wet[i]*.82))*clamp(gravity,.1,2),.04,1)){
-     if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below);
+     if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below,recordMove);
     }else if(under!==M.EMPTY&&under!==M.WATER&&under!==M.OIL){
      const d=Math.random()<.5?-1:1,nx=x+d;
      if(inside(nx,y+1)){
       const ni=index(nx,y+1),side=cells[ni];
-      if((side===M.EMPTY||side===M.WATER||side===M.OIL)&&!ropeBlocksMove(x+.5,y+.5,nx+.5,y+1.5))swap(cells,s,i,ni);
+      if((side===M.EMPTY||side===M.WATER||side===M.OIL)&&!ropeBlocksMove(x+.5,y+.5,nx+.5,y+1.5))swap(cells,s,i,ni,recordMove);
      }
     }
    }
