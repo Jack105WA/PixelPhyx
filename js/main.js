@@ -249,7 +249,7 @@ multiplayer=createMultiplayer({
  onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
  onPlayers:people=>{renderPlayers(people);remoteCursors={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&p.cursor)remoteCursors[id]={...p.cursor,name:p.name||'Guest'}}}
 });
-try{await connectFirebase(firebaseConfig)}catch(e){console.warn(e);log('Firebase connection unavailable: '+e.message)}
+connectFirebase(firebaseConfig).catch(e=>{console.warn(e);log('Firebase connection unavailable: '+e.message)});
 document.querySelector('#join').onclick=()=>joinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#roomGo').onclick=async()=>{const v=document.querySelector('#roomModalCode').value;document.querySelector('#roomCode').value=v;document.querySelector('#roomModal').classList.remove('open');await joinRoom(v)};
 function encodeCells(data){let out='';for(let i=0;i<data.length;i+=8192)out+=String.fromCharCode(...data.subarray(i,Math.min(i+8192,data.length)));return btoa(out)}
