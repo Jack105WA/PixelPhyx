@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
   getDatabase, ref, onValue, set, onDisconnect, serverTimestamp,
-  push, onChildAdded, onChildChanged, runTransaction, update, remove, get, query, limitToLast
+  push, onChildAdded, runTransaction, update, remove, get, query, limitToLast
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
@@ -72,20 +72,16 @@ export function createMultiplayer(callbacks = {}) {
       await onDisconnect(presenceRef).remove();
       await onDisconnect(cursorRef).remove();
 
-      stopWorld = onValue(ref(db, roomPath + '/worldMeta'), snapshot => {
+      stopWorld = onValue(ref(db, roomPath + '/world'), snapshot => {
         const world = snapshot.val();
         if (world) callbacks.onWorld?.(world);
-      }, error => log('World metadata sync error: ' + error.message));
-      const chunksRef = ref(db, roomPath + '/worldChunks');
-      const applyChunk = snapshot => callbacks.onWorldChunk?.(snapshot.key, snapshot.val());
-      const stopChunkAdded = onChildAdded(chunksRef, applyChunk);
-      const stopChunkChanged = onChildChanged(chunksRef, applyChunk);
+      }, error => log('World snapshot sync error: ' + error.message));
       const stopWorldRequests = onChildAdded(ref(db, roomPath + '/worldRequests'), snapshot => {
         if (hostId === playerId && snapshot.key !== playerId) callbacks.onWorldRequest?.(snapshot.key);
         if (hostId === playerId) remove(snapshot.ref).catch(() => {});
       });
       const originalStopWorld = stopWorld;
-      stopWorld = () => { originalStopWorld?.(); stopChunkAdded(); stopChunkChanged(); stopWorldRequests(); };
+      stopWorld = () => { originalStopWorld?.(); stopWorldRequests(); };
 
       const operationsRef = ref(db, roomPath + '/operations');
       // Read only a bounded tail. Old operation history must never be downloaded in full.
@@ -151,18 +147,7 @@ export function createMultiplayer(callbacks = {}) {
 
   function publishWorld(world) {
     if (!db || !joined || !room || hostId !== playerId || !world) return;
-    // The caller schedules at 60 Hz. Never discard a delta here: the pending queue
-    // merges changed chunks while a Firebase write is in flight.
-    lastWorldWrite = Date.now();
-    if (pendingWorld) {
-      pendingWorld = {
-        ...pendingWorld,
-        ...world,
-        chunks: { ...(pendingWorld.chunks || {}), ...(world.chunks || {}) },
-        metadata: world.metadata || pendingWorld.metadata,
-        full: !!(pendingWorld.full || world.full)
-      };
-    } else pendingWorld = world;
+    pendingWorld = world;
     if (worldWriteInFlight) return;
     worldWriteInFlight = true;
     (async () => {
@@ -170,15 +155,13 @@ export function createMultiplayer(callbacks = {}) {
         while (pendingWorld && joined && room && hostId === playerId) {
           const latest = pendingWorld;
           pendingWorld = null;
-          const patch = {};
-          if (latest.metadata) patch['worldMeta'] = { ...latest.metadata, by: playerId, updatedAt: serverTimestamp() };
-          if (latest.chunks) for (const [id, chunk] of Object.entries(latest.chunks)) patch['worldChunks/' + id] = chunk;
-          if (Object.keys(patch).length) await update(ref(db, 'rooms/' + room), patch);
+          await set(ref(db, 'rooms/' + room + '/world'), {
+            ...latest, by: playerId, updatedAt: serverTimestamp()
+          });
         }
       } catch (error) {
         pendingWorld = null;
-        callbacks.onWorldError?.(error);
-        log('Partial world sync failed; requesting a fresh full sync: ' + error.message);
+        log('World snapshot sync failed: ' + error.message);
       } finally {
         worldWriteInFlight = false;
       }
