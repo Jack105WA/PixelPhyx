@@ -9,8 +9,8 @@ PixelPhyx is an online pixel-art physics and chemistry sandbox. Build worlds wit
   - `Website/js/` contains the browser-side game, physics, multiplayer, and Firebase configuration modules.
   - `Website/offline.html` is the generated single-file offline edition.
 - `.github/workflows/` contains GitHub Actions automation.
-- `functions/` contains the Firebase Cloud Function for empty-room cleanup.
-- `firebase.json`, `.firebaserc`, and `database.rules.json` configure Firebase.
+- `Server/functions/` contains the Firebase Cloud Function for empty-room cleanup.
+- `Server/firebase.json`, `Server/.firebaserc`, and `Server/database.rules.json` configure Firebase.
 - `build-offline.mjs` builds the offline edition from the website source.
 
 ## Play online
@@ -47,7 +47,7 @@ PixelPhyx uses Firebase Anonymous Authentication. Players are signed in with a t
 
 ### 4. Publish the database rules
 
-In Realtime Database → **Rules**, replace the rules with the contents of [database.rules.json](database.rules.json), then click **Publish**:
+In Realtime Database → **Rules**, replace the rules with the contents of [database.rules.json](Server/database.rules.json), then click **Publish**:
 
 ```json
 {
@@ -76,15 +76,15 @@ Firebase web API keys are client identifiers, not server secrets; database secur
 
 PixelPhyx includes a Firebase Realtime Database function that removes a room's saved world and edit history after its final player disconnects. This runs on the server, so cleanup still happens when every browser window is closed.
 
-Deploy it once from the repository root:
+Deploy it once from the repository root (the Firebase configuration is in `Server/`):
 
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase deploy --only functions
+firebase --config Server/firebase.json --project pixelphyx-backend deploy --only functions
 ```
 
-The function uses the `pixelphyx-backend` project configured in `.firebaserc`. Firebase requires the project to use the Blaze (pay-as-you-go) plan to deploy Cloud Functions; the function itself is small and only runs when a player disconnects. Review Firebase pricing and usage limits before enabling billing.
+The function uses the `pixelphyx-backend` project configured in `Server/.firebaserc`. Firebase requires the project to use the Blaze (pay-as-you-go) plan to deploy Cloud Functions; the function itself is small and only runs when a player disconnects. Review Firebase pricing and usage limits before enabling billing.
 
 ### 7. Invite friends
 
