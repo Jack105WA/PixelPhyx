@@ -250,6 +250,7 @@ function ropeBlocksMove(x1,y1,x2,y2){
 }
 function pushParticlesFromRopeSweep(){
  const pointSegmentDistance=(px,py,ax,ay,bx,by)=>{const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len)):0;return Math.hypot(px-(ax+t*dx),py-(ay+t*dy))};
+ const insideQuad=(px,py,ax,ay,bx,by,cx,cy,dx,dy)=>{const cross=(x1,y1,x2,y2)=>x1*y2-y1*x2;const points=[[ax,ay],[bx,by],[cx,cy],[dx,dy]];let sign=0;for(let i=0;i<4;i++){const a=points[i],b=points[(i+1)%4],v=cross(b[0]-a[0],b[1]-a[1],px-a[0],py-a[1]);if(Math.abs(v)<.0001)continue;const next=Math.sign(v);if(sign&&next!==sign)return false;sign=next}return true};
  for(const rope of ropes){const p=rope.points;for(let i=0;i<p.length-1;i++){
   const a=p[i],b=p[i+1],ax=a.sx??a.x,ay=a.sy??a.y,bx=b.sx??b.x,by=b.sy??b.y;
   const minX=Math.max(0,Math.floor(Math.min(ax,bx,a.x,b.x)-1)),maxX=Math.min(W-1,Math.ceil(Math.max(ax,bx,a.x,b.x)+1));
@@ -258,8 +259,9 @@ function pushParticlesFromRopeSweep(){
   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
    const k=idx(x,y),m=cells[k];if(!m||ropeCellIsSolid(m))continue;
    const px=x+.5,py=y+.5;
+   const swept=insideQuad(px,py,ax,ay,bx,by,b.x,b.y,a.x,a.y);
    const d=Math.min(pointSegmentDistance(px,py,ax,ay,bx,by),pointSegmentDistance(px,py,a.x,a.y,b.x,b.y),pointSegmentDistance(px,py,ax,ay,a.x,a.y),pointSegmentDistance(px,py,bx,by,b.x,b.y));
-   if(d>0.9)continue;
+   if(!swept&&d>0.9)continue;
    const vx=moveX||a.x-ax,vy=moveY||a.y-ay;
    const target=findRopeFreeCell(x,y,vx,vy,4);
    if(target){cells[target.index]=m;cells[k]=M.EMPTY}
