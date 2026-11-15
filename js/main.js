@@ -401,13 +401,12 @@ function drawInterpolatedCells(){
   target.fillRect(x,y,scale,scale);
  }
 }
-function drawPlayerCursor(c,isYou=false,targetCtx=ctx,deviceScale=1){
+function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const color=isYou?'#ffffff':(c.color||'#ffffff');
- // Draw directly into the display-resolution overlay. Every covered device
- // pixel is a 1x1 opaque rectangle; no transformed canvas paths or smoothing.
- const x=c.x,y=c.y,scale=2.5*deviceScale;
- const points=[[x,y],[x+3.5*scale,y+8*scale],[x+5.5*scale,y+5*scale],[x+8.5*scale,y+4.5*scale]];
+ // Rasterize on the simulation's native pixel grid. Each covered world pixel
+ // is a solid 1x1 block, then CSS image-rendering:pixelated enlarges those blocks.
+ const points=[[c.x,c.y],[c.x+3.5*scale,c.y+8*scale],[c.x+5.5*scale,c.y+5*scale],[c.x+8.5*scale,c.y+4.5*scale]];
  const minY=Math.floor(Math.min(...points.map(p=>p[1])));
  const maxY=Math.ceil(Math.max(...points.map(p=>p[1])));
  targetCtx.save();
@@ -489,28 +488,28 @@ function render(){
  }
  for(const id of Object.keys(remoteCursors))if(!remoteCursorTargets[id])delete remoteCursors[id];
  const cursorCtx=localCursorCtx,nameCtx=cursorNamesCtx;
- const canvasRect=canvas.getBoundingClientRect(),dpr=Math.max(1,window.devicePixelRatio||1);
- const displayWidth=Math.max(1,Math.round(canvasRect.width*dpr)),displayHeight=Math.max(1,Math.round(canvasRect.height*dpr));
- if(localCursorCanvas.width!==displayWidth||localCursorCanvas.height!==displayHeight){
-  localCursorCanvas.width=displayWidth;
-  localCursorCanvas.height=displayHeight;
+ const canvasRect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+ const nameWidth=Math.max(1,Math.round(canvasRect.width*dpr)),nameHeight=Math.max(1,Math.round(canvasRect.height*dpr));
+ if(localCursorCanvas.width!==W||localCursorCanvas.height!==H){
+  localCursorCanvas.width=W;
+  localCursorCanvas.height=H;
  }
  cursorCtx.setTransform(1,0,0,1,0,0);
  cursorCtx.globalAlpha=1;
  cursorCtx.globalCompositeOperation='source-over';
- cursorCtx.imageSmoothingEnabled=false;
- cursorCtx.clearRect(0,0,displayWidth,displayHeight);
- if(cursorNamesCanvas.width!==displayWidth||cursorNamesCanvas.height!==displayHeight){
-  cursorNamesCanvas.width=displayWidth;
-  cursorNamesCanvas.height=displayHeight;
+ cursorCtx.clearRect(0,0,W,H);
+ if(cursorNamesCanvas.width!==nameWidth||cursorNamesCanvas.height!==nameHeight){
+  cursorNamesCanvas.width=nameWidth;
+  cursorNamesCanvas.height=nameHeight;
  }
  nameCtx.setTransform(dpr,0,0,dpr,0,0);
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
+ const cursorScale=Math.max(.1,2.5*W/Math.max(1,canvasRect.width));
  if(localCursor){
-  drawPlayerCursor({x:localCursor.x/W*canvasRect.width*dpr,y:localCursor.y/H*canvasRect.height*dpr},true,cursorCtx,dpr);
+  drawPlayerCursor(localCursor,true,cursorCtx,cursorScale);
  }
  for(const c of Object.values(remoteCursors)){
-  drawPlayerCursor({x:c.x/W*canvasRect.width*dpr,y:c.y/H*canvasRect.height*dpr,color:c.color},false,cursorCtx,dpr);
+  drawPlayerCursor(c,false,cursorCtx,cursorScale);
   drawCursorName({x:c.x/W*canvasRect.width,y:c.y/H*canvasRect.height,name:c.name},nameCtx);
  }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
