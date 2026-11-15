@@ -274,10 +274,10 @@ function drawCursorName(c,targetCtx){
  if(!c||!c.name)return;
  const label=String(c.name).slice(0,16);
  targetCtx.save();
- targetCtx.font='500 8px Inter,Arial,sans-serif';
+ targetCtx.font='600 10px Inter,Arial,sans-serif';
  targetCtx.textBaseline='middle';
  const width=targetCtx.measureText(label).width;
- const x=Math.max(3,Math.min(cursorNamesCanvas.clientWidth-width-3,c.x+9));
+ const x=Math.max(3,Math.min(cursorNamesCanvas.clientWidth-width-3,c.x+14));
  let y=c.y+13;
  // Keep player names clear of the canvas HUD in the upper-left corner.
  if(x<170&&y<45)y=51;
