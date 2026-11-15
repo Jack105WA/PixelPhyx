@@ -7,7 +7,10 @@ const [{ firebaseConfig }, { stepMaterialPhysics, materialState, resetMaterialSt
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
-const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});let frameImage=ctx.createImageData(W,H);
+const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});
+const particleInterpolationCanvas=document.createElement('canvas'),particleInterpolationCtx=particleInterpolationCanvas.getContext('2d');
+particleInterpolationCanvas.className='particle-interpolation';canvas.parentElement.insertBefore(particleInterpolationCanvas,canvas.nextElementSibling);
+let frameImage=ctx.createImageData(W,H);
 const bloomCanvas=document.createElement('canvas'),bloomCtx=bloomCanvas.getContext('2d');
 let bloomImage=null,bloomPixels=null,bloomW=0,bloomH=0;
 function resizeBloomBuffer(){
@@ -378,14 +381,22 @@ function rebuildCellInterpolation(){
  for(const move of movingParticles)if(cells[move.toIndex]===move.material)movingDestinations[move.toIndex]=1;
 }
 function drawInterpolatedCells(){
+ const target=particleInterpolationCtx,rect=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+ const width=Math.max(1,Math.round(rect.width*dpr)),height=Math.max(1,Math.round(rect.height*dpr));
+ if(particleInterpolationCanvas.width!==width||particleInterpolationCanvas.height!==height){
+  particleInterpolationCanvas.width=width;particleInterpolationCanvas.height=height;
+ }
+ particleInterpolationCanvas.style.width=rect.width+'px';particleInterpolationCanvas.style.height=rect.height+'px';
+ target.setTransform(dpr,0,0,dpr,0,0);target.clearRect(0,0,rect.width,rect.height);
  const alpha=cellRenderAlpha;if(alpha>=.999||!movingParticles.length)return;
+ const cellWidth=rect.width/W,cellHeight=rect.height/H;
  for(const particle of movingParticles){
   if(cells[particle.toIndex]!==particle.material)continue;
   const rgb=colors[particle.material]||colors[0];
-  ctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-  const x=particle.fromX+(particle.toX-particle.fromX)*alpha;
-  const y=particle.fromY+(particle.toY-particle.fromY)*alpha;
-  ctx.fillRect(x,y,1,1);
+  target.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  const x=(particle.fromX+(particle.toX-particle.fromX)*alpha)*cellWidth;
+  const y=(particle.fromY+(particle.toY-particle.fromY)*alpha)*cellHeight;
+  target.fillRect(x,y,cellWidth,cellHeight);
  }
 }
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
