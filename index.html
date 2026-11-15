@@ -134,6 +134,7 @@ function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.flo
 let drawing=false,lastPoint=null,ropeStart=null;
 function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
  if(tool==='rope'){if(!ropeStart){ropeStart={x:p.x,y:p.y};log('Rope anchor selected. Drag to its other end.')}return}
+ if(erase){circle(p.x,p.y,brush,M.EMPTY);lastPoint=p;return}
  if(tool==='box'){for(let yy=-brush;yy<=brush;yy++)for(let xx=-brush;xx<=brush;xx++)put(p.x+xx,p.y+yy,selected);return}
  if(tool==='bomb'){circle(p.x,p.y,2,M.TNT);return}
  if(tool==='heat'){circle(p.x,p.y,brush,M.FIRE);return}
