@@ -30,7 +30,7 @@ export function createMultiplayer(callbacks = {}) {
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
-  let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null;
+  let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0;
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -110,6 +110,8 @@ export function createMultiplayer(callbacks = {}) {
     }, error => log('Host sync error: ' + error.message));
     presenceRef = ref(db, roomPath + '/players/' + playerId);
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
+    const worldStateRef = ref(db, roomPath + '/worldStates/' + playerId);
+    lastWorldRevision = 0;
 
     try {
       const hostResult = await runTransaction(hostRef, current => current || playerId);
@@ -117,15 +119,26 @@ export function createMultiplayer(callbacks = {}) {
 
       await onDisconnect(presenceRef).remove();
       await onDisconnect(cursorRef).remove();
+      await onDisconnect(worldStateRef).remove();
       await set(presenceRef, {
         name: String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest',
         color: /^#[0-9a-f]{6}$/i.test(identity.color || '') ? identity.color : '#65d6ad',
         joinedAt: serverTimestamp()
       });
 
-      stopWorld = onValue(ref(db, roomPath + '/world'), snapshot => {
-        const world = snapshot.val();
-        if (world) callbacks.onWorld?.(world);
+      stopWorld = onValue(ref(db, roomPath + '/worldStates'), snapshot => {
+        const states = Object.values(snapshot.val() || {}).filter(world =>
+          world && typeof world === 'object' && Number.isFinite(Number(world.updatedAt))
+        );
+        if (!states.length) return;
+        // Every participant publishes its own checkpoint. All peers follow the
+        // newest checkpoint, so no single player owns the live world.
+        states.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
+        const latest = states[0];
+        const revision = Number(latest.updatedAt) || 0;
+        if (revision <= lastWorldRevision) return;
+        lastWorldRevision = revision;
+        callbacks.onWorld?.(latest);
       }, error => log('World sync error: ' + error.message));
 
       const operationsRef = ref(db, roomPath + '/operations');
@@ -297,7 +310,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function publishWorld(world) {
-    if (!db || !joined || !room || hostId !== playerId) return;
+    if (!db || !joined || !room) return;
     const now = Date.now();
     if (now - lastWorldWrite < 1000 / 60) return;
     lastWorldWrite = now;
@@ -307,10 +320,10 @@ export function createMultiplayer(callbacks = {}) {
     worldWriteInFlight = true;
     (async () => {
       try {
-        while (pendingWorld && joined && room && hostId === playerId) {
+        while (pendingWorld && joined && room) {
           const latest = pendingWorld;
           pendingWorld = null;
-          await set(ref(db, 'rooms/' + room + '/world'), {
+          await set(ref(db, 'rooms/' + room + '/worldStates/' + playerId), {
             ...latest, by: playerId, updatedAt: serverTimestamp()
           });
         }
