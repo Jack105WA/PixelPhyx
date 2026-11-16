@@ -403,17 +403,32 @@ function drawInterpolatedCells(){
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
+ // Draw the multiplayer pointer as a fixed 8x12 pixel-art bitmap.
+ // Scale from the medium canvas CSS size, not the selected world resolution.
+ const pixels=[
+  '10000000',
+  '11000000',
+  '11100000',
+  '11110000',
+  '11111000',
+  '11111100',
+  '11111110',
+  '11111111',
+  '11111100',
+  '11011000',
+  '00001100',
+  '00000110'
+ ];
+ const unit=Math.max(.25,scale);
  targetCtx.save();
  targetCtx.globalAlpha=1;
  targetCtx.globalCompositeOperation='source-over';
  targetCtx.fillStyle=cursorColor;
- targetCtx.beginPath();
- targetCtx.moveTo(c.x,c.y);
- targetCtx.lineTo(c.x+3.5*scale,c.y+8*scale);
- targetCtx.lineTo(c.x+5.5*scale,c.y+5*scale);
- targetCtx.lineTo(c.x+8.5*scale,c.y+4.5*scale);
- targetCtx.closePath();
- targetCtx.fill();
+ for(let y=0;y<pixels.length;y++){
+  for(let x=0;x<pixels[y].length;x++){
+   if(pixels[y][x]==='1')targetCtx.fillRect(Math.round(c.x+x*unit),Math.round(c.y+y*unit),Math.max(1,Math.round(unit)),Math.max(1,Math.round(unit)));
+  }
+ }
  targetCtx.restore();
 }
 function drawCursorName(c,targetCtx){
