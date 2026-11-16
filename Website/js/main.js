@@ -403,22 +403,26 @@ function drawInterpolatedCells(){
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- // Draw a true pixel-grid arrow in CSS pixels, independent of canvas resolution.
+ // Solid, hard-edged pixel arrow. Its tip points up-left and its shaft
+ // angles down-right, matching a conventional mouse pointer.
  const pixels=[
-  '##......',
-  '#.#.....',
-  '#..#....',
-  '#...#...',
-  '#....#..',
-  '#.....#.',
-  '#......#',
-  '#.......',
-  '#...##..',
-  '#..#....',
-  '#.#.....',
-  '##......'
+  '#........',
+  '##.......',
+  '###......',
+  '####.....',
+  '#####....',
+  '######...',
+  '#######..',
+  '########.',
+  '#########',
+  '####.####',
+  '###...###',
+  '##....##.',
+  '#.....##.',
+  '......##.',
+  '......##.'
  ];
- const pixelSize=2.5*scale;
+ const pixelSize=2*scale;
  targetCtx.save();
  targetCtx.globalAlpha=1;
  targetCtx.globalCompositeOperation='source-over';
@@ -428,8 +432,8 @@ function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
    if(pixels[y][x]==='#')targetCtx.fillRect(
     Math.round(c.x+x*pixelSize),
     Math.round(c.y+y*pixelSize),
-    Math.ceil(pixelSize),
-    Math.ceil(pixelSize)
+    pixelSize,
+    pixelSize
    );
   }
  }
