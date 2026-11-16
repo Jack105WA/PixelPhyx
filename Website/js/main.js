@@ -304,9 +304,14 @@ function pushParticlesFromRopeSweep(){
     for(const state of stateArrays){state[to]=state[from];state[from]=0}
     carried[from]=1;carried[to]=1;
     recordParticleMove(from,to,material);
-    // Preserve the rope's actual direction and speed, not just its rounded grid step.
-    particleVelocityX[to]=Math.max(-8,Math.min(8,launchVx));
-    particleVelocityY[to]=Math.max(-8,Math.min(8,launchVy));
+    // Each grain gets a slightly different impulse as the rope slides through it.
+    const angle=(Math.random()-.5)*.9;
+    const speed=.78+Math.random()*.44;
+    const cos=Math.cos(angle),sin=Math.sin(angle);
+    const variedVx=(launchVx*cos-launchVy*sin)*speed+(Math.random()-.5)*.32;
+    const variedVy=(launchVx*sin+launchVy*cos)*speed+(Math.random()-.5)*.32;
+    particleVelocityX[to]=Math.max(-8,Math.min(8,variedVx));
+    particleVelocityY[to]=Math.max(-8,Math.min(8,variedVy));
     visiting.delete(from);
     return true;
    };
@@ -316,9 +321,10 @@ function pushParticlesFromRopeSweep(){
     // Add a local tangent and outward normal impulse so a rope flick
     // fans particles naturally instead of launching them in one rigid line.
     const normalX=-c.tangentY*c.side,normalY=c.tangentX*c.side;
-    const spread=(Math.random()-.5)*.34;
-    const launchVx=Math.max(-8,Math.min(8,c.dx*1.45+c.tangentX*.38+normalX*(.72+spread)));
-    const launchVy=Math.max(-8,Math.min(8,c.dy*1.45+c.tangentY*.38+normalY*(.72+spread)));
+    const spread=(Math.random()-.5)*.7;
+    const impact=Math.min(1.5,Math.hypot(c.dx,c.dy));
+    const launchVx=Math.max(-8,Math.min(8,c.dx*1.25+c.tangentX*.18+normalX*(.35+spread)*impact));
+    const launchVy=Math.max(-8,Math.min(8,c.dy*1.25+c.tangentY*.18+normalY*(.35+spread)*impact));
     pushChain(c.from,c.stepX,c.stepY,launchVx,launchVy,new Set());
    }
   }
