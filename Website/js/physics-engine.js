@@ -124,7 +124,7 @@ export function createPhysicsEngine(){
 
  function pushParticlesFromRopeSweep(ropes,cells,w,h,vx,vy,state,recordMove){
   if(!recordMove)return;
-  const carried=pushParticlesFromRopeSweep.carried||(pushParticlesFromRopeSweep.carried=new Uint8Array(cells.length));carried.fill(0);
+  let carried=pushParticlesFromRopeSweep.carried;if(!carried||carried.length!==cells.length)carried=pushParticlesFromRopeSweep.carried=new Uint8Array(cells.length);else carried.fill(0);
   const stateArrays=state?['wetness','heat','fuel','burn','age','corrosion'].map(k=>state[k]).filter(Boolean):[];
   const inside=(x,y)=>x>=0&&x<w&&y>=0&&y<h;
   const index=(x,y)=>y*w+x;
