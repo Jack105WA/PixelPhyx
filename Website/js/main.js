@@ -178,7 +178,7 @@ function stepRopes(){
    for(const n of points){
     if(n.anchor)continue;
     const oldX=n.x,oldY=n.y,vx=(n.x-n.px)*.992,vy=(n.y-n.py)*.992;
-    n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.12*gravity/4;
+    n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.12*gravity/2;
     resolveRopeNode(n,oldX,oldY);
    }
    for(let pass=0;pass<10;pass++){
