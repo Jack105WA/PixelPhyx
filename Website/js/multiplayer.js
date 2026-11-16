@@ -116,6 +116,7 @@ export function createMultiplayer(callbacks = {}) {
   let rtcRoomPath = '';
   let rtcRoomListener = null;
   let rtcRoomPeers = new Map();
+  let rtcPendingMessages = new Map();
   let lastLanWorld = null;
   let lastLanRopes = null;
   const rtcTransfers = new Map();
@@ -209,6 +210,7 @@ export function createMultiplayer(callbacks = {}) {
       try { peer.connection?.close(); } catch {}
     }
     rtcRoomPeers.clear();
+    rtcPendingMessages.clear();
     rtcTransfers.clear();
     rtcRoomPath = '';
   }
@@ -219,7 +221,12 @@ export function createMultiplayer(callbacks = {}) {
 
   function rtcSendTo(remoteId, type, data) {
     const peer = rtcRoomPeers.get(remoteId);
-    if (!peer || peer.channel?.readyState !== 'open') return false;
+    if (!peer || peer.channel?.readyState !== 'open' || (type === 'operation' && !peer.ready)) {
+      const queue = peer ? peer.pendingMessages : (rtcPendingMessages.get(remoteId) || []);
+      if (queue.length < 500) queue.push({ type, data });
+      if (!peer) rtcPendingMessages.set(remoteId, queue);
+      return false;
+    }
     const body = JSON.stringify({ type, data });
     const chunkSize = 24000;
     if (body.length <= chunkSize) {
@@ -236,6 +243,19 @@ export function createMultiplayer(callbacks = {}) {
       } catch (error) { log('LAN transfer failed: ' + error.message); return false; }
     }
     return true;
+  }
+
+  function flushRtcMessages(remoteId, peer) {
+    if (!peer?.ready || peer.channel?.readyState !== 'open') return;
+    const pending = peer.pendingMessages.splice(0);
+    for (const message of pending) rtcSendTo(remoteId, message.type, message.data);
+  }
+
+  function completeRtcHandshake(remoteId, peer) {
+    if (hostId === playerId || peer.ready || !peer.gotWorld || !peer.gotRopes) return;
+    peer.ready = true;
+    flushRtcMessages(remoteId, peer);
+    rtcSendTo(remoteId, 'ready', null);
   }
 
   function rtcBroadcast(type, data, exceptId = '') {
@@ -281,15 +301,20 @@ export function createMultiplayer(callbacks = {}) {
       return;
     }
     if (!message || typeof message.type !== 'string') return;
-    if (message.type === 'operation') {
+    if (message.type === 'ready' && hostId === playerId) {
+      const peer = rtcRoomPeers.get(remoteId);
+      if (peer) { peer.ready = true; flushRtcMessages(remoteId, peer); }
+    } else if (message.type === 'operation') {
       const operation = decodeRtcOperation(message.data);
       if (!operation || operation.by === playerId) return;
       callbacks.onOperation?.(operation);
       if (hostId === playerId) rtcBroadcast('operation', operation, remoteId);
     } else if (message.type === 'world' && hostId !== playerId) {
-      if (message.data?.by === hostId) callbacks.onWorld?.(message.data);
+      const peer = rtcRoomPeers.get(remoteId);
+      if (message.data?.by === hostId) { callbacks.onWorld?.(message.data); if (peer) { peer.gotWorld = true; completeRtcHandshake(remoteId, peer); } }
     } else if (message.type === 'ropes' && hostId !== playerId) {
-      if (message.data?.by === hostId && Array.isArray(message.data.ropes)) callbacks.onRopes?.(message.data);
+      const peer = rtcRoomPeers.get(remoteId);
+      if (message.data?.by === hostId && Array.isArray(message.data.ropes)) { callbacks.onRopes?.(message.data); if (peer) { peer.gotRopes = true; completeRtcHandshake(remoteId, peer); } }
     }
   }
 
@@ -311,6 +336,8 @@ export function createMultiplayer(callbacks = {}) {
           lastLanRopes = ropes;
           rtcSendTo(remoteId, 'ropes', ropes);
         }
+      } else {
+        peer.pendingMessages = peer.pendingMessages.filter(message => message.type === 'operation');
       }
     };
     channel.onmessage = event => handleRtcMessage(remoteId, event.data);
@@ -323,7 +350,8 @@ export function createMultiplayer(callbacks = {}) {
     const pairPath = rtcRoomPath + '/' + rtcPairKey(remoteId);
     const initiator = playerId.localeCompare(remoteId) < 0;
     const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    const peer = { connection, channel: null, stopSignal: null, stopCandidates: null, pendingCandidates: [], remoteDescriptionSet: false };
+    const peer = { connection, channel: null, stopSignal: null, stopCandidates: null, pendingCandidates: [], remoteDescriptionSet: false, pendingMessages: rtcPendingMessages.get(remoteId) || [], ready: false, gotWorld: false, gotRopes: false };
+    rtcPendingMessages.delete(remoteId);
     rtcRoomPeers.set(remoteId, peer);
     const ownCandidates = ref(db, pairPath + '/candidates/' + playerId);
     const remoteCandidates = ref(db, pairPath + '/candidates/' + remoteId);
@@ -340,6 +368,7 @@ export function createMultiplayer(callbacks = {}) {
         try { peer.channel?.close(); } catch {}
         try { connection.close(); } catch {}
         rtcRoomPeers.delete(remoteId);
+        rtcPendingMessages.delete(remoteId);
         if (connection.connectionState === 'failed') {
           log('LAN connection failed. Check that both devices allow WebRTC/local network traffic.');
           setTimeout(() => {
@@ -407,6 +436,7 @@ export function createMultiplayer(callbacks = {}) {
         try { peer.channel?.close(); } catch {}
         try { peer.connection?.close(); } catch {}
         rtcRoomPeers.delete(id);
+        rtcPendingMessages.delete(id);
       }
     }
   }
