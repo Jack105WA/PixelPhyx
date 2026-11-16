@@ -565,23 +565,28 @@ function ropeBlocksMove(x1,y1,x2,y2){
 let carriedParticles=new Uint8Array(N);
 function pushParticlesFromRopeSweep(){
  if(!ropes.length)return;
+ const carried=carriedParticles;carried.fill(0);
+ const stateArrays=['wetness','heat','fuel','burn','age','corrosion'].map(key=>materialState[key]).filter(Boolean);
  const insideQuad=(px,py,ax,ay,bx,by,cx,cy,dx,dy)=>{
   const cross=(x1,y1,x2,y2)=>x1*y2-y1*x2,points=[[ax,ay],[bx,by],[cx,cy],[dx,dy]];let sign=0;
-  for(let i=0;i<4;i++){const a=points[i],b=points[(i+1)%4],v=cross(b[0]-a[0],b[1]-a[1],px-a[0],py-a[1]);if(Math.abs(v)<.0001)continue;const s=Math.sign(v);if(sign&&s!==sign)return false;sign=s}
+  for(let i=0;i<4;i++){
+   const a=points[i],b=points[(i+1)%4],v=cross(b[0]-a[0],b[1]-a[1],px-a[0],py-a[1]);
+   if(Math.abs(v)<.0001)continue;
+   const s=Math.sign(v);if(sign&&s!==sign)return false;sign=s;
+  }
   return true;
  };
- const carried=carriedParticles;carried.fill(0);
  for(const rope of ropes){
-  const p=rope.points;
-  for(let i=0;i<p.length-1;i++){
-   const a=p[i],b=p[i+1],ax=a.sx??a.x,ay=a.sy??a.y,bx=b.sx??b.x,by=b.sy??b.y;
+  const points=rope.points;
+  for(let i=0;i<points.length-1;i++){
+   const a=points[i],b=points[i+1],ax=a.sx??a.x,ay=a.sy??a.y,bx=b.sx??b.x,by=b.sy??b.y;
    const daX=a.x-ax,daY=a.y-ay,dbX=b.x-bx,dbY=b.y-by;
    if(Math.max(Math.abs(daX),Math.abs(daY),Math.abs(dbX),Math.abs(dbY))<.01)continue;
    const minX=Math.max(0,Math.floor(Math.min(ax,bx,a.x,b.x)-1)),maxX=Math.min(W-1,Math.ceil(Math.max(ax,bx,a.x,b.x)+1));
    const minY=Math.max(0,Math.floor(Math.min(ay,by,a.y,b.y)-1)),maxY=Math.min(H-1,Math.ceil(Math.max(ay,by,a.y,b.y)+1));
    const candidates=[];
    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
-    const k=idx(x,y),m=cells[k];if(!m||ropeCellIsSolid(m)||carried[k])continue;
+    const from=idx(x,y),m=cells[from];if(!m||carried[from])continue;
     const px=x+.5,py=y+.5;
     if(!insideQuad(px,py,ax,ay,bx,by,b.x,b.y,a.x,a.y))continue;
     const sx=bx-ax,sy=by-ay,len=sx*sx+sy*sy;
@@ -589,18 +594,19 @@ function pushParticlesFromRopeSweep(){
     const dx=daX+(dbX-daX)*t,dy=daY+(dbY-daY)*t;
     const tx=Math.round(x+dx),ty=Math.round(y+dy);
     if(!inside(tx,ty)||(!dx&&!dy))continue;
-    candidates.push({k,m,x,y,tx,ty,dx,dy,order:dx*(x-ax)+dy*(y-ay)});
+    candidates.push({from,to:idx(tx,ty),material:m,progress:dx*(x-ax)+dy*(y-ay),dx,dy});
    }
-   // Move the leading edge first so particles travel with the rope instead of being
-   // scattered into arbitrary nearby empty cells.
-   candidates.sort((u,v)=>v.order-u.order);
+   // Move the leading edge first. This lets a rising rope push a packed stack
+   // as one group instead of dropping particles whose destination is occupied.
+   candidates.sort((u,v)=>v.progress-u.progress);
    for(const c of candidates){
-    if(carried[c.k]||cells[c.k]!==c.m)continue;
-    const target=idx(c.tx,c.ty);
-    if(cells[target]!==M.EMPTY&&target!==c.k)continue;
-    cells[target]=c.m;
-    if(target!==c.k)cells[c.k]=M.EMPTY;
-    carried[c.k]=1;carried[target]=1;
+    if(carried[c.from]||cells[c.from]!==c.material)continue;
+    if(c.to===c.from){carried[c.from]=1;continue}
+    if(cells[c.to]!==M.EMPTY)continue;
+    cells[c.to]=cells[c.from];cells[c.from]=M.EMPTY;
+    for(const state of stateArrays){state[c.to]=state[c.from];state[c.from]=0}
+    carried[c.from]=1;carried[c.to]=1;
+    recordParticleMove(c.from,c.to,c.material);
    }
   }
  }
