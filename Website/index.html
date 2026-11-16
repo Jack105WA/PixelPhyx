@@ -128,36 +128,8 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 (() => {
   const button = document.getElementById('offlineBtn');
   if (!button) return;
-
-  button.addEventListener('click', async () => {
-    if (button.disabled) return;
-    const originalLabel = button.textContent;
-    button.disabled = true;
-    button.textContent = 'Loading…';
-
-    try {
-      const url = 'https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Website/offline.html';
-      const response = await fetch(url + '?v=' + Date.now(), {
-        cache: 'no-store',
-        mode: 'cors'
-      });
-      if (!response.ok) throw new Error('GitHub returned HTTP ' + response.status);
-
-      const html = await response.text();
-      if (!/^<!doctype html>/i.test(html) ||
-          !/<meta name=["']pixelphyx-offline-build["']/i.test(html)) {
-        throw new Error('The latest offline build is missing or invalid.');
-      }
-
-      document.open();
-      document.write(html);
-      document.close();
-    } catch (error) {
-      console.error('Could not load the latest offline build:', error);
-      button.disabled = false;
-      button.textContent = originalLabel;
-      alert('Could not load the latest offline build. Check your internet connection and try again.');
-    }
+  button.addEventListener('click', () => {
+    window.location.href = './offline-loader.html';
   });
 })();
 </script>
