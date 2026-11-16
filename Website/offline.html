@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<meta name="pixelphyx-offline-build" content="0ab75eb679249c81c4e91e19a5194037d139de850933e57e334f254db58d4744">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#10151e">
@@ -1233,6 +1234,19 @@ updateTemperature();
    button.textContent = 'Download failed — use browser menu';
   }
  });
+})();
+</script>
+<script id="pixelphyx-offline-updater">
+(async()=>{
+  const latestUrl='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Website/offline.html';
+  try{
+    const response=await fetch(latestUrl+'?t='+Date.now(),{cache:'no-store'});
+    if(!response.ok)return;
+    const latestHtml=await response.text();
+    const latestBuild=latestHtml.match(/<meta\s+name=["']pixelphyx-offline-build["']\s+content=["']([^"']+)["']/i)?.[1];
+    const currentBuild=document.querySelector('meta[name="pixelphyx-offline-build"]')?.content;
+    if(latestBuild&&currentBuild&&latestBuild!==currentBuild){document.open();document.write(latestHtml);document.close()}
+  }catch(error){console.info('PixelPhyx is running from the available offline copy.',error)}
 })();
 </script>
 </body>
