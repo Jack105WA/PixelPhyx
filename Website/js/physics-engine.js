@@ -43,18 +43,10 @@ export function createPhysicsEngine(){
  function blocksMove(x1,y1,x2,y2){
   if(!segments.length)return false;
   const minX=Math.min(x1,x2)-RADIUS,minY=Math.min(y1,y2)-RADIUS,maxX=Math.max(x1,x2)+RADIUS,maxY=Math.max(y1,y2)+RADIUS;
-  const travel=Math.hypot(x2-x1,y2-y1);
   for(const s of nearby(minX,minY,maxX,maxY)){
-   // Treat both the particle and rope as swept capsules. This is deliberately
-   // conservative: a particle cannot step across a rope, even during fast motion.
-   const ropeTravel=Math.max(Math.hypot(s.ax-s.oldAx,s.ay-s.oldAy),Math.hypot(s.bx-s.oldBx,s.by-s.oldBy));
-   const steps=Math.max(1,Math.min(12,Math.ceil((travel+ropeTravel)*1.5)));
-   for(let i=0;i<=steps;i++){
-    const t=i/steps;
-    const ax=s.oldAx+(s.ax-s.oldAx)*t,ay=s.oldAy+(s.ay-s.oldAy)*t;
-    const bx=s.oldBx+(s.bx-s.oldBx)*t,by=s.oldBy+(s.by-s.oldBy)*t;
-    if(segmentDistance(x1,y1,x2,y2,ax,ay,bx,by)<=RADIUS)return true;
-   }
+   // Exact distance between the particle's attempted movement and the
+   // rope's current segment. No capped time samples or tunnelling gaps.
+   if(segmentDistance(x1,y1,x2,y2,s.ax,s.ay,s.bx,s.by)<=RADIUS)return true;
   }
   return false;
  }
@@ -179,6 +171,6 @@ export function createPhysicsEngine(){
   for(let i=0;i<=count;i++){const t=i/count,x=x0+(x1-x0)*t,y=y0+(y1-y0)*t;points.push({x,y,px:x,py:y,sx:x,sy:y,anchor:i===0||i===count,sweepAge:0})}
   return{id,points,length:distance/count,stiffness:1};
  }
- function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,recordMove}){if(!Array.isArray(ropes)||ropes.length>MAX_ROPES)return;solveRopes(ropes,cells,width,height,gravity);pushParticlesFromRopeSweep(ropes,cells,width,height,velocityX,velocityY,materialState,recordMove);solveContacts(ropes,cells,width,height,velocityX,velocityY)}
+ function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,recordMove}){if(!Array.isArray(ropes)||ropes.length>MAX_ROPES)return;solveRopes(ropes,cells,width,height,gravity);rebuildIndex(ropes);pushParticlesFromRopeSweep(ropes,cells,width,height,velocityX,velocityY,materialState,recordMove);solveContacts(ropes,cells,width,height,velocityX,velocityY)}
  return{step,blocksMove,rebuildIndex,makeRope};
 }
