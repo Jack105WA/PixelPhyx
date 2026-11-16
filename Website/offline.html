@@ -978,8 +978,8 @@ function renderMonthlyUsage(status){
  bar.classList.toggle('warning',percent>=75&&!blocked);
  bar.classList.toggle('blocked',blocked);
  message.textContent=blocked
-  ? 'Online is disabled because monthly bandwidth usage reached the 90% safety limit.'
-  : 'Online access automatically locks at 90% monthly usage.';
+  ? 'Online is disabled because estimated monthly downloads reached the 90% safety limit.'
+  : 'Estimated usage only. Online access locks at 90% of the 10 GB monthly allowance.';
  document.querySelector('#createLobby').disabled=blocked;
  document.querySelector('#join').disabled=blocked;
  document.querySelector('#roomCode').disabled=blocked;
