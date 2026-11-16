@@ -199,7 +199,7 @@ function drawVisualParticles(){
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);physicsEngine.rebuildIndex(ropes);updated.fill(0);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);stepRopes();for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
@@ -224,7 +224,7 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  }}
  stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
  stepVisualParticles();
- stepRopes()}
+}
 function rebuildCellInterpolation(){
  movingDestinations.fill(0);
  for(const move of movingParticles)if(cells[move.toIndex]===move.material)movingDestinations[move.toIndex]=1;
