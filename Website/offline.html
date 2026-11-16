@@ -862,7 +862,7 @@ function drawCursorName(c,targetCtx){
  targetCtx.restore();
 }
 function render(){
- if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
+ if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(node===ropeDrag?.node)continue;if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
  let count=0;
  bloomPixels.fill(0);
  for(let i=0;i<N;i++){
