@@ -301,10 +301,9 @@ export function createMultiplayer(callbacks = {}) {
       }).catch(error => log('Edit sync failed: ' + error.message));
     };
 
-    // Give non-host clients a short buffer before their actions reach the
-    // authoritative host. Host actions remain immediate.
-    if (hostId === playerId) send();
-    else setTimeout(send, 80);
+    // Send rope drag updates immediately. An artificial delay makes the
+    // host simulate stale node positions and causes visible rope desync.
+    send();
   }
 
   function updateIdentity(name, color) {
