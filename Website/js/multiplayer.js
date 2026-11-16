@@ -312,7 +312,7 @@ export function createMultiplayer(callbacks = {}) {
     const pairPath = rtcRoomPath + '/' + rtcPairKey(remoteId);
     const initiator = playerId.localeCompare(remoteId) < 0;
     const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    const peer = { connection, channel: null, stopSignal: null, stopCandidates: null };
+    const peer = { connection, channel: null, stopSignal: null, stopCandidates: null, pendingCandidates: [], remoteDescriptionSet: false };
     rtcRoomPeers.set(remoteId, peer);
     const ownCandidates = ref(db, pairPath + '/candidates/' + playerId);
     const remoteCandidates = ref(db, pairPath + '/candidates/' + remoteId);
@@ -329,7 +329,12 @@ export function createMultiplayer(callbacks = {}) {
         try { peer.channel?.close(); } catch {}
         try { connection.close(); } catch {}
         rtcRoomPeers.delete(remoteId);
-        if (connection.connectionState === 'failed') log('LAN connection failed. Check that both devices allow WebRTC/local network traffic.');
+        if (connection.connectionState === 'failed') {
+          log('LAN connection failed. Check that both devices allow WebRTC/local network traffic.');
+          setTimeout(() => {
+            if (rtcMode && joined && rtcPeople[remoteId] && !rtcRoomPeers.has(remoteId)) startRtcPeer(remoteId);
+          }, 2500);
+        }
       }
     };
     if (initiator) attachRtcChannel(remoteId, peer, connection.createDataChannel('pixelphyx', { ordered: true }));
@@ -337,7 +342,9 @@ export function createMultiplayer(callbacks = {}) {
 
     peer.stopCandidates = onChildAdded(remoteCandidates, snapshot => {
       const candidate = snapshot.val();
-      if (candidate) connection.addIceCandidate(candidate).catch(() => {});
+      if (!candidate) return;
+      if (peer.remoteDescriptionSet) connection.addIceCandidate(candidate).catch(() => {});
+      else peer.pendingCandidates.push(candidate);
     }, error => log('LAN candidate signaling failed: ' + error.message));
 
     let handlingSignal = false;
@@ -349,8 +356,12 @@ export function createMultiplayer(callbacks = {}) {
         try {
           if (initiator && signal.answer && !connection.currentRemoteDescription) {
             await connection.setRemoteDescription(signal.answer);
+            peer.remoteDescriptionSet = true;
+            for (const candidate of peer.pendingCandidates.splice(0)) connection.addIceCandidate(candidate).catch(() => {});
           } else if (!initiator && signal.offer && !connection.currentRemoteDescription) {
             await connection.setRemoteDescription(signal.offer);
+            peer.remoteDescriptionSet = true;
+            for (const candidate of peer.pendingCandidates.splice(0)) connection.addIceCandidate(candidate).catch(() => {});
             const answer = await connection.createAnswer();
             await connection.setLocalDescription(answer);
             await set(ref(db, pairPath + '/answer'), { type: answer.type, sdp: answer.sdp });
@@ -445,12 +456,16 @@ export function createMultiplayer(callbacks = {}) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a room code');
+    const transportRef = ref(db, 'rooms/' + nextRoom + '/transport');
+    if (isHost) await set(transportRef, options.lan ? 'webrtc' : 'firebase');
+    const transportSnapshot = await get(transportRef);
+    const useRtc = transportSnapshot.val() === 'webrtc';
     if (!approved && !isHost) throw new Error('This lobby requires host approval. Request to join from the lobby gallery.');
     if (joined && room === nextRoom) return;
 
     stopListeners();
     joined = false;
-    rtcMode = !!options.lan;
+    rtcMode = useRtc;
     rtcPeople = {};
     lastLanWorld = null;
     lastLanRopes = null;
@@ -625,7 +640,7 @@ export function createMultiplayer(callbacks = {}) {
       lobbySlot = reserved.slot;
       await set(ref(db, 'lobbyDirectory/' + reserved.code), {
         room: reserved.code, slot: reserved.slot, hostId: playerId, hostName: safeName,
-        players: 1, createdAt: serverTimestamp()
+        players: 1, transport: options.lan ? 'webrtc' : 'firebase', createdAt: serverTimestamp()
       });
       return reserved.code;
     } catch (error) {
