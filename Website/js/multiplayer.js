@@ -460,6 +460,7 @@ export function createMultiplayer(callbacks = {}) {
     if (isHost) await set(transportRef, options.lan ? 'webrtc' : 'firebase');
     const transportSnapshot = await get(transportRef);
     const useRtc = transportSnapshot.val() === 'webrtc';
+    if (useRtc && typeof RTCPeerConnection === 'undefined') throw new Error('This server uses LAN Multiplayer, which requires browser WebRTC support.');
     if (!approved && !isHost) throw new Error('This lobby requires host approval. Request to join from the lobby gallery.');
     if (joined && room === nextRoom) return;
 
@@ -695,7 +696,7 @@ export function createMultiplayer(callbacks = {}) {
     const operationRoom = room;
     const send = () => {
       if (!db || !joined || room !== operationRoom) return;
-      let payload = { ...operation, by: playerId, createdAt: serverTimestamp() };
+      let payload = { ...operation, by: playerId, createdAt: rtcMode ? Date.now() : serverTimestamp() };
       if (operation.type === 'stroke' && Array.isArray(operation.points)) {
         const bytes = new Uint8Array(operation.points.length * 4);
         for (let i = 0; i < operation.points.length; i++) {
