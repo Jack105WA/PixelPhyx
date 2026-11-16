@@ -152,16 +152,12 @@ function resolveRopeNode(n,oldX=n.x,oldY=n.y){
  if(!inside(gx,gy))return false;
  const here=idx(gx,gy),material=cells[here];
  if(!ropeCellBlocks(material))return false;
- // Push movable matter out of the rope's occupied cell instead of letting the rope pass through it.
- let dx=n.x-oldX,dy=n.y-oldY;
- if(Math.hypot(dx,dy)<.001){dx=n.x-(gx+.5);dy=n.y-(gy+.5)}
- if(Math.hypot(dx,dy)<.001){dx=0;dy=-1}
- if(!ropeCellIsSolid(material)){
-  const target=findRopeFreeCell(gx,gy,dx,dy,5);
-  if(target){cells[target.index]=material;cells[here]=M.EMPTY;return false}
- }
- // Keep the node against the surface it hit. Searching for a free cell several
- // pixels away teleports the node and can violently stretch the entire rope.
+ // Granular and fluid materials are handled by the swept-rope solver.
+ // Never relocate them from inside the constraint loop: doing so repeatedly
+ // teleports particles and destabilizes both the rope and the material field.
+ if(!ropeCellIsSolid(material))return false;
+ const dx=n.x-oldX,dy=n.y-oldY;
+ // Keep the node against the surface it hit without searching for a distant cell.
  const left=Math.abs(n.x-gx),right=Math.abs(gx+1-n.x);
  const top=Math.abs(n.y-gy),bottom=Math.abs(gy+1-n.y);
  const crossedLeft=oldX<gx&&dx>0,crossedRight=oldX>gx+1&&dx<0;
@@ -206,7 +202,7 @@ function stepRopes(){
  for(const rope of ropes)for(const n of rope.points)n.dragMoved=false
 }
 let ropeCollisionBuckets=new Map();
-const ROPE_BUCKET_SIZE=4,ROPE_COLLISION_RADIUS=1.35;
+const ROPE_BUCKET_SIZE=4,ROPE_COLLISION_RADIUS=1.0;
 function rebuildRopeCollisionIndex(){
  ropeCollisionBuckets.clear();
  if(!ropes.length)return;
