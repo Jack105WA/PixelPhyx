@@ -130,22 +130,6 @@ function createRope(a,b){
 function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.random().toString(36).slice(2)+Date.now().toString(36))}
 function ropeCellIsSolid(m){return m===M.STONE||m===M.WOOD||m===M.ICE||m===M.TNT||m===M.GLASS}
 function ropeCellBlocks(m){return m!==M.EMPTY}
-function findRopeFreeCell(gx,gy,dx=0,dy=0,maxRadius=6){
- let best=null,bestScore=Infinity;
- for(let radius=1;radius<=maxRadius;radius++){
-  for(let oy=-radius;oy<=radius;oy++)for(let ox=-radius;ox<=radius;ox++){
-   if(Math.max(Math.abs(ox),Math.abs(oy))!==radius)continue;
-   const x=gx+ox,y=gy+oy;if(!inside(x,y))continue;
-   const i=idx(x,y);if(cells[i]!==M.EMPTY)continue;
-   const distance=ox*ox+oy*oy;
-   const directional=dx||dy?-(ox*dx+oy*dy)*.65:0;
-   const score=distance+directional;
-   if(score<bestScore){bestScore=score;best={x,y,index:i}}
-  }
-  if(best)return best;
- }
- return null;
-}
 function resolveRopeNode(n,oldX=n.x,oldY=n.y){
  if(n.anchor)return false;
  const gx=Math.floor(n.x),gy=Math.floor(n.y);
