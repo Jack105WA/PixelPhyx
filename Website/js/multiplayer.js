@@ -221,7 +221,7 @@ export function createMultiplayer(callbacks = {}) {
     const peer = rtcRoomPeers.get(remoteId);
     if (!peer || peer.channel?.readyState !== 'open') return false;
     const body = JSON.stringify({ type, data });
-    const chunkSize = 42000;
+    const chunkSize = 24000;
     if (body.length <= chunkSize) {
       try { peer.channel.send(body); return true; } catch { return false; }
     }
@@ -267,6 +267,7 @@ export function createMultiplayer(callbacks = {}) {
       if (!Number.isInteger(message.index) || !Number.isInteger(message.total) || message.total < 1 || message.total > 1000 || typeof message.part !== 'string') return;
       let transfer = rtcTransfers.get(message.transfer);
       if (!transfer) {
+        if (rtcTransfers.size >= 10) rtcTransfers.delete(rtcTransfers.keys().next().value);
         transfer = { parts: new Array(message.total), received: 0 };
         rtcTransfers.set(message.transfer, transfer);
       }
@@ -467,6 +468,7 @@ export function createMultiplayer(callbacks = {}) {
     stopListeners();
     joined = false;
     rtcMode = useRtc;
+    if (rtcMode) log('LAN transport selected. Firebase is used only for lobby discovery and WebRTC signaling.');
     rtcPeople = {};
     lastLanWorld = null;
     lastLanRopes = null;
