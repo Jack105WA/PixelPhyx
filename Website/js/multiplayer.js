@@ -28,13 +28,14 @@ export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
   let playerId = 'guest-' + secureRandomString(16);
   let joined = false, hostId = null, presenceRef = null;
-  let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
+  let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null, stopSnapshots = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
   let operationPublishQueue = Promise.resolve();
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
   function stopListeners() {
+    stopSnapshots?.(); stopSnapshots = null;
     stopOperations?._clearGapTimer?.();
     stopOperations?.(); stopOperations = null;
     stopWorld?.(); stopWorld = null;
@@ -165,6 +166,12 @@ export function createMultiplayer(callbacks = {}) {
         applyQueuedOperations();
       }, error => log('Edit sync error: ' + error.message));
       stopOperations._clearGapTimer = () => { if (gapTimer) clearTimeout(gapTimer); };
+
+      const snapshotRef = ref(db, roomPath + '/snapshots/' + playerId);
+      await onDisconnect(snapshotRef).remove();
+      stopSnapshots = onValue(ref(db, roomPath + '/snapshots'), snapshot => {
+        callbacks.onWorldSnapshots?.(snapshot.val() || {});
+      }, error => log('World snapshot sync error: ' + error.message));
 
       stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
         callbacks.onCursors?.(snapshot.val() || {});
@@ -321,6 +328,13 @@ export function createMultiplayer(callbacks = {}) {
     }).catch(error => log('Edit sync failed: ' + error.message));
   }
 
+  function publishWorldSnapshot(world) {
+    if (!db || !joined || !room || !world) return;
+    set(ref(db, 'rooms/' + room + '/snapshots/' + playerId), {
+      ...world, by: playerId, updatedAt: serverTimestamp()
+    }).catch(error => log('World snapshot publish failed: ' + error.message));
+  }
+
   function updateIdentity(name, color) {
     if (!db || !joined || !presenceRef) return;
     const safeName = String(name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
@@ -338,7 +352,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, updateCursor, updateIdentity,
+    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, publishWorldSnapshot, updateCursor, updateIdentity,
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
