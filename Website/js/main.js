@@ -326,10 +326,17 @@ function pushParticlesFromRopeSweep(){
      const frictionImpulse=Math.max(-friction*impulse,Math.min(friction*impulse,-tangentSpeed/(1/mass+1/ropeMass)));
      vx+=frictionImpulse/mass*contact.tx;
      vy+=frictionImpulse/mass*contact.ty;
-     // Keep contact response one-way: modifying Verlet previous positions here
-     // injects an unsolved velocity into the rope after its constraint passes,
-     // which can amplify a single particle impact into whole-rope jitter.
     }
+
+    // A moving rope also drags material along its tangent. Normal-only
+    // collision response left particles with almost no launch velocity when
+    // the rope swept mostly sideways or along its curve.
+    const ropeTangentSpeed=contact.vx*contact.tx+contact.vy*contact.ty;
+    const ropeNormalSpeed=Math.max(0,contact.vx*contact.nx+contact.vy*contact.ny);
+    const tangentTransfer=Math.max(-5,Math.min(5,ropeTangentSpeed*.9));
+    const normalTransfer=Math.min(2.5,ropeNormalSpeed*.45);
+    vx+=contact.tx*tangentTransfer+contact.nx*normalTransfer;
+    vy+=contact.ty*tangentTransfer+contact.ny*normalTransfer;
     particleVelocityX[to]=Math.max(-8,Math.min(8,vx));
     particleVelocityY[to]=Math.max(-8,Math.min(8,vy));
     visiting.delete(from);
