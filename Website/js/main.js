@@ -490,13 +490,16 @@ function render(){
  }
  nameCtx.setTransform(dpr,0,0,dpr,0,0);
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
- const cursorScale=W/320;
+ // Draw pointers in the CSS-sized overlay so canvas resolution never changes
+ // their on-screen dimensions. Keep the medium-canvas pointer slightly smaller.
+ const cursorScale=.75;
  if(localCursor){
-  drawPlayerCursor(localCursor,true,cursorCtx,cursorScale);
+  drawPlayerCursor({x:localCursor.x/W*canvasRect.width,y:localCursor.y/H*canvasRect.height},true,nameCtx,cursorScale);
  }
  for(const c of Object.values(remoteCursors)){
-  drawPlayerCursor(c,false,cursorCtx,cursorScale);
-  drawCursorName({x:c.x/W*canvasRect.width,y:c.y/H*canvasRect.height,name:c.name},nameCtx);
+  const screenX=c.x/W*canvasRect.width,screenY=c.y/H*canvasRect.height;
+  drawPlayerCursor({x:screenX,y:screenY},false,nameCtx,cursorScale);
+  drawCursorName({x:screenX,y:screenY,name:c.name},nameCtx);
  }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
