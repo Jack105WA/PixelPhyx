@@ -320,7 +320,7 @@ return {stepMaterialPhysics,materialState,resetMaterialState};
 const PixelPhyxEngine=(()=>{
 // Unified particle and rope solver. All rope constraints and particle contacts share this step.
 function createPhysicsEngine(){
- const BUCKET=4,RADIUS=.72,MAX_POINTS=120,MAX_ROPES=20;
+ const BUCKET=4,RADIUS=.88,MAX_POINTS=120,MAX_ROPES=20;
  let buckets=new Map(),segments=[],candidates=new Set();
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const key=(x,y)=>y*1000+x;
@@ -332,9 +332,9 @@ function createPhysicsEngine(){
   buckets.clear();segments.length=0;
   for(const rope of ropes){const p=rope.points;if(!Array.isArray(p)||p.length<2||p.length>MAX_POINTS)continue;
    for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];if(![a.x,a.y,b.x,b.y].every(Number.isFinite))continue;
-    const s={ax:a.x+.5,ay:a.y+.5,bx:b.x+.5,by:b.y+.5,a,b};segments.push(s);
-    for(let y=Math.floor((Math.min(s.ay,s.by)-RADIUS)/BUCKET);y<=Math.floor((Math.max(s.ay,s.by)+RADIUS)/BUCKET);y++)
-     for(let x=Math.floor((Math.min(s.ax,s.bx)-RADIUS)/BUCKET);x<=Math.floor((Math.max(s.ax,s.bx)+RADIUS)/BUCKET);x++){
+    const s={ax:a.x+.5,ay:a.y+.5,bx:b.x+.5,by:b.y+.5,oldAx:(Number.isFinite(a.ox)?a.ox:a.x)+.5,oldAy:(Number.isFinite(a.oy)?a.oy:a.y)+.5,oldBx:(Number.isFinite(b.ox)?b.ox:b.x)+.5,oldBy:(Number.isFinite(b.oy)?b.oy:b.y)+.5,a,b};segments.push(s);
+    for(let y=Math.floor((Math.min(s.ay,s.by,s.oldAy,s.oldBy)-RADIUS)/BUCKET);y<=Math.floor((Math.max(s.ay,s.by,s.oldAy,s.oldBy)+RADIUS)/BUCKET);y++)
+     for(let x=Math.floor((Math.min(s.ax,s.bx,s.oldAx,s.oldBx)-RADIUS)/BUCKET);x<=Math.floor((Math.max(s.ax,s.bx,s.oldAx,s.oldBx)+RADIUS)/BUCKET);x++){
       const k=key(x,y);let list=buckets.get(k);if(!list)buckets.set(k,list=[]);list.push(s);
      }
    }
@@ -349,10 +349,19 @@ function createPhysicsEngine(){
  }
  function blocksMove(x1,y1,x2,y2){
   if(!segments.length)return false;
-  for(const s of nearby(Math.min(x1,x2)-RADIUS,Math.min(y1,y2)-RADIUS,Math.max(x1,x2)+RADIUS,Math.max(y1,y2)+RADIUS)){
-   // Sample the swept cell-center path; the collision radius closes subpixel gaps.
-   const length=Math.hypot(x2-x1,y2-y1),steps=Math.max(1,Math.ceil(length*2));
-   for(let i=0;i<=steps;i++){const t=i/steps;if(closest(x1+(x2-x1)*t,y1+(y2-y1)*t,s).distance<=RADIUS)return true}
+  const minX=Math.min(x1,x2)-RADIUS,minY=Math.min(y1,y2)-RADIUS,maxX=Math.max(x1,x2)+RADIUS,maxY=Math.max(y1,y2)+RADIUS;
+  for(const s of nearby(minX,minY,maxX,maxY)){
+   // Test the particle's complete movement against the rope's complete movement.
+   // This catches a rope sweeping across a particle between simulation frames.
+   const ropeTravel=Math.max(Math.hypot(s.ax-s.oldAx,s.ay-s.oldAy),Math.hypot(s.bx-s.oldBx,s.by-s.oldBy));
+   const particleTravel=Math.hypot(x2-x1,y2-y1);
+   const steps=Math.max(4,Math.min(32,Math.ceil((ropeTravel+particleTravel)*3)));
+   for(let i=0;i<=steps;i++){
+    const t=i/steps;
+    const movingSegment={ax:s.oldAx+(s.ax-s.oldAx)*t,ay:s.oldAy+(s.ay-s.oldAy)*t,bx:s.oldBx+(s.bx-s.oldBx)*t,by:s.oldBy+(s.by-s.oldBy)*t};
+    const px=x1+(x2-x1)*t,py=y1+(y2-y1)*t;
+    if(closest(px,py,movingSegment).distance<=RADIUS)return true;
+   }
   }
   return false;
  }
@@ -367,6 +376,7 @@ function createPhysicsEngine(){
  function solveRopes(ropes,cells,w,h,gravity){
   const substeps=2,passes=40,dt=1/substeps;
   for(const rope of ropes){const p=rope.points;if(!Array.isArray(p)||p.length<2||p.length>MAX_POINTS)continue;
+   for(const n of p){n.ox=n.x;n.oy=n.y}
    const rest=Number.isFinite(rope.length)&&rope.length>0?rope.length:1;
    for(let sub=0;sub<substeps;sub++){
     for(const n of p){if(n.anchor){n.px=n.x;n.py=n.y;continue}
