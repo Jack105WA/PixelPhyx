@@ -289,14 +289,20 @@ function pushParticlesFromRopeSweep(){
     const qx=ax+sx*t,qy=ay+sy*t,tangentLength=Math.hypot(sx,sy)||1,tangentX=sx/tangentLength,tangentY=sy/tangentLength,cross=sx*(py-qy)-sy*(px-qx);candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY,tangentX,tangentY,side:Math.sign(cross)||1});
    }
    candidates.sort((u,v)=>v.progress-u.progress);
-   const pushChain=(from,stepX,stepY,launchVx,launchVy,visiting)=>{
+   const particleMass=material=>({
+    [M.SAND]:1.6,[M.SALT]:1.9,[M.CHARCOAL]:.85,[M.WATER]:1,
+    [M.OIL]:.82,[M.ACID]:1.1,[M.LAVA]:2.5,[M.STONE]:2.7,
+    [M.WOOD]:.65,[M.PLANT]:.45,[M.ICE]:.92,[M.GLASS]:2.5,
+    [M.TNT]:1.1
+   }[material]||.35);
+   const pushChain=(from,stepX,stepY,contact,visiting)=>{
     if(carried[from]||!cells[from]||visiting.has(from))return false;
     const x=from%W,y=(from/W)|0,tx=x+stepX,ty=y+stepY;
     if(!inside(tx,ty))return false;
     const to=idx(tx,ty);if(to===from)return false;
     visiting.add(from);
     if(cells[to]!==M.EMPTY){
-     if(carried[to]||!pushChain(to,stepX,stepY,launchVx,launchVy,visiting)){visiting.delete(from);return false}
+     if(carried[to]||!pushChain(to,stepX,stepY,contact,visiting)){visiting.delete(from);return false}
     }
     const material=cells[from];
     if(!material||cells[to]!==M.EMPTY){visiting.delete(from);return false}
@@ -304,28 +310,43 @@ function pushParticlesFromRopeSweep(){
     for(const state of stateArrays){state[to]=state[from];state[from]=0}
     carried[from]=1;carried[to]=1;
     recordParticleMove(from,to,material);
-    // Each grain gets a slightly different impulse as the rope slides through it.
-    const angle=(Math.random()-.5)*.9;
-    const speed=.78+Math.random()*.44;
-    const cos=Math.cos(angle),sin=Math.sin(angle);
-    const variedVx=(launchVx*cos-launchVy*sin)*speed+(Math.random()-.5)*.32;
-    const variedVy=(launchVx*sin+launchVy*cos)*speed+(Math.random()-.5)*.32;
-    particleVelocityX[to]=Math.max(-8,Math.min(8,variedVx));
-    particleVelocityY[to]=Math.max(-8,Math.min(8,variedVy));
+
+    // Treat the rope/material contact as an impulse, not a hand-authored launch.
+    // The rope's swept velocity transfers normal momentum; friction transfers
+    // only a limited amount of tangential momentum.
+    const mass=particleMass(material),ropeMass=1.0;
+    const restitution=material===M.WATER||material===M.OIL||material===M.ACID?.035:
+     material===M.SAND||material===M.SALT||material===M.CHARCOAL?.12:.2;
+    const friction=material===M.WATER||material===M.OIL||material===M.LAVA?.025:
+     material===M.SAND||material===M.SALT||material===M.CHARCOAL?.24:.16;
+    let vx=particleVelocityX[to],vy=particleVelocityY[to];
+    const relativeX=vx-contact.vx,relativeY=vy-contact.vy;
+    const normalSpeed=relativeX*contact.nx+relativeY*contact.ny;
+    if(normalSpeed<0){
+     const impulse=-(1+restitution)*normalSpeed/(1/mass+1/ropeMass);
+     vx+=impulse/mass*contact.nx;
+     vy+=impulse/mass*contact.ny;
+     const tangentSpeed=(vx-contact.vx)*contact.tx+(vy-contact.vy)*contact.ty;
+     const frictionImpulse=Math.max(-friction*impulse,Math.min(friction*impulse,-tangentSpeed/(1/mass+1/ropeMass)));
+     vx+=frictionImpulse/mass*contact.tx;
+     vy+=frictionImpulse/mass*contact.ty;
+    }
+    particleVelocityX[to]=Math.max(-8,Math.min(8,vx));
+    particleVelocityY[to]=Math.max(-8,Math.min(8,vy));
     visiting.delete(from);
     return true;
    };
    for(const c of candidates){
     if(carried[c.from]||cells[c.from]!==c.material)continue;
     if(!c.stepX&&!c.stepY)continue;
-    // Add a local tangent and outward normal impulse so a rope flick
-    // fans particles naturally instead of launching them in one rigid line.
     const normalX=-c.tangentY*c.side,normalY=c.tangentX*c.side;
-    const spread=(Math.random()-.5)*.7;
-    const impact=Math.min(1.5,Math.hypot(c.dx,c.dy));
-    const launchVx=Math.max(-8,Math.min(8,c.dx*1.25+c.tangentX*.18+normalX*(.35+spread)*impact));
-    const launchVy=Math.max(-8,Math.min(8,c.dy*1.25+c.tangentY*.18+normalY*(.35+spread)*impact));
-    pushChain(c.from,c.stepX,c.stepY,launchVx,launchVy,new Set());
+    const ropeSpeed=Math.hypot(c.dx,c.dy);
+    if(ropeSpeed<.01)continue;
+    const contact={
+     vx:c.dx,vy:c.dy,nx:normalX,ny:normalY,
+     tx:c.tangentX,ty:c.tangentY
+    };
+    pushChain(c.from,c.stepX,c.stepY,contact,new Set());
    }
   }
  }
