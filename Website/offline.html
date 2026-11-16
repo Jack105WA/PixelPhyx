@@ -720,40 +720,17 @@ function drawInterpolatedCells(){
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- // Solid, hard-edged pixel arrow. Its tip points up-left and its shaft
- // angles down-right, matching a conventional mouse pointer.
- const pixels=[
-  '#........',
-  '##.......',
-  '###......',
-  '####.....',
-  '#####....',
-  '######...',
-  '#######..',
-  '########.',
-  '#########',
-  '####.####',
-  '###...###',
-  '##....##.',
-  '#.....##.',
-  '......##.',
-  '......##.'
- ];
- const pixelSize=2*scale;
  targetCtx.save();
  targetCtx.globalAlpha=1;
  targetCtx.globalCompositeOperation='source-over';
  targetCtx.fillStyle=cursorColor;
- for(let y=0;y<pixels.length;y++){
-  for(let x=0;x<pixels[y].length;x++){
-   if(pixels[y][x]==='#')targetCtx.fillRect(
-    Math.round(c.x+x*pixelSize),
-    Math.round(c.y+y*pixelSize),
-    pixelSize,
-    pixelSize
-   );
-  }
- }
+ targetCtx.beginPath();
+ targetCtx.moveTo(c.x,c.y);
+ targetCtx.lineTo(c.x+3.5*scale,c.y+8*scale);
+ targetCtx.lineTo(c.x+5.5*scale,c.y+5*scale);
+ targetCtx.lineTo(c.x+8.5*scale,c.y+4.5*scale);
+ targetCtx.closePath();
+ targetCtx.fill();
  targetCtx.restore();
 }
 function drawCursorName(c,targetCtx){
@@ -830,9 +807,9 @@ function render(){
  }
  nameCtx.setTransform(dpr,0,0,dpr,0,0);
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
- // Draw pointers in the CSS-sized overlay so canvas resolution never changes
- // their on-screen dimensions. Keep the medium-canvas pointer slightly smaller.
- const cursorScale=1;
+ // Draw the original multiplayer arrow in CSS pixels. Scaling against the
+ // medium canvas width keeps its on-screen size identical at every world size.
+ const cursorScale=canvasRect.width/320;
  if(localCursor){
   drawPlayerCursor({x:localCursor.x/W*canvasRect.width,y:localCursor.y/H*canvasRect.height},true,nameCtx,cursorScale);
  }
