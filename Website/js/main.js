@@ -106,7 +106,7 @@ canvas.addEventListener('pointerdown',e=>{
 });
 canvas.addEventListener('pointermove',e=>{
  const p=canvasPoint(e);
- if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;if(!node.dragMoved){node.sx=node.x;node.sy=node.y;node.dragMoved=true}node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}
+ if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;if(!node.dragMoved){node.sx=node.x;node.sy=node.y;node.ox=node.x;node.oy=node.y;node.dragMoved=true}node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}
  if(!drawing)return;
  if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);
  if(tool==='rope'){lastPoint=p;return}act(p,e)
