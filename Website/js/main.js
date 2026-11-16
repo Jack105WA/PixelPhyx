@@ -587,7 +587,7 @@ async function connectFirebase(config){
    multiplayerLoading=(async()=>{
     const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
     multiplayer=createMultiplayer({
-     onStatus:setConnection,onLog:log,onOperation:applyOperation,
+     onStatus:setConnection,onLog:log,onOperation:applyOperation,onResyncNeeded:()=>publishOperation({type:'snapshotRequest'}),
      onPlayers:renderPlayers,
      onJoinRequest:request=>queueJoinRequest(request),
      onCursors:people=>{remoteCursorTargets={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&Number.isFinite(p.x)&&Number.isFinite(p.y))remoteCursorTargets[id]={x:p.x,y:p.y,color:p.color||'#ffffff',name:p.name||'Guest'}}}
