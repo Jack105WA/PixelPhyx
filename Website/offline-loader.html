@@ -33,7 +33,7 @@ button[hidden]{display:none}
    const response=await fetch(url+'?v='+Date.now(),{cache:'no-store',mode:'cors'});
    if(!response.ok)throw new Error('GitHub returned HTTP '+response.status);
    const html=await response.text();
-   if(!/^\\s*<!doctype html>/i.test(html)||!/<meta\\s+name=["']pixelphyx-offline-build["']/i.test(html)){
+   if(!/^\s*<!doctype html>/i.test(html)||!/<meta\s+name=["']pixelphyx-offline-build["']/i.test(html)){
     throw new Error('The offline build is missing or invalid.');
    }
    document.open();
