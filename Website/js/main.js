@@ -445,27 +445,41 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.m
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 
 let multiplayerLoading=null;
-let dailyUsageStatus=null;
-function renderDailyUsage(status){
- dailyUsageStatus=status;
- const value=document.querySelector('#monthlyUsageValue');
- const bar=document.querySelector('#monthlyUsageBar');
- const message=document.querySelector('#monthlyUsageMessage');
- if(!value||!bar||!message)return;
- const percent=Math.max(0,Math.min(100,Number(status?.percent)||0));
- const blocked=percent>=90;
- value.textContent=percent+'% / 90%';
- bar.style.width=percent+'%';
- bar.classList.toggle('warning',percent>=75&&!blocked);
- bar.classList.toggle('blocked',blocked);
- message.textContent=blocked
+let usageStatus=null;
+function renderUsage(status){
+ usageStatus=status;
+ const daily=status?.daily||{};
+ const monthly=status?.monthly||{};
+ const dailyValue=document.querySelector('#dailyUsageValue');
+ const dailyBar=document.querySelector('#dailyUsageBar');
+ const dailyMessage=document.querySelector('#dailyUsageMessage');
+ const monthlyValue=document.querySelector('#monthlyUsageValue');
+ const monthlyBar=document.querySelector('#monthlyUsageBar');
+ const monthlyMessage=document.querySelector('#monthlyUsageMessage');
+ if(!dailyValue||!dailyBar||!dailyMessage||!monthlyValue||!monthlyBar||!monthlyMessage)return;
+ const dailyPercent=Math.max(0,Math.min(100,Number(daily.percent)||0));
+ const monthlyPercent=Math.max(0,Math.min(100,Number(monthly.percent)||0));
+ dailyValue.textContent=dailyPercent+'% / 90%';
+ dailyBar.style.width=dailyPercent+'%';
+ dailyBar.classList.toggle('warning',dailyPercent>=75&&!daily.blocked);
+ dailyBar.classList.toggle('blocked',!!daily.blocked);
+ dailyMessage.textContent=daily.blocked
   ? 'Online is disabled because estimated daily downloads reached the 90% safety limit.'
-  : 'Estimated usage only. Online access locks at 90% of the 360 MB daily allowance.';
+  : 'Daily allowance: 360 MB. Online locks at 324 MB estimated.';
+ monthlyValue.textContent=monthlyPercent+'% / 90%';
+ monthlyBar.style.width=monthlyPercent+'%';
+ monthlyBar.classList.toggle('warning',monthlyPercent>=75&&!monthly.blocked);
+ monthlyBar.classList.toggle('blocked',!!monthly.blocked);
+ monthlyMessage.textContent=monthly.blocked
+  ? 'Online is disabled because estimated monthly downloads reached the 90% safety limit.'
+  : 'Monthly allowance: 10 GB. Online locks at 9 GB estimated.';
+ const blocked=!!status?.blocked;
  document.querySelector('#createLobby').disabled=blocked;
  document.querySelector('#join').disabled=blocked;
  document.querySelector('#roomCode').disabled=blocked;
  document.querySelectorAll('#lobbyGallery .lobby-join').forEach(button=>button.disabled=blocked);
 }
+
 const pendingJoinRequests=new Map();
 function queueJoinRequest(request){
  if(!request?.key)return;
@@ -533,7 +547,7 @@ document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
  try{
   await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getDailyUsageStatus(true);renderDailyUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
+  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
   room=await multiplayer.createLobby({name:playerName,color:playerColor});
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
@@ -548,7 +562,7 @@ let stopLobbyGallery=null;
 async function openLobbyGallery(){
  try{
   await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getDailyUsageStatus(true);renderDailyUsage(usage);
+  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
   updateCurrentRoomUI();
@@ -568,7 +582,7 @@ function renderLobbyGallery(lobbies){
   top.append(number,count);
   const host=document.createElement('div');host.className='lobby-host';host.textContent='HOST · ';
   const hostName=document.createElement('strong');hostName.textContent=lobby.hostName||'Unknown';host.append(hostName);
-  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=!!dailyUsageStatus?.blocked;
+  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=!!usageStatus?.blocked;
   join.onclick=async()=>{
    join.disabled=true;join.textContent='Request sent…';
    try{await requestAndJoinRoom(lobby.room);document.querySelector('#roomModal').classList.remove('open')}
@@ -582,7 +596,7 @@ async function requestAndJoinRoom(code){
  if(!clean){alert('Choose a lobby first');return}
  try{
   await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getDailyUsageStatus(true);renderDailyUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
+  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
   log('Sending join request to '+clean+'…');
   const approved=await multiplayer.requestJoin(clean,{name:playerName});
   if(!approved)throw new Error('The host declined your request');
