@@ -110,7 +110,6 @@ export function createMultiplayer(callbacks = {}) {
     }, error => log('Host sync error: ' + error.message));
     presenceRef = ref(db, roomPath + '/players/' + playerId);
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
-    const worldStateRef = ref(db, roomPath + '/worldStates/' + playerId);
 
     try {
       const hostResult = await runTransaction(hostRef, current => current || playerId);
