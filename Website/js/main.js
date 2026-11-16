@@ -713,7 +713,7 @@ function reconcileWorldSnapshots(snapshots){
    for(const world of worlds){const value=world.cells[i];if(value<17)votes[value]++}
    let highest=0;for(let m=1;m<17;m++)if(votes[m]>votes[highest])highest=m;
    const tied=[];for(let m=0;m<17;m++)if(votes[m]===votes[highest])tied.push(m);
-   if(tied.length>1){const first=worlds[0].cells[i];mergedCells[i]=tied.includes(first)?first:tied[0]}
+   if(tied.length>1){const nonEmpty=tied.filter(value=>value!==0);if(tied.includes(0)&&nonEmpty.length)mergedCells[i]=nonEmpty[0];else{const first=worlds[0].cells[i];mergedCells[i]=tied.includes(first)?first:tied[0]}}
    else mergedCells[i]=highest;
   }
   const specs=[
