@@ -166,19 +166,27 @@ export function createMultiplayer(callbacks = {}) {
           return;
         }
         const operation = snapshot.val();
-        if (operation && operation.by !== playerId) callbacks.onOperation?.(operation);
+        if (operation && operation.by !== playerId) {
+          if (operation.type === 'stroke' && typeof operation.pointsPacked === 'string') {
+            try {
+              const raw = atob(operation.pointsPacked);
+              const points = [];
+              for (let i = 0; i + 3 < raw.length; i += 4) {
+                const x = raw.charCodeAt(i) | (raw.charCodeAt(i + 1) << 8);
+                const y = raw.charCodeAt(i + 2) | (raw.charCodeAt(i + 3) << 8);
+                points.push({ x: x / 4, y: y / 4 });
+              }
+              callbacks.onOperation?.({ ...operation, points });
+            } catch (error) { log('Compressed edit could not be decoded: ' + error.message); }
+          } else callbacks.onOperation?.(operation);
+        }
         // Only the host removes processed operations. This keeps the shared queue tiny
         // while preserving the add event for every connected client.
         if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
       }, error => log('Edit sync error: ' + error.message));
 
-      stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
-        callbacks.onCursors?.(snapshot.val() || {});
-      }, error => log('Cursor sync error: ' + error.message));
-
-      stopLeafblowers = onValue(ref(db, roomPath + '/leafblowers'), snapshot => {
-        callbacks.onLeafblowers?.(snapshot.val() || {});
-      }, error => log('Leafblower sync error: ' + error.message));
+      // Cursor and continuous leafblower streams are intentionally not subscribed.
+      // They create constant bandwidth use without changing the shared world state.
 
       stopPlayers = onValue(ref(db, roomPath + '/players'), async snapshot => {
         const people = snapshot.val() || {};
@@ -260,21 +268,12 @@ export function createMultiplayer(callbacks = {}) {
 
   function watchLobbies(callback) {
     if (!db) throw new Error('Firebase is not connected');
-    return onValue(ref(db, 'lobbyDirectory'), async snapshot => {
-      const entries = Object.values(snapshot.val() || {});
-      const active = [];
-      for (const lobby of entries) {
-        const playersSnap = await get(ref(db, 'rooms/' + lobby.room + '/players'));
-        const count = Object.keys(playersSnap.val() || {}).length;
-        if (!count) {
-          await remove(ref(db, 'lobbyDirectory/' + lobby.room)).catch(() => {});
-          if (lobby.slot) await remove(ref(db, 'lobbySlots/' + lobby.slot)).catch(() => {});
-          await remove(ref(db, 'rooms/' + lobby.room)).catch(() => {});
-        } else {
-          if (count !== lobby.players) update(ref(db, 'lobbyDirectory/' + lobby.room), { players: count }).catch(() => {});
-          active.push({ ...lobby, players: count });
-        }
-      }
+    // The directory already contains its player count. Avoid one extra read per
+    // lobby every time the directory changes.
+    return onValue(ref(db, 'lobbyDirectory'), snapshot => {
+      const active = Object.values(snapshot.val() || {})
+        .filter(lobby => lobby && typeof lobby.room === 'string')
+        .slice(0, 20);
       callback(active.sort((a, b) => String(a.room).localeCompare(String(b.room))));
     }, error => log('Lobby gallery error: ' + error.message));
   }
@@ -311,9 +310,24 @@ export function createMultiplayer(callbacks = {}) {
     const operationRoom = room;
     const send = () => {
       if (!db || !joined || room !== operationRoom) return;
-      push(ref(db, 'rooms/' + operationRoom + '/operations'), {
-        ...operation, by: playerId, createdAt: serverTimestamp()
-      }).catch(error => log('Edit sync failed: ' + error.message));
+      let payload = { ...operation, by: playerId, createdAt: serverTimestamp() };
+      if (operation.type === 'stroke' && Array.isArray(operation.points)) {
+        const bytes = new Uint8Array(operation.points.length * 4);
+        for (let i = 0; i < operation.points.length; i++) {
+          const x = Math.max(0, Math.min(65535, Math.round(operation.points[i].x * 4)));
+          const y = Math.max(0, Math.min(65535, Math.round(operation.points[i].y * 4)));
+          const offset = i * 4;
+          bytes[offset] = x & 255; bytes[offset + 1] = x >>> 8;
+          bytes[offset + 2] = y & 255; bytes[offset + 3] = y >>> 8;
+        }
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, Math.min(bytes.length, i + 0x8000)));
+        delete payload.points;
+        payload.pointsPacked = btoa(binary);
+        payload.pointScale = 4;
+      }
+      push(ref(db, 'rooms/' + operationRoom + '/operations'), payload)
+        .catch(error => log('Edit sync failed: ' + error.message));
     };
 
     // Send rope drag updates immediately. An artificial delay makes the
@@ -322,6 +336,8 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function publishLeafblower(state) {
+    // Continuous forces are simulated locally; never stream their coordinates.
+    return;
     if (!db || !joined || !room) return;
     const active = !!(state?.active && [state.x, state.y, state.dx, state.dy].every(Number.isFinite));
     const now = Date.now();
@@ -434,6 +450,8 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function updateCursor(point, color, name) {
+    // Cursor positions are local-only to keep idle and active traffic minimal.
+    return;
     if (!db || !joined || !room || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
     const signature = [Math.round(point.x * 2), Math.round(point.y * 2), color, name].join('|');
     const now = Date.now();
