@@ -42,7 +42,7 @@ const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 let cells=new Uint8Array(N),updated=new Uint8Array(N),movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let temperatureUnit='C';
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
-let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastCursorWrite=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,onlinePlayerIds=[],latestWorldSnapshots={},lastConsensusAt=0,consensusBusy=false,pendingConsensus=false,lastWorldSnapshotAt=0,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
+let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastCursorWrite=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,onlinePlayerIds=[],latestWorldSnapshots={},lastConsensusAt=0,consensusBusy=false,pendingConsensus=false,lastWorldSnapshotAt=0,lastConsensusPeerCount=0,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
 function setConnection(state,label){const el=document.querySelector('#connection');el.className='status '+state;document.querySelector('#connectionText').textContent=label}
@@ -714,6 +714,7 @@ function reconcileWorldSnapshots(snapshots){
  }
  if(worlds.length<2)return;
  consensusBusy=true;pendingConsensus=false;lastConsensusAt=now;
+ if(lastConsensusPeerCount!==worlds.length){lastConsensusPeerCount=worlds.length;log('Shared world reconciliation active · '+worlds.length+' peers contributing cell ownership')}
  try{
   // Deterministic sharding: every participant owns a fixed share of cells.
   // All clients use the same sorted participant list, so they select identical
