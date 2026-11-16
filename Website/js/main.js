@@ -40,6 +40,7 @@ const materials=[
 ];
 const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 let cells=new Uint8Array(N),updated=new Uint8Array(N),movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
+let snapshotMoves=new Map();
 let temperatureUnit='C';
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
 let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=100;
@@ -57,13 +58,16 @@ document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
- cells=new Uint8Array(N);updated=new Uint8Array(N);movingParticles=[];moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
+ cells=new Uint8Array(N);updated=new Uint8Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
 }
 function recordParticleMove(from,to,material){
+ const carried=snapshotMoves.get(from);
+ if(carried&&carried.material===material){snapshotMoves.delete(from);carried.toX=to%W;carried.toY=(to/W)|0;snapshotMoves.set(to,carried)}
+ else snapshotMoves.set(to,{fromX:from%W,fromY:(from/W)|0,toX:to%W,toY:(to/W)|0,material});
  const previous=moveByDestination[from];
  if(previous>=0&&movingParticles[previous]?.material===material){
   const move=movingParticles[previous];move.toIndex=to;move.toX=to%W;move.toY=(to/W)|0;moveByDestination[from]=-1;moveByDestination[to]=previous;
@@ -531,7 +535,7 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
  const canSimulate=!multiplayer?.joined||multiplayer.isHost;
  if(running&&canSimulate){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  if(!canSimulate)simulationAccumulator=0;
- cellRenderAlpha=multiplayer?.joined&&!multiplayer.isHost?Math.max(0,Math.min(1,(now-remoteSnapshotReceivedAt)/remoteSnapshotInterval)):Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
+ cellRenderAlpha=multiplayer?.joined&&!multiplayer.isHost?Math.max(0,Math.min(.998,(now-remoteSnapshotReceivedAt)/remoteSnapshotInterval)):Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.isHost&&room&&now-lastWorldPublish>=MP_SYNC_INTERVAL){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
 }
@@ -542,7 +546,7 @@ function updateTemperature(){const slider=document.querySelector('#temperatureCo
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size})});
 document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
 document.querySelector('#step').onclick=()=>{if(!running){tick();rebuildCellInterpolation();cellRenderAlpha=0;render()}};
-document.querySelector('#clear').onclick=()=>{cells.fill(0);movingParticles.length=0;movingDestinations.fill(0);moveByDestination.fill(-1);visualParticles.length=0;resetMaterialState(N);ropes=[];publishOperation({type:'clear'});render();log('World cleared')};
+document.querySelector('#clear').onclick=()=>{cells.fill(0);movingParticles.length=0;snapshotMoves.clear();movingDestinations.fill(0);moveByDestination.fill(-1);visualParticles.length=0;resetMaterialState(N);ropes=[];publishOperation({type:'clear'});render();log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
 
 document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#brushOut').textContent=brush+' px'};
@@ -685,7 +689,7 @@ function encodeCells(data){let raw='';for(let i=0;i<data.length;i+=0x8000)raw+=S
 function decodeCells(value,packed=false){if(Array.isArray(value))return Uint8Array.from(value);const raw=atob(value);if(packed){const out=new Uint8Array(raw.length*2);for(let i=0;i<raw.length;i++){const byte=raw.charCodeAt(i);out[i*2]=byte&15;out[i*2+1]=byte>>4}return out}const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
 function encodeMaterialField(values,scale=1){const bytes=new Uint8Array(values.length);for(let i=0;i<values.length;i++)bytes[i]=Math.max(0,Math.min(255,Math.round(values[i]*scale)));let raw='';for(let i=0;i<bytes.length;i+=0x8000)raw+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(raw)}
 function decodeMaterialField(value,target,scale=1){if(typeof value!=='string')return;try{const raw=atob(value);if(raw.length!==target.length)return;for(let i=0;i<raw.length;i++)target[i]=raw.charCodeAt(i)/scale}catch{}}
-function serialize(){return{width:W,height:H,canvasSize,cells:encodeCells(cells),packed:false,moves:movingParticles.map(p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]),materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),p.anchor?1:0])})),gravity,ambient,updatedAt:Date.now(),by:playerId}}
+function serialize(){const moves=Array.from(snapshotMoves.values(),p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]);snapshotMoves.clear();return{width:W,height:H,canvasSize,cells:encodeCells(cells),packed:false,moves,materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),p.anchor?1:0])})),gravity,ambient,updatedAt:Date.now(),by:playerId}}
 function applyWorld(data){if(!data||data.by===playerId||drawing||ropeDrag)return;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed)}catch(e){return}if(incoming.length!==N)return;lastRemoteWorldAt++;remoteSnapshotReceivedAt=performance.now();remoteApplying=true;cells.set(incoming);movingParticles=Array.isArray(data.moves)?data.moves.slice(0, W*H).filter(p=>Array.isArray(p)&&p.length>=5&&p.every(Number.isFinite)&&inside(p[0],p[1])&&inside(p[2],p[3])&&p[4]>0&&p[4]<=16).map(p=>({fromX:p[0],fromY:p[1],toX:p[2],toY:p[3],toIndex:idx(p[2],p[3]),material:p[4]})):[];moveByDestination.fill(-1);rebuildCellInterpolation();if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.ropes))ropes=data.ropes.slice(0,100).map(entry=>{const points=Array.isArray(entry)?entry:entry?.points||[];return{id:!Array.isArray(entry)&&entry.id?String(entry.id):newRopeId(),length:1.5,stiffness:1,points:Array.isArray(points)?points.map(p=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]})):[]}}).filter(r=>r.points.length>1);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false}
 async function joinRoom(code,approved=false){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
