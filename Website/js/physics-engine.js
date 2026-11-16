@@ -57,15 +57,16 @@ export function createPhysicsEngine(){
   if(!segments.length)return false;
   const minX=Math.min(x1,x2)-RADIUS,minY=Math.min(y1,y2)-RADIUS,maxX=Math.max(x1,x2)+RADIUS,maxY=Math.max(y1,y2)+RADIUS;
   for(const s of nearby(minX,minY,maxX,maxY)){
-   // Test the entire swept quadrilateral plus all four boundary paths.
-   // This catches translation and rotation between physics frames.
-   if(pointInSweptQuad(x1,y1,s)||pointInSweptQuad(x2,y2,s))return true;
-   if(segmentDistance(x1,y1,x2,y2,s.ax,s.ay,s.bx,s.by)<=RADIUS)return true;
-   if(segmentDistance(x1,y1,x2,y2,s.oldAx,s.oldAy,s.oldBx,s.oldBy)<=RADIUS)return true;
-   if(segmentDistance(x1,y1,x2,y2,s.oldAx,s.oldAy,s.ax,s.ay)<=RADIUS)return true;
-   if(segmentDistance(x1,y1,x2,y2,s.oldBx,s.oldBy,s.bx,s.by)<=RADIUS)return true;
-   if(segmentDistance(x1,y1,x2,y2,s.oldAx,s.oldAy,s.oldBx,s.oldBy)<=RADIUS)return true;
-   if(segmentDistance(x1,y1,x2,y2,s.oldBx,s.oldBy,s.bx,s.by)<=RADIUS)return true;
+   const ropeMotion=Math.max(Math.hypot(s.ax-s.oldAx,s.ay-s.oldAy),Math.hypot(s.bx-s.oldBx,s.by-s.oldBy));
+   const particleMotion=Math.hypot(x2-x1,y2-y1);
+   const steps=clamp(Math.ceil((Math.max(ropeMotion,particleMotion)+Math.min(ropeMotion,particleMotion)*.5)/.35),2,64);
+   for(let k=0;k<steps;k++){
+    const t0=k/steps,t1=(k+1)/steps,tm=(t0+t1)*.5;
+    const px0=x1+(x2-x1)*t0,py0=y1+(y2-y1)*t0,px1=x1+(x2-x1)*t1,py1=y1+(y2-y1)*t1;
+    const ax=s.oldAx+(s.ax-s.oldAx)*tm,ay=s.oldAy+(s.ay-s.oldAy)*tm;
+    const bx=s.oldBx+(s.bx-s.oldBx)*tm,by=s.oldBy+(s.by-s.oldBy)*tm;
+    if(segmentDistance(px0,py0,px1,py1,ax,ay,bx,by)<=RADIUS)return true;
+   }
   }
   return false;
  }
