@@ -82,7 +82,7 @@ function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
 function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx*xx+yy*yy<=r*r)put(x+xx,y+yy,m)}
 function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
 function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
-let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null,particleGrab=null;
+let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null,particleGrab=null,grabbedParticleIndices=new Set();
 function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
  if(tool==='rope'||tool==='grab')return;
  if(erase){circle(p.x,p.y,brush,M.EMPTY);lastPoint=p;return}
@@ -96,7 +96,7 @@ document.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointerdown',e=>{
  const p=canvasPoint(e);if(!inside(p.x,p.y))return;
  if(tool==='rope'&&e.button===2){e.preventDefault();const hit=findRopeAt(p);if(hit){ropes=ropes.filter(r=>r.id!==hit.id);publishOperation({type:'ropeDelete',ropeId:hit.id});log('Rope deleted')}return}
- if(tool==='grab'&&e.button===0){const hit=findRopeGrab(p);if(hit){ropeDrag={kind:'rope',...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.setPointerCapture(e.pointerId);ropeDrag.lastPublish=0;log('Rope grabbed — pull to move it')}else{const particles=findParticleGrab(p);if(particles.length){particleGrab={particles,lastX:p.x,lastY:p.y,vx:0,vy:0};drawing=true;canvas.setPointerCapture(e.pointerId);log('Particle cluster grabbed — drag and release to throw it')}}return}
+ if(tool==='grab'&&e.button===0){const particles=findParticleGrab(p);if(particles.length){particleGrab={particles,lastX:p.x,lastY:p.y,vx:0,vy:0};grabbedParticleIndices=new Set(particles.map(item=>item.index));drawing=true;canvas.setPointerCapture(e.pointerId);log('Particles grabbed — drag to move and release to launch')}else{const hit=findRopeGrab(p);if(hit){ropeDrag={kind:'rope',...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.setPointerCapture(e.pointerId);ropeDrag.lastPublish=0;log('Rope grabbed — pull to move it')}return}
  drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)
 });
 canvas.addEventListener('pointermove',e=>{
@@ -108,18 +108,53 @@ canvas.addEventListener('pointermove',e=>{
  if(tool==='rope'){lastPoint=p;return}act(p,e)
 });
 canvas.addEventListener('pointerup',e=>{
- if(particleGrab){for(const particle of particleGrab.particles){const index=particle.index;if(cells[index]){particleVelocityX[index]=Math.max(-8,Math.min(8,particleGrab.vx*1.35));particleVelocityY[index]=Math.max(-8,Math.min(8,particleGrab.vy*1.35))}}particleGrab=null;drawing=false;return}
+ if(particleGrab){for(const particle of particleGrab.particles){const index=particle.index;if(cells[index]){particleVelocityX[index]=Math.max(-8,Math.min(8,particleGrab.vx*1.8));particleVelocityY[index]=Math.max(-8,Math.min(8,particleGrab.vy*1.8))}}particleGrab=null;grabbedParticleIndices.clear();drawing=false;return}
  if(ropeDrag){const {rope,node,nodeIndex}=ropeDrag;node.anchor=ropeDrag.wasAnchor;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:false});ropeDrag=null;drawing=false;return}
  if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){const created=createRope(ropeStart,end);publishOperation({type:'rope',ropeId:created.id,a:ropeStart,b:end})}ropeStart=null}
  else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});
  drawing=false;activeErase=false;lastPoint=null;strokePoints=[]
 });
-canvas.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}drawing=false;ropeStart=null;lastPoint=null});
+canvas.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}if(particleGrab){particleGrab=null;grabbedParticleIndices.clear()}drawing=false;ropeStart=null;lastPoint=null});
 canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
-const PARTICLE_GRAB_RADIUS=4;
+const PARTICLE_GRAB_RADIUS=7;
 function findParticleGrab(p){const found=[];for(let y=Math.max(0,Math.floor(p.y-PARTICLE_GRAB_RADIUS));y<=Math.min(H-1,Math.ceil(p.y+PARTICLE_GRAB_RADIUS));y++)for(let x=Math.max(0,Math.floor(p.x-PARTICLE_GRAB_RADIUS));x<=Math.min(W-1,Math.ceil(p.x+PARTICLE_GRAB_RADIUS));x++){const dx=x+.5-p.x,dy=y+.5-p.y;if(dx*dx+dy*dy>PARTICLE_GRAB_RADIUS*PARTICLE_GRAB_RADIUS)continue;const index=idx(x,y);if(cells[index])found.push({index,offsetX:x-Math.floor(p.x),offsetY:y-Math.floor(p.y)})}return found}
-function moveGrabbedParticle(p){if(!particleGrab?.particles.length)return;const dx=Math.round(p.x-particleGrab.lastX),dy=Math.round(p.y-particleGrab.lastY);if(dx||dy){const group=particleGrab.particles,groupIndices=new Set(group.map(item=>item.index)),moves=[];let canMove=true;for(const item of group){const from=item.index,x=from%W,y=(from/W)|0,tx=x+dx,ty=y+dy;if(!inside(tx,ty)){canMove=false;break}const to=idx(tx,ty);if(cells[to]!==M.EMPTY&&!groupIndices.has(to)){canMove=false;break}moves.push({item,from,to,material:cells[from],state:{}})}if(canMove){for(const move of moves){for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state)move.state[key]=state[move.from]}}for(const move of moves)cells[move.from]=M.EMPTY;for(const move of moves){cells[move.to]=move.material;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[move.to]=move.state[key]||0;state[move.from]=0}}recordParticleMove(move.from,move.to,move.material);move.item.index=move.to}}}particleGrab.vx=p.x-particleGrab.lastX;particleGrab.vy=p.y-particleGrab.lastY;particleGrab.lastX=p.x;particleGrab.lastY=p.y}
+function moveGrabbedParticle(p){
+ if(!particleGrab?.particles.length)return;
+ const rawX=p.x-particleGrab.lastX,rawY=p.y-particleGrab.lastY;
+ const dx=Math.round(rawX),dy=Math.round(rawY);
+ if(dx||dy){
+  const group=particleGrab.particles,groupIndices=new Set(group.map(item=>item.index));
+  const direction=(dx,dy)=>Math.sign(dx)*(Math.abs(dx)>=Math.abs(dy)?1:0)+Math.sign(dy)*(Math.abs(dy)>Math.abs(dx)?1:0);
+  const sx=direction(dx,dy),sy=dx&&dy?(Math.abs(dx)>=Math.abs(dy)?0:Math.sign(dy)):Math.sign(dy);
+  const ordered=[...group].sort((a,b)=>((b.index%W)*sx+((b.index/W)|0)*sy)-((a.index%W)*sx+((a.index/W)|0)*sy));
+  const moveCell=(from,to)=>{
+   const material=cells[from];if(!material||cells[to]!==M.EMPTY)return false;
+   cells[to]=material;cells[from]=M.EMPTY;
+   for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[from];state[from]=0}}
+   recordParticleMove(from,to,material);return true;
+  };
+  const push=(from,stepX,stepY,seen,depth=0)=>{
+   if(depth>10||seen.has(from))return false;
+   const material=cells[from];if(!material||[M.STONE,M.WOOD,M.ICE,M.TNT,M.GLASS].includes(material))return false;
+   const x=from%W,y=(from/W)|0,tx=x+stepX,ty=y+stepY;if(!inside(tx,ty))return false;
+   const to=idx(tx,ty);if(groupIndices.has(to))return true;
+   seen.add(from);
+   if(cells[to]!==M.EMPTY&&!push(to,stepX,stepY,seen,depth+1))return false;
+   return moveCell(from,to);
+  };
+  for(const item of ordered){
+   const from=item.index,x=from%W,y=(from/W)|0,tx=x+dx,ty=y+dy;
+   if(!inside(tx,ty))continue;
+   const to=idx(tx,ty);
+   if(groupIndices.has(to))continue;
+   if(cells[to]!==M.EMPTY&&!push(to,dx,dy,new Set()))continue;
+   if(moveCell(from,to)){groupIndices.delete(from);groupIndices.add(to);item.index=to}
+  }
+  grabbedParticleIndices=new Set(group.map(item=>item.index));
+ }
+ particleGrab.vx=rawX;particleGrab.vy=rawY;particleGrab.lastX=p.x;particleGrab.lastY=p.y;
+}
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
 function findRopeAt(p){let best=null,bestDistance=5;for(const rope of ropes){for(let i=0;i<rope.points.length-1;i++){const a=rope.points[i],b=rope.points[i+1],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len)):0,d=Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));if(d<bestDistance){bestDistance=d;best=rope}}}return best}
 function createRope(a,b){
@@ -288,7 +323,7 @@ function pushParticlesFromRopeSweep(){
    }
    candidates.sort((u,v)=>v.progress-u.progress);
    const pushChain=(from,stepX,stepY,launchVx,launchVy,visiting)=>{
-    if(carried[from]||!cells[from]||visiting.has(from))return false;
+    if(carried[from]||grabbedParticleIndices.has(from)||!cells[from]||visiting.has(from))return false;
     const x=from%W,y=(from/W)|0,tx=x+stepX,ty=y+stepY;
     if(!inside(tx,ty))return false;
     const to=idx(tx,ty);if(to===from)return false;
@@ -379,7 +414,7 @@ function drawVisualParticles(){
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);rebuildRopeCollisionIndex();updated.fill(0);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);rebuildRopeCollisionIndex();updated.fill(0);for(let i=0;i<N;i++){if(grabbedParticleIndices.has(i))continue;if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
@@ -402,7 +437,7 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  }
  if(m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
  }}
- stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
+ stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove,lockedParticles:grabbedParticleIndices});
  stepVisualParticles();
  stepRopes()}
 function rebuildCellInterpolation(){
