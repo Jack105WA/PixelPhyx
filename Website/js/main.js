@@ -286,7 +286,7 @@ function pushParticlesFromRopeSweep(){
     const dx=daX+(dbX-daX)*t,dy=daY+(dbY-daY)*t;
     const stepX=Math.round(dx),stepY=Math.round(dy);
     if(!inside(x+stepX,y+stepY)||(!stepX&&!stepY))continue;
-    const qx=ax+sx*t,qy=ay+sy*t,tangentLength=Math.hypot(sx,sy)||1,tangentX=sx/tangentLength,tangentY=sy/tangentLength,cross=sx*(py-qy)-sy*(px-qx);candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY,tangentX,tangentY,side:Math.sign(cross)||1});
+    const qx=ax+sx*t,qy=ay+sy*t,tangentLength=Math.hypot(sx,sy)||1,tangentX=sx/tangentLength,tangentY=sy/tangentLength,cross=sx*(py-qy)-sy*(px-qx);candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY,t,tangentX,tangentY,side:Math.sign(cross)||1});
    }
    candidates.sort((u,v)=>v.progress-u.progress);
    const particleMass=material=>({
@@ -330,6 +330,13 @@ function pushParticlesFromRopeSweep(){
      const frictionImpulse=Math.max(-friction*impulse,Math.min(friction*impulse,-tangentSpeed/(1/mass+1/ropeMass)));
      vx+=frictionImpulse/mass*contact.tx;
      vy+=frictionImpulse/mass*contact.ty;
+     // Apply the equal-and-opposite impulse to the rope's two endpoint nodes.
+     const reactionX=impulse*contact.nx+frictionImpulse*contact.tx;
+     const reactionY=impulse*contact.ny+frictionImpulse*contact.ty;
+     contact.a.px+=reactionX*(1-contact.t)/ropeMass;
+     contact.a.py+=reactionY*(1-contact.t)/ropeMass;
+     contact.b.px+=reactionX*contact.t/ropeMass;
+     contact.b.py+=reactionY*contact.t/ropeMass;
     }
     particleVelocityX[to]=Math.max(-8,Math.min(8,vx));
     particleVelocityY[to]=Math.max(-8,Math.min(8,vy));
@@ -344,7 +351,7 @@ function pushParticlesFromRopeSweep(){
     if(ropeSpeed<.01)continue;
     const contact={
      vx:c.dx,vy:c.dy,nx:normalX,ny:normalY,
-     tx:c.tangentX,ty:c.tangentY
+     tx:c.tangentX,ty:c.tangentY,a,b,t:c.t
     };
     pushChain(c.from,c.stepX,c.stepY,contact,new Set());
    }
