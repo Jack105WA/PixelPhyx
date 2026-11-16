@@ -1,8 +1,9 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ firebaseConfig }, { stepMaterialPhysics, materialState, resetMaterialState }] = await Promise.all([
+const [{ firebaseConfig }, { stepMaterialPhysics, materialState, resetMaterialState }, { createPhysicsEngine }] = await Promise.all([
   import(`./firebase-config.js?v=${encodeURIComponent(cacheVersion)}`),
-  import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`)
+  import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
+  import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`)
 ]);
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
@@ -58,7 +59,7 @@ document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
- cells=new Uint8Array(N);updated=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);carriedParticles=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
+ cells=new Uint8Array(N);updated=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
@@ -124,242 +125,17 @@ function findRopeAt(p){let best=null,bestDistance=5;for(const rope of ropes){for
 const MAX_ROPES=20,MAX_ROPE_SEGMENTS=119,MAX_ROPE_POINTS=120;
 function createRope(a,b,ropeId=newRopeId()){
  if(ropes.length>=MAX_ROPES){log('Rope limit reached — delete a rope before adding another');return null}
- const distance=Math.hypot(b.x-a.x,b.y-a.y);
- if(!Number.isFinite(distance)||distance<.001)return null;
- const segments=Math.max(3,Math.min(MAX_ROPE_SEGMENTS,Math.ceil(distance/1.5))),points=[];
- for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,sx:x,sy:y,anchor:i===0||i===segments,sweepAge:0})}
- const rope={id:ropeId,points,length:distance/segments,stiffness:1};ropes.push(rope);
- log('Rope attached with '+segments+' physics segments');return rope
+ const rope=physicsEngine.makeRope(a,b,ropeId,W,H);
+ if(!rope)return null;
+ ropes.push(rope);
+ log('Rope attached with '+rope.points.length+' physics points');return rope
 }
 function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.random().toString(36).slice(2)+Date.now().toString(36))}
-function ropeCellIsSolid(m){return m===M.STONE||m===M.WOOD||m===M.ICE||m===M.TNT||m===M.GLASS}
-function ropeCellBlocks(m){return m!==M.EMPTY}
-function resolveRopeNode(n,oldX=n.x,oldY=n.y){
- if(n.anchor)return false;
- const gx=Math.floor(n.x),gy=Math.floor(n.y);
- if(!inside(gx,gy))return false;
- const here=idx(gx,gy),material=cells[here];
- if(!ropeCellBlocks(material))return false;
- // Granular and fluid materials are handled by the swept-rope solver.
- // Never relocate them from inside the constraint loop: doing so repeatedly
- // teleports particles and destabilizes both the rope and the material field.
- if(!ropeCellIsSolid(material))return false;
- const dx=n.x-oldX,dy=n.y-oldY;
- // Keep the node against the surface it hit without searching for a distant cell.
- const left=Math.abs(n.x-gx),right=Math.abs(gx+1-n.x);
- const top=Math.abs(n.y-gy),bottom=Math.abs(gy+1-n.y);
- const crossedLeft=oldX<gx&&dx>0,crossedRight=oldX>gx+1&&dx<0;
- const crossedTop=oldY<gy&&dy>0,crossedBottom=oldY>gy+1&&dy<0;
- if(crossedLeft||(!crossedRight&&!crossedTop&&!crossedBottom&&left<=right&&left<=top&&left<=bottom)){
-  n.x=gx-.001;n.px=n.x;
- }else if(crossedRight||(!crossedTop&&!crossedBottom&&right<=top&&right<=bottom)){
-  n.x=gx+1.001;n.px=n.x;
- }else if(crossedTop||(!crossedBottom&&top<=bottom)){
-  n.y=gy-.001;n.py=n.y;
- }else{
-  n.y=gy+1.001;n.py=n.y;
- }
- return true;
-}
+const physicsEngine=createPhysicsEngine();
+function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
 function stepRopes(){
- for(const rope of ropes){
-  const points=rope.points;if(points.length<2)continue;
-  for(let substep=0;substep<2;substep++){
-   for(const n of points){
-    if(n.anchor){n.sweepAge=1;continue}
-    n.sweepAge=(n.sweepAge||0)+1;
-    const oldX=n.x,oldY=n.y,vx=(n.x-n.px)*.992,vy=(n.y-n.py)*.992;
-    n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.12*gravity/2;
-    resolveRopeNode(n,oldX,oldY);
-   }
-   for(let pass=0;pass<10;pass++){
-    for(let i=0;i<points.length-1;i++){
-     const a=points[i],b=points[i+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.001;
-     const error=(d-rope.length)/d,wa=a.anchor?0:1,wb=b.anchor?0:1,total=wa+wb;
-     if(!total)continue;
-     const correction=error*.92;
-     if(wa){a.x+=dx*correction*(wa/total);a.y+=dy*correction*(wa/total)}
-     if(wb){b.x-=dx*correction*(wb/total);b.y-=dy*correction*(wb/total)}
-    }
-    for(let i=1;i<points.length-1;i++)resolveRopeNode(points[i],points[i].px,points[i].py);
-   }
-  }
-  for(const n of points){n.x=Math.max(.5,Math.min(W-.5,n.x));n.y=Math.max(.5,Math.min(H-.5,n.y))}
- }
- pushParticlesFromRopeSweep();
- for(const rope of ropes)for(const n of rope.points)n.dragMoved=false
-}
-let ropeCollisionBuckets=new Map();
-const ROPE_BUCKET_SIZE=4,ROPE_COLLISION_RADIUS=1.0;
-function rebuildRopeCollisionIndex(){
- ropeCollisionBuckets.clear();
- if(!ropes.length)return;
- for(const rope of ropes){
-  const points=rope.points;
-  if(!points||points.length<2)continue;
-  for(let i=0;i<points.length-1;i++){
-   const a=points[i],b=points[i+1],segment={ax:a.x+.5,ay:a.y+.5,bx:b.x+.5,by:b.y+.5};
-   const minX=Math.floor((Math.min(segment.ax,segment.bx)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
-   const maxX=Math.floor((Math.max(segment.ax,segment.bx)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
-   const minY=Math.floor((Math.min(segment.ay,segment.by)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
-   const maxY=Math.floor((Math.max(segment.ay,segment.by)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
-   for(let by=minY;by<=maxY;by++)for(let bx=minX;bx<=maxX;bx++){
-    const key=by*1000+bx;let bucket=ropeCollisionBuckets.get(key);
-    if(!bucket){bucket=[];ropeCollisionBuckets.set(key,bucket)}
-    bucket.push(segment);
-   }
-  }
- }
-}
-const ropeCandidateSegments=new Set();
-const orient=(ax,ay,bx,by,cx,cy)=>(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
-function pointSegmentDistance(px,py,ax,ay,bx,by){
- const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy;
- const t=len?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len)):0;
- return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
-}
-function ropeBlocksMove(x1,y1,x2,y2){
- if(!ropeCollisionBuckets.size)return false;
- const minX=Math.floor((Math.min(x1,x2)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
- const maxX=Math.floor((Math.max(x1,x2)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
- const minY=Math.floor((Math.min(y1,y2)-ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
- const maxY=Math.floor((Math.max(y1,y2)+ROPE_COLLISION_RADIUS)/ROPE_BUCKET_SIZE);
- ropeCandidateSegments.clear();
- for(let by=minY;by<=maxY;by++)for(let bx=minX;bx<=maxX;bx++){
-  const bucket=ropeCollisionBuckets.get(by*1000+bx);
-  if(bucket)for(const segment of bucket)ropeCandidateSegments.add(segment);
- }
- for(const s of ropeCandidateSegments){
-  const {ax,ay,bx,by}=s;
-  const o1=orient(x1,y1,x2,y2,ax,ay),o2=orient(x1,y1,x2,y2,bx,by);
-  const o3=orient(ax,ay,bx,by,x1,y1),o4=orient(ax,ay,bx,by,x2,y2);
-  if(o1*o2<=0&&o3*o4<=0&&
-   Math.max(Math.min(x1,x2),Math.min(ax,bx))<=Math.min(Math.max(x1,x2),Math.max(ax,bx))+.0001&&
-   Math.max(Math.min(y1,y2),Math.min(ay,by))<=Math.min(Math.max(y1,y2),Math.max(ay,by))+.0001)return true;
-  if(Math.min(
-   pointSegmentDistance(x1,y1,ax,ay,bx,by),
-   pointSegmentDistance(x2,y2,ax,ay,bx,by),
-   pointSegmentDistance(ax,ay,x1,y1,x2,y2),
-   pointSegmentDistance(bx,by,x1,y1,x2,y2)
-  )<ROPE_COLLISION_RADIUS)return true;
- }
- return false;
-}
-let carriedParticles=new Uint8Array(N);
-function pushParticlesFromRopeSweep(){
- if(!ropes.length)return;
- const carried=carriedParticles;carried.fill(0);
- const sweptNodes=new Set();
- const stateArrays=['wetness','heat','fuel','burn','age','corrosion'].map(key=>materialState[key]).filter(Boolean);
- const insideQuad=(px,py,ax,ay,bx,by,cx,cy,dx,dy)=>{
-  const cross=(x1,y1,x2,y2)=>x1*y2-y1*x2,points=[[ax,ay],[bx,by],[cx,cy],[dx,dy]];let sign=0;
-  for(let i=0;i<4;i++){
-   const a=points[i],b=points[(i+1)%4],v=cross(b[0]-a[0],b[1]-a[1],px-a[0],py-a[1]);
-   if(Math.abs(v)<.0001)continue;
-   const currentSign=Math.sign(v);if(sign&&currentSign!==sign)return false;sign=currentSign;
-  }
-  return true;
- };
- for(const rope of ropes){
-  const points=rope.points;
-  for(let i=0;i<points.length-1;i++){
-   const a=points[i],b=points[i+1],ax=a.sx??a.x,ay=a.sy??a.y,bx=b.sx??b.x,by=b.sy??b.y;
-   const daX=a.x-ax,daY=a.y-ay,dbX=b.x-bx,dbY=b.y-by;
-   // Keep the old sweep origin until enough sub-pixel movement accumulates
-   // to move at least one grid cell.
-   if(Math.max(Math.abs(daX),Math.abs(daY),Math.abs(dbX),Math.abs(dbY))<.5)continue;
-   sweptNodes.add(a);sweptNodes.add(b);
-   const minX=Math.max(0,Math.floor(Math.min(ax,bx,a.x,b.x)-1)),maxX=Math.min(W-1,Math.ceil(Math.max(ax,bx,a.x,b.x)+1));
-   const minY=Math.max(0,Math.floor(Math.min(ay,by,a.y,b.y)-1)),maxY=Math.min(H-1,Math.ceil(Math.max(ay,by,a.y,b.y)+1));
-   const candidates=[];
-   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
-    const from=idx(x,y),material=cells[from];if(!material||carried[from])continue;
-    const px=x+.5,py=y+.5;
-    if(!insideQuad(px,py,ax,ay,bx,by,b.x,b.y,a.x,a.y))continue;
-    const sx=bx-ax,sy=by-ay,len=sx*sx+sy*sy;
-    const t=len?Math.max(0,Math.min(1,((px-ax)*sx+(py-ay)*sy)/len)):.5;
-    const dx=daX+(dbX-daX)*t,dy=daY+(dbY-daY)*t;
-    if(Math.hypot(dx,dy)<.35)continue;
-    let stepX=Math.round(dx),stepY=Math.round(dy);
-    if(!stepX&&!stepY){
-     if(Math.abs(dx)>=Math.abs(dy))stepX=Math.sign(dx);
-     else stepY=Math.sign(dy);
-    }
-    if(!inside(x+stepX,y+stepY))continue;
-    const qx=ax+sx*t,qy=ay+sy*t,tangentLength=Math.hypot(sx,sy)||1,tangentX=sx/tangentLength,tangentY=sy/tangentLength,cross=sx*(py-qy)-sy*(px-qx);candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY,t,tangentX,tangentY,side:Math.sign(cross)||1});
-   }
-   candidates.sort((u,v)=>v.progress-u.progress);
-   const particleMass=material=>({
-    [M.SAND]:1.6,[M.SALT]:1.9,[M.CHARCOAL]:.85,[M.WATER]:1,
-    [M.OIL]:.82,[M.ACID]:1.1,[M.LAVA]:2.5,[M.STONE]:2.7,
-    [M.WOOD]:.65,[M.PLANT]:.45,[M.ICE]:.92,[M.GLASS]:2.5,
-    [M.TNT]:1.1
-   }[material]||.35);
-   const pushChain=(from,stepX,stepY,contact,visiting)=>{
-    if(carried[from]||!cells[from]||visiting.has(from))return false;
-    const x=from%W,y=(from/W)|0,tx=x+stepX,ty=y+stepY;
-    if(!inside(tx,ty))return false;
-    const to=idx(tx,ty);if(to===from)return false;
-    visiting.add(from);
-    if(cells[to]!==M.EMPTY){
-     if(carried[to]||!pushChain(to,stepX,stepY,contact,visiting)){visiting.delete(from);return false}
-    }
-    const material=cells[from];
-    if(!material||cells[to]!==M.EMPTY){visiting.delete(from);return false}
-    cells[to]=material;cells[from]=M.EMPTY;
-    for(const state of stateArrays){state[to]=state[from];state[from]=0}
-    carried[from]=1;carried[to]=1;
-    recordParticleMove(from,to,material);
-
-    // Resolve the impact along the rope's actual swept direction. The old
-    // tangent-only transfer lost almost all energy when the rope moved across
-    // its own length rather than along it, so particles were merely displaced
-    // and then immediately fell under gravity.
-    // recordParticleMove transfers the source velocity to the destination cell.
-    // Read it here before applying the rope impulse. The previous code used
-    // undeclared vx/vy variables and crashed on the first rope-particle contact.
-    let vx=particleVelocityX[to],vy=particleVelocityY[to];
-    const mass=particleMass(material),ropeMass=1.0;
-    const restitution=material===M.WATER||material===M.OIL||material===M.ACID ? .18 :
-     material===M.SAND||material===M.SALT||material===M.CHARCOAL ? .42 : .3;
-    const sweepSpeed=Math.hypot(contact.vx,contact.vy);
-    if(sweepSpeed>.01){
-     const moveX=contact.vx/sweepSpeed,moveY=contact.vy/sweepSpeed;
-     const closingSpeed=(contact.vx-vx)*moveX+(contact.vy-vy)*moveY;
-     if(closingSpeed>0){
-      const impulse=(1+restitution)*closingSpeed/(1/mass+1/ropeMass);
-      vx+=impulse/mass*moveX;
-      vy+=impulse/mass*moveY;
-     }
-    }
-    // A small surface-friction term lets the rope carry particles around bends
-    // without forcing every particle into an identical straight-line trajectory.
-    const relativeTangent=(contact.vx-vx)*contact.tx+(contact.vy-vy)*contact.ty;
-    const frictionLimit=.12*sweepSpeed;
-    const tangentImpulse=Math.max(-frictionLimit,Math.min(frictionLimit,relativeTangent*.22));
-    vx+=tangentImpulse*contact.tx;
-    vy+=tangentImpulse*contact.ty;
-    particleVelocityX[to]=Math.max(-8,Math.min(8,vx));
-    particleVelocityY[to]=Math.max(-8,Math.min(8,vy));
-    visiting.delete(from);
-    return true;
-   };
-   for(const c of candidates){
-    if(carried[c.from]||cells[c.from]!==c.material)continue;
-    if(!c.stepX&&!c.stepY)continue;
-    const normalX=-c.tangentY*c.side,normalY=c.tangentX*c.side;
-    const ropeSpeed=Math.hypot(c.dx,c.dy);
-    if(ropeSpeed<.01)continue;
-    const sweepFrames=Math.max(1,a.sweepAge*(1-c.t)+b.sweepAge*c.t);
-    const contact={
-     vx:c.dx/sweepFrames,vy:c.dy/sweepFrames,nx:normalX,ny:normalY,
-     tx:c.tangentX,ty:c.tangentY,a,b,t:c.t
-    };
-    pushChain(c.from,c.stepX,c.stepY,contact,new Set());
-   }
-  }
- }
- for(const node of sweptNodes){node.sx=node.x;node.sy=node.y;node.sweepAge=0}
+ physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY});
+ for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
 }
 // Small sub-cell particles add subtle material effects without obscuring the pixel world.
 const visualParticles=[];
@@ -422,7 +198,7 @@ function drawVisualParticles(){
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);rebuildRopeCollisionIndex();updated.fill(0);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);physicsEngine.rebuildIndex(ropes);updated.fill(0);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');

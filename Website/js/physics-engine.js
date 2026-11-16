@@ -45,7 +45,7 @@ export function createPhysicsEngine(){
   else if(side===2){n.y=y-.002;n.py=n.y}else{n.y=y+1.002;n.py=n.y}
  }
  function solveRopes(ropes,cells,w,h,gravity){
-  const substeps=2,passes=20,dt=1/substeps;
+  const substeps=2,passes=40,dt=1/substeps;
   for(const rope of ropes){const p=rope.points;if(!Array.isArray(p)||p.length<2||p.length>MAX_POINTS)continue;
    const rest=Number.isFinite(rope.length)&&rope.length>0?rope.length:1;
    for(let sub=0;sub<substeps;sub++){
@@ -79,7 +79,12 @@ export function createPhysicsEngine(){
   }
   for(const {i,m,s,q} of contacts.values()){
    let nx,ny;if(q.distance>1e-5){nx=q.dx/q.distance;ny=q.dy/q.distance}
-   else{const dx=s.bx-s.ax,dy=s.by-s.ay,l=Math.hypot(dx,dy)||1;nx=-dy/l;ny=dx/l}
+   else{
+    const dx=s.bx-s.ax,dy=s.by-s.ay,l=Math.hypot(dx,dy)||1;nx=-dy/l;ny=dx/l;
+    const nodeVx=(s.a.x-s.a.px)*(1-q.t)+(s.b.x-s.b.px)*q.t;
+    const nodeVy=(s.a.y-s.a.py)*(1-q.t)+(s.b.y-s.b.py)*q.t;
+    if((vx[i]-nodeVx)*nx+(vy[i]-nodeVy)*ny>0){nx=-nx;ny=-ny}
+   }
    const rvx=vx[i]-((s.a.x-s.a.px)*(1-q.t)+(s.b.x-s.b.px)*q.t);
    const rvy=vy[i]-((s.a.y-s.a.py)*(1-q.t)+(s.b.y-s.b.py)*q.t);
    const vn=rvx*nx+rvy*ny;if(vn>=0)continue;
