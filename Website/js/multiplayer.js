@@ -30,7 +30,7 @@ export function createMultiplayer(callbacks = {}) {
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
-  const operationCursors = new Map();
+  const processedOperations = new Map();
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -126,13 +126,25 @@ export function createMultiplayer(callbacks = {}) {
       const operationsRef = ref(db, roomPath + '/operations');
       // Keep the edit log durable. Firebase replays existing children on attach,
       // then streams new ones; never let the host delete events before peers reconnect.
-      let lastOperationKey = operationCursors.get(room) || '';
+      let processed = processedOperations.get(room);
+      if (!processed) {
+        processed = new Set();
+        processedOperations.set(room, processed);
+      }
       stopOperations = onChildAdded(operationsRef, snapshot => {
-        if (snapshot.key <= lastOperationKey) return;
+        // Push IDs contain client-clock timestamps, so they are not a safe
+        // global cursor when players have different or incorrect system clocks.
+        // Deduplicate by exact operation ID instead of skipping IDs below a cursor.
+        if (processed.has(snapshot.key)) return;
+        processed.add(snapshot.key);
         const operation = snapshot.val();
-        if (operation && operation.by !== playerId) callbacks.onOperation?.(operation);
-        lastOperationKey = snapshot.key;
-        operationCursors.set(room, lastOperationKey);
+        if (operation && operation.by !== playerId) {
+          try {
+            callbacks.onOperation?.(operation);
+          } catch (error) {
+            log('Could not apply a multiplayer edit: ' + error.message);
+          }
+        }
       }, error => log('Edit sync error: ' + error.message));
 
       stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
