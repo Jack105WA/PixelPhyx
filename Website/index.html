@@ -58,7 +58,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 <header>
  <div class="brand"><div class="brandmark">P</div><div><div class="brandname">PIXELPHYX</div><div class="brandtag">ONLINE PHYSICS LAB</div></div></div>
  <div class="header-spacer"></div><div class="status" id="connection"><span class="status-dot"></span><span id="connectionText">LOCAL SESSION</span></div><span class="room-pill" id="roomLabel">ROOM · LOCAL</span>
- <button class="btn" id="roomBtn">Online</button><button class="btn primary" id="firebaseBtn">Connect</button>
+ <button class="btn primary" id="roomBtn">Online</button>
 </header>
 <div class="layout">
 <aside class="panel left-panel">
@@ -98,7 +98,6 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 </aside>
 </div>
 </div>
-<div class="modal" id="firebaseModal"><div class="dialog"><h2>CONNECT YOUR LAB</h2><p>Paste the Firebase Web App config from Project settings → General → Your apps. Your config is stored only in this browser. The Firebase API key is a public client identifier; secure your database with the rules in the README.</p><textarea id="firebaseConfig" spellcheck="false" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://YOUR-PROJECT-default-rtdb.firebaseio.com","projectId":"...","appId":"..."}'></textarea><div class="dialog-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="connectFirebase">Connect to Firebase</button></div></div></div>
 <div class="modal" id="roomModal"><div class="dialog"><h2>SERVERS</h2><p>Browse live servers, create your own, or request access to an existing server. Server hosts approve incoming requests.</p>
  <div class="online-settings">
   <div class="control"><label>Display name</label><input id="playerName" type="text" maxlength="20" placeholder="Your name"></div>
