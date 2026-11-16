@@ -30,7 +30,7 @@ export function createMultiplayer(callbacks = {}) {
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null, stopSnapshots = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
-  let operationPublishQueue = Promise.resolve();
+  let operationPublishQueue = Promise.resolve(), snapshotPublishQueue = Promise.resolve();
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -330,8 +330,11 @@ export function createMultiplayer(callbacks = {}) {
 
   function publishWorldSnapshot(world) {
     if (!db || !joined || !room || !world) return;
-    set(ref(db, 'rooms/' + room + '/snapshots/' + playerId), {
-      ...world, by: playerId, updatedAt: serverTimestamp()
+    const targetRoom = room;
+    const payload = { ...world, by: playerId, updatedAt: serverTimestamp() };
+    snapshotPublishQueue = snapshotPublishQueue.then(() => {
+      if (!db || !joined || room !== targetRoom) return;
+      return set(ref(db, 'rooms/' + targetRoom + '/snapshots/' + playerId), payload);
     }).catch(error => log('World snapshot publish failed: ' + error.message));
   }
 
