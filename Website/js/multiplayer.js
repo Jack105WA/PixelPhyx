@@ -35,6 +35,7 @@ export function createMultiplayer(callbacks = {}) {
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
   function stopListeners() {
+    stopOperations?._clearGapTimer?.();
     stopOperations?.(); stopOperations = null;
     stopWorld?.(); stopWorld = null;
     stopPlayers?.(); stopPlayers = null;
@@ -127,7 +128,8 @@ export function createMultiplayer(callbacks = {}) {
       const sequenceRef = ref(db, roomPath + '/operationSequence');
       // Every edit receives a transactionally allocated sequence. Firebase push IDs
       // depend on client clocks and cannot establish a reliable shared edit order.
-      let nextSequence = 1;
+      const sequenceSnapshot = await get(sequenceRef);
+      let nextSequence = (Number(sequenceSnapshot.val()) || 0) + 1;
       const pendingOperations = new Map();
       let gapTimer = null;
       const applyQueuedOperations = () => {
