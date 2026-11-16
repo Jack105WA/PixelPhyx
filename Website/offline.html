@@ -1029,6 +1029,8 @@ async function connectFirebase(config){
     const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;
     multiplayer=createMultiplayer({
      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
+     getWorld:()=>serialize(),
+     getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
      onLeafblowers:people=>{const now=performance.now();for(const [id,state] of Object.entries(people||{})){if(id===playerId)continue;const data=state?.leafblower;if(!data)continue;if(data.active&&[data.x,data.y,data.dx,data.dy].every(Number.isFinite)){const current=remoteLeafblowers[id];if(current){current.targetX=data.x;current.targetY=data.y;current.targetDx=data.dx;current.targetDy=data.dy;current.receivedAt=now;current.active=true}else remoteLeafblowers[id]={x:data.x,y:data.y,dx:data.dx,dy:data.dy,targetX:data.x,targetY:data.y,targetDx:data.dx,targetDy:data.dy,receivedAt:now,active:true}}else if(remoteLeafblowers[id])remoteLeafblowers[id].active=false}},
      onPlayers:renderPlayers,
      onJoinRequest:request=>queueJoinRequest(request),
