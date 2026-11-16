@@ -45,7 +45,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
  for(let y=H-2;y>=0;y--){
   const start=Math.random()<.5?0:W-1,step=start===0?1:-1;
   for(let x=start;x>=0&&x<W;x+=step){
-   const i=index(x,y),m=cells[i];if(!m)continue;
+   const i=index(x,y),m=cells[i];if(!m||lockedParticles?.has(i))continue;
    if(m===M.SAND){
     const below=index(x,y+1),under=cells[below];
     if(under===M.WATER||under===M.OIL){
@@ -80,6 +80,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
  // air, rising air carries heat upward, and exposed materials absorb it without contact.
  const air=s.airHeat,nextAir=s.airNext;
  for(let i=0;i<N;i++){
+  if(lockedParticles?.has(i))continue;
   const m=cells[i],source=m===M.FIRE||m===M.LAVA;
   const target=source?Math.max(heat[i],m===M.LAVA?900:780):ambient;
   air[i]+=(target-air[i])*(source?.16:.0015);
@@ -95,7 +96,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
  // Heat diffuses through adjacent matter. Combustion consumes fuel over time rather than
  // instantly deleting a flammable object; wood chars, oil burns hot, and wet matter resists ignition.
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-  const i=index(x,y),m=cells[i];if(!m)continue;
+  const i=index(x,y),m=cells[i];if(!m||lockedParticles?.has(i))continue;
   const p=PROPERTIES[m]||{};
   age[i]=Math.min(65535,age[i]+1);
   if(m===M.WATER&&ambient<0&&Math.random()<clamp(-ambient/9000,0,.12))cells[i]=M.ICE;
@@ -184,6 +185,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
  }
  // Air transfers heat to nearby exposed matter, even when a gap separates it from the source.
  for(let i=0;i<N;i++){
+  if(lockedParticles?.has(i))continue;
   const m=cells[i];if(!m)continue;
   const prop=PROPERTIES[m],airTemperature=air[i];
   if(airTemperature>heat[i])heat[i]+=(airTemperature-heat[i])*(m===M.WOOD?.055:.035);
