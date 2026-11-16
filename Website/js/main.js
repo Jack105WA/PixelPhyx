@@ -134,7 +134,7 @@ function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.ran
 const physicsEngine=createPhysicsEngine();
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
 function stepRopes(){
- physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY});
+ physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,recordMove:recordParticleMove});
  for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
 }
 // Small sub-cell particles add subtle material effects without obscuring the pixel world.
