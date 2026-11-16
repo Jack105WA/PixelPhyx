@@ -45,7 +45,7 @@ export function createPhysicsEngine(){
   else if(side===2){n.y=y-.002;n.py=n.y}else{n.y=y+1.002;n.py=n.y}
  }
  function solveRopes(ropes,cells,w,h,gravity){
-  const substeps=2,passes=7,dt=1/substeps;
+  const substeps=2,passes=20,dt=1/substeps;
   for(const rope of ropes){const p=rope.points;if(!Array.isArray(p)||p.length<2||p.length>MAX_POINTS)continue;
    const rest=Number.isFinite(rope.length)&&rope.length>0?rope.length:1;
    for(let sub=0;sub<substeps;sub++){
