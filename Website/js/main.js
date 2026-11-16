@@ -400,33 +400,39 @@ function drawInterpolatedCells(){
   target.fillRect(x,y,scale,scale);
  }
 }
-function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
+function drawPlayerCursor(c,isYou=false,targetCtx=ctx){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
- const cursorColor=isYou?'#ffffff':(c.color||'#fff');
- // Draw the multiplayer pointer as a fixed 8x12 pixel-art bitmap.
- // Scale from the medium canvas CSS size, not the selected world resolution.
+ const cursorColor=c.color||'#65d6ad';
+ // Compact, solid pixel-art pointer with a continuous dark outline.
  const pixels=[
-  '10000000',
-  '11000000',
-  '11100000',
-  '11110000',
-  '11111000',
-  '11111100',
-  '11111110',
-  '11111111',
-  '11111100',
-  '11011000',
-  '00001100',
-  '00000110'
+  '1000000',
+  '1100000',
+  '1110000',
+  '1111000',
+  '1111100',
+  '1111110',
+  '1111111',
+  '1111100',
+  '1101100',
+  '1000110'
  ];
- const unit=Math.max(.25,scale);
+ const cell=1,x0=Math.round(c.x),y0=Math.round(c.y);
  targetCtx.save();
  targetCtx.globalAlpha=1;
  targetCtx.globalCompositeOperation='source-over';
+ targetCtx.fillStyle='rgba(5,10,16,.95)';
+ for(let y=0;y<pixels.length;y++){
+  for(let x=0;x<pixels[y].length;x++){
+   if(pixels[y][x]!=='1')continue;
+   for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){
+    if(ox||oy)targetCtx.fillRect(x0+x*cell+ox,y0+y*cell+oy,cell,cell);
+   }
+  }
+ }
  targetCtx.fillStyle=cursorColor;
  for(let y=0;y<pixels.length;y++){
   for(let x=0;x<pixels[y].length;x++){
-   if(pixels[y][x]==='1')targetCtx.fillRect(Math.round(c.x+x*unit),Math.round(c.y+y*unit),Math.max(1,Math.round(unit)),Math.max(1,Math.round(unit)));
+   if(pixels[y][x]==='1')targetCtx.fillRect(x0+x*cell,y0+y*cell,cell,cell);
   }
  }
  targetCtx.restore();
@@ -438,8 +444,8 @@ function drawCursorName(c,targetCtx){
  targetCtx.font='600 10px Inter,Arial,sans-serif';
  targetCtx.textBaseline='middle';
  const width=targetCtx.measureText(label).width;
- const x=Math.max(3,Math.min(cursorNamesCanvas.clientWidth-width-3,c.x+28));
- let y=c.y+23;
+ const x=Math.max(3,Math.min(cursorNamesCanvas.clientWidth-width-3,c.x+13));
+ let y=c.y+15;
  // Keep player names clear of the canvas HUD in the upper-left corner.
  if(x<170&&y<45)y=51;
  y=Math.max(9,Math.min(cursorNamesCanvas.clientHeight-8,y));
@@ -510,7 +516,7 @@ function render(){
  const cursorScale=canvasRect.width/320;
  for(const c of Object.values(remoteCursors)){
   const screenX=c.x/W*canvasRect.width,screenY=c.y/H*canvasRect.height;
-  drawPlayerCursor({x:screenX,y:screenY},false,nameCtx,cursorScale);
+  drawPlayerCursor({x:screenX,y:screenY,color:c.color},false,nameCtx);
   drawCursorName({x:screenX,y:screenY,name:c.name},nameCtx);
  }
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
