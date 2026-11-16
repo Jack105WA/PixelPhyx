@@ -35,7 +35,7 @@ function ignite(cells,state,i,m){
  state.heat[i]=Math.max(state.heat[i],p.ignition||100);
  return true;
 }
-export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state,recordMove}){
+export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state,recordMove,lockedParticles}){
  const M=materials,W=width,H=height,N=W*H;
  if(s.wetness.length!==N)resetMaterialState(N);
  const wet=s.wetness,heat=s.heat,fuel=s.fuel,burn=s.burn,age=s.age,corrosion=s.corrosion;
