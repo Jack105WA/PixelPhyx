@@ -825,9 +825,6 @@ function render(){
  // Draw the original multiplayer arrow in CSS pixels. Scaling against the
  // medium canvas width keeps its on-screen size identical at every world size.
  const cursorScale=canvasRect.width/320;
- if(localCursor){
-  drawPlayerCursor({x:localCursor.x/W*canvasRect.width,y:localCursor.y/H*canvasRect.height},true,nameCtx,cursorScale);
- }
  for(const c of Object.values(remoteCursors)){
   const screenX=c.x/W*canvasRect.width,screenY=c.y/H*canvasRect.height;
   drawPlayerCursor({x:screenX,y:screenY},false,nameCtx,cursorScale);
