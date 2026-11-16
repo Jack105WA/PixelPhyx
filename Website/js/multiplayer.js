@@ -110,7 +110,7 @@ export function createMultiplayer(callbacks = {}) {
       usageEstimateUid = auth.currentUser.uid;
       usageEstimateDay = day;
       try {
-        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + month)) || 0);
+        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + day)) || 0);
       } catch { usageEstimateBytes = 0; }
     }
     await reportUsageEstimate(db, auth);
