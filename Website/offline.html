@@ -844,7 +844,7 @@ function render(){
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4,MP_SYNC_INTERVAL=1000;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0;
  function loop(now){
-  if(multiplayer?.joined&&now-lastWorldSnapshotAt>=2500){lastWorldSnapshotAt=now;publishWorldSnapshot()}
+  if(multiplayer?.joined&&now-lastWorldSnapshotAt>=1000){lastWorldSnapshotAt=now;publishWorldSnapshot()}
   if(pendingConsensus&&!drawing&&!ropeDrag&&now-lastConsensusAt>=1200)reconcileWorldSnapshots(latestWorldSnapshots);
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}/* Keep the backlog: slow clients catch up without dropping simulation ticks. */}
@@ -1004,62 +1004,65 @@ function decodeMaterialField(value,target,scale=1){if(typeof value!=='string')re
 function encodeUint16Field(values){const bytes=new Uint8Array(values.length*2);for(let i=0;i<values.length;i++){bytes[i*2]=values[i]&255;bytes[i*2+1]=values[i]>>8}let raw='';for(let i=0;i<bytes.length;i+=0x8000)raw+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(raw)}
 function decodeUint16Field(value,target){if(typeof value!=='string')return;try{const raw=atob(value);if(raw.length!==target.length*2)return;for(let i=0;i<target.length;i++)target[i]=raw.charCodeAt(i*2)|(raw.charCodeAt(i*2+1)<<8)}catch{}}
 function serialize(){return{width:W,height:H,canvasSize,simulationTick,cells:encodeCells(cells),packed:false,materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),age:encodeUint16Field(materialState.age),airHeat:encodeMaterialField(materialState.airHeat,1/4)},ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[+p.x.toFixed(2),+p.y.toFixed(2),p.anchor?1:0])})),gravity,ambient,updatedAt:Date.now(),by:playerId}}
-function applyWorld(data){if(!data||data.by===playerId||drawing||ropeDrag)return;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed)}catch(e){return}if(incoming.length!==N)return;lastRemoteWorldAt++;if(Number.isSafeInteger(data.simulationTick))simulationTick=data.simulationTick;remoteApplying=true;cells.set(incoming);if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeUint16Field(data.materialState.age,materialState.age);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.ropes))ropes=data.ropes.slice(0,100).map(entry=>{const points=Array.isArray(entry)?entry:entry?.points||[];return{id:!Array.isArray(entry)&&entry.id?String(entry.id):newRopeId(),length:1.5,stiffness:1,points:Array.isArray(points)?points.map(p=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]})):[]}}).filter(r=>r.points.length>1);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false}
+function applyWorld(data){if(!data||data.by===playerId||drawing||ropeDrag)return;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed)}catch(e){return}if(incoming.length!==N)return;lastRemoteWorldAt++;if(Number.isSafeInteger(data.simulationTick))simulationTick=data.simulationTick;movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);remoteApplying=true;cells.set(incoming);if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeUint16Field(data.materialState.age,materialState.age);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.ropes))ropes=data.ropes.slice(0,100).map(entry=>{const points=Array.isArray(entry)?entry:entry?.points||[];return{id:!Array.isArray(entry)&&entry.id?String(entry.id):newRopeId(),length:1.5,stiffness:1,points:Array.isArray(points)?points.map(p=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],anchor:!!p[2]})):[]}}).filter(r=>r.points.length>1);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false}
 function reconcileWorldSnapshots(snapshots){
  latestWorldSnapshots=snapshots||{};
- if(!room||onlinePlayerIds.length<2||consensusBusy)return;
+ if(!room||onlinePlayerIds.length<2||consensusBusy||drawing||ropeDrag)return;
  const now=Date.now();
- if(now-lastConsensusAt<1200){pendingConsensus=true;return}
- if(drawing||ropeDrag){pendingConsensus=true;return}
- const peers=onlinePlayerIds.filter(id=>{
+ if(now-lastConsensusAt<650){pendingConsensus=true;return}
+ const peers=onlinePlayerIds.slice().sort().filter(id=>{
   const s=latestWorldSnapshots[id];
-  return s&&typeof s.cells==='string'&&Number.isFinite(s.updatedAt)&&now-s.updatedAt<15000;
- }).sort();
+  return s&&typeof s.cells==='string';
+ });
  if(peers.length<2)return;
  const worlds=[];
  for(const id of peers){
   const s=latestWorldSnapshots[id];
-  try{const data=decodeCells(s.cells,!!s.packed);if(data.length===N)worlds.push({id,s,cells:data})}catch{}
+  try{
+   const data=decodeCells(s.cells,!!s.packed);
+   if(data.length!==N)continue;
+   const fields={};
+   for(const [name,scale] of [['wetness',255],['heat',1/5],['fuel',255],['burn',1],['corrosion',1],['airHeat',1/4]]){
+    const values=new Float32Array(N);decodeMaterialField(s.materialState?.[name],values,scale);fields[name]=values;
+   }
+   const age=new Uint16Array(N);decodeUint16Field(s.materialState?.age,age);
+   worlds.push({id,s,cells:data,fields,age});
+  }catch(error){log('Invalid snapshot from '+id+': '+error.message)}
  }
  if(worlds.length<2)return;
  consensusBusy=true;pendingConsensus=false;lastConsensusAt=now;
  try{
-  const mergedCells=new Uint8Array(N),votes=new Uint16Array(17);
-  for(let i=0;i<N;i++){
-   votes.fill(0);
-   for(const world of worlds){const value=world.cells[i];if(value<17)votes[value]++}
-   let highest=0;for(let m=1;m<17;m++)if(votes[m]>votes[highest])highest=m;
-   const tied=[];for(let m=0;m<17;m++)if(votes[m]===votes[highest])tied.push(m);
-   if(tied.length>1){const nonEmpty=tied.filter(value=>value!==0);if(tied.includes(0)&&nonEmpty.length)mergedCells[i]=nonEmpty[0];else{const first=worlds[0].cells[i];mergedCells[i]=tied.includes(first)?first:tied[0]}}
-   else mergedCells[i]=highest;
-  }
-  const specs=[
-   ['wetness',255,Float32Array],['heat',.2,Float32Array],['fuel',255,Float32Array],
-   ['burn',1,Float32Array],['corrosion',1,Float32Array],['airHeat',.25,Float32Array]
-  ];
-  const decoded={};
-  for(const [name,scale,Type] of specs){
-   decoded[name]=worlds.map(world=>{const values=new Type(N);decodeMaterialField(world.s.materialState?.[name],values,scale);return values});
-  }
-  const averaged={};
-  for(const [name] of specs){
-   const output=new Float32Array(N);
-   for(let i=0;i<N;i++){let sum=0,count=0;for(let p=0;p<worlds.length;p++)if(worlds[p].cells[i]===mergedCells[i]){sum+=decoded[name][p][i];count++}output[i]=count?sum/count:0}
-   averaged[name]=encodeMaterialField(output,name==='wetness'||name==='fuel'?255:name==='heat'?5:name==='airHeat'?4:1);
-  }
-  const ages=worlds.map(world=>{const values=new Uint16Array(N);decodeUint16Field(world.s.materialState?.age,values);return values});
+  // Deterministic sharding: every participant owns a fixed share of cells.
+  // All clients use the same sorted participant list, so they select identical
+  // cell and material state from the same peer snapshots.
+  const mergedCells=new Uint8Array(N);
+  const mergedFields={wetness:new Float32Array(N),heat:new Float32Array(N),fuel:new Float32Array(N),burn:new Float32Array(N),corrosion:new Float32Array(N),airHeat:new Float32Array(N)};
   const mergedAge=new Uint16Array(N);
-  for(let i=0;i<N;i++){let sum=0,count=0;for(let p=0;p<worlds.length;p++)if(worlds[p].cells[i]===mergedCells[i]){sum+=ages[p][i];count++}mergedAge[i]=count?Math.round(sum/count):0}
+  for(let i=0;i<N;i++){
+   const owner=worlds[i%worlds.length];
+   mergedCells[i]=owner.cells[i];
+   for(const name of Object.keys(mergedFields))mergedFields[name][i]=owner.fields[name][i];
+   mergedAge[i]=owner.age[i];
+  }
   const reference=worlds[0].s;
   const gravity=worlds.reduce((sum,w)=>sum+(Number.isFinite(w.s.gravity)?w.s.gravity:1),0)/worlds.length;
   const ambient=worlds.reduce((sum,w)=>sum+(Number.isFinite(w.s.ambient)?w.s.ambient:20),0)/worlds.length;
+  const averageTick=Math.round(worlds.reduce((sum,w)=>sum+(Number.isSafeInteger(w.s.simulationTick)?w.s.simulationTick:simulationTick),0)/worlds.length);
   const snapshot={
-   width:W,height:H,canvasSize,simulationTick:Math.round(worlds.reduce((sum,w)=>sum+(Number.isSafeInteger(w.s.simulationTick)?w.s.simulationTick:simulationTick),0)/worlds.length),cells:encodeCells(mergedCells),packed:false,
-   materialState:{...averaged,age:encodeUint16Field(mergedAge)},
+   width:W,height:H,canvasSize,simulationTick:averageTick,cells:encodeCells(mergedCells),packed:false,
+   materialState:{
+    wetness:encodeMaterialField(mergedFields.wetness,255),
+    heat:encodeMaterialField(mergedFields.heat,1/5),
+    fuel:encodeMaterialField(mergedFields.fuel,255),
+    burn:encodeMaterialField(mergedFields.burn,1),
+    corrosion:encodeMaterialField(mergedFields.corrosion,1),
+    airHeat:encodeMaterialField(mergedFields.airHeat,1/4),
+    age:encodeUint16Field(mergedAge)
+   },
    ropes:Array.isArray(reference.ropes)?reference.ropes:[],gravity,ambient,by:'consensus'
   };
   applyWorld(snapshot);
- }catch(error){log('World reconciliation failed: '+error.message)}
+ }catch(error){log('Shared world reconciliation failed: '+error.message)}
  finally{consensusBusy=false}
 }
 async function joinRoom(code,approved=false){
