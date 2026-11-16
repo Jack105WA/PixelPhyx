@@ -28,15 +28,17 @@ export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
   let playerId = 'guest-' + secureRandomString(16);
   let joined = false, hostId = null, presenceRef = null;
-  let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
+  let stopOperations = null, stopWorld = null, stopRopes = null, stopPlayers = null, stopCursors = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
   let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0;
+  let lastRopeWrite = 0, ropeWriteInFlight = false, pendingRopes = null;
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
   function stopListeners() {
     stopOperations?.(); stopOperations = null;
     stopWorld?.(); stopWorld = null;
+    stopRopes?.(); stopRopes = null;
     stopPlayers?.(); stopPlayers = null;
     stopHost?.(); stopHost = null;
     stopCursors?.(); stopCursors = null;
@@ -138,6 +140,12 @@ export function createMultiplayer(callbacks = {}) {
         lastWorldRevision = revision;
         callbacks.onWorld?.(latest);
       }, error => log('World sync error: ' + error.message));
+
+      stopRopes = onValue(ref(db, roomPath + '/ropeStates'), snapshot => {
+        const state = snapshot.val();
+        if (!state || state.by !== hostId || !Array.isArray(state.ropes)) return;
+        callbacks.onRopes?.(state);
+      }, error => log('Rope sync error: ' + error.message));
 
       const operationsRef = ref(db, roomPath + '/operations');
       // Read only a bounded tail. Old operation history must never be downloaded in full.
@@ -351,6 +359,29 @@ export function createMultiplayer(callbacks = {}) {
     })();
   }
 
+  function publishRopes(ropes) {
+    if (!db || !joined || !room || hostId !== playerId) return;
+    const now = Date.now();
+    if (now - lastRopeWrite < 1000 / 30) return;
+    lastRopeWrite = now;
+    pendingRopes = { by: playerId, updatedAt: now, ropes };
+    if (ropeWriteInFlight) return;
+    ropeWriteInFlight = true;
+    (async () => {
+      try {
+        while (pendingRopes && joined && room && hostId === playerId) {
+          const latest = pendingRopes;
+          pendingRopes = null;
+          await set(ref(db, 'rooms/' + room + '/ropeStates/' + playerId), latest);
+        }
+      } catch (error) {
+        log('Rope sync failed: ' + error.message);
+      } finally {
+        ropeWriteInFlight = false;
+      }
+    })();
+  }
+
   function updateCursor(point, color, name) {
     if (!db || !joined || !room) return;
     update(ref(db, 'rooms/' + room + '/cursors/' + playerId), {
@@ -359,7 +390,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, updateCursor, updateIdentity,
+    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, updateCursor, updateIdentity,
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
