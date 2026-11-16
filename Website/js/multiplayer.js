@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
   getDatabase, ref, onValue, set, onDisconnect, serverTimestamp,
-  push, onChildAdded, runTransaction, update, remove, get, query, limitToLast
+  push, onChildAdded, onChildChanged, runTransaction, update, remove, get, query, limitToLast
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
@@ -126,22 +126,30 @@ export function createMultiplayer(callbacks = {}) {
         joinedAt: serverTimestamp()
       });
 
-      stopWorld = onValue(ref(db, roomPath + '/worldStates'), snapshot => {
-        const states = Object.values(snapshot.val() || {}).filter(world =>
-          world && world.by !== playerId && typeof world === 'object' &&
-          Number.isFinite(Number(world.updatedAt))
-        );
-        if (!states.length) return;
-        // Every participant publishes its own checkpoint. All peers follow the
-        // newest checkpoint, so no single player owns the live world.
-        states.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
-        const latest = states[0];
-        // Only compare remote checkpoints; our own state is already local.
+      const remoteWorldStates = new Map();
+      const publishLatestRemoteWorld = () => {
+        let latest = null;
+        for (const world of remoteWorldStates.values()) {
+          if (!latest || Number(world.updatedAt) > Number(latest.updatedAt)) latest = world;
+        }
+        if (!latest) return;
         const revision = Number(latest.updatedAt) || 0;
         if (revision <= lastWorldRevision) return;
         lastWorldRevision = revision;
         callbacks.onWorld?.(latest);
-      }, error => log('World sync error: ' + error.message));
+      };
+      const handleWorldState = snapshot => {
+        const world = snapshot.val();
+        if (!world || world.by === playerId || !Number.isFinite(Number(world.updatedAt))) return;
+        remoteWorldStates.set(snapshot.key, world);
+        publishLatestRemoteWorld();
+      };
+      const worldStatesRef = ref(db, roomPath + '/worldStates');
+      const stopWorldAdded = onChildAdded(worldStatesRef, handleWorldState,
+        error => log('World sync error: ' + error.message));
+      const stopWorldChanged = onChildChanged(worldStatesRef, handleWorldState,
+        error => log('World sync error: ' + error.message));
+      stopWorld = () => { stopWorldAdded(); stopWorldChanged(); };
 
       const operationsRef = ref(db, roomPath + '/operations');
       // Read only a bounded tail. Old operation history must never be downloaded in full.
