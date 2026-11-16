@@ -35,7 +35,7 @@ function ignite(cells,state,i,m){
  state.heat[i]=Math.max(state.heat[i],p.ignition||100);
  return true;
 }
-export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state,recordMove}){
+export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state,recordMove,random=Math.random}){
  const M=materials,W=width,H=height,N=W*H;
  if(s.wetness.length!==N)resetMaterialState(N);
  const wet=s.wetness,heat=s.heat,fuel=s.fuel,burn=s.burn,age=s.age,corrosion=s.corrosion;
@@ -43,17 +43,17 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
  const get=(x,y)=>inside(x,y)?cells[index(x,y)]:M.STONE;
  // Water displaces lighter grains; wet sand clumps, darkens and becomes heavier/slower.
  for(let y=H-2;y>=0;y--){
-  const start=Math.random()<.5?0:W-1,step=start===0?1:-1;
+  const start=random()<.5?0:W-1,step=start===0?1:-1;
   for(let x=start;x>=0&&x<W;x+=step){
    const i=index(x,y),m=cells[i];if(!m)continue;
    if(m===M.SAND){
     const below=index(x,y+1),under=cells[below];
     if(under===M.WATER||under===M.OIL){
      if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below,recordMove);
-    }else if(under===M.EMPTY&&Math.random()<clamp((.95*(1-wet[i]*.82))*clamp(gravity,.1,2),.04,1)){
+    }else if(under===M.EMPTY&&random()<clamp((.95*(1-wet[i]*.82))*clamp(gravity,.1,2),.04,1)){
      if(!ropeBlocksMove(x+.5,y+.5,x+.5,y+1.5))swap(cells,s,i,below,recordMove);
     }else if(under!==M.EMPTY&&under!==M.WATER&&under!==M.OIL){
-     const d=Math.random()<.5?-1:1,nx=x+d;
+     const d=random()<.5?-1:1,nx=x+d;
      if(inside(nx,y+1)){
       const ni=index(nx,y+1),side=cells[ni];
       if((side===M.EMPTY||side===M.WATER||side===M.OIL)&&!ropeBlocksMove(x+.5,y+.5,nx+.5,y+1.5))swap(cells,s,i,ni,recordMove);
@@ -65,13 +65,13 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){
      const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
      const ni=index(nx,ny),other=cells[ni];
-     if(other===M.SAND&&wet[ni]<1&&Math.random()<.12){
+     if(other===M.SAND&&wet[ni]<1&&random()<.12){
       // Sand absorbs moisture, not the water particle itself. Keep water in the
       // world so a pool cannot vanish just because it touches a large sand bed.
       const amount=Math.min(.025,1-wet[ni]);
       wet[ni]+=amount;
      }
-     if(other===M.PLANT&&Math.random()<.08)wet[ni]=Math.min(1,wet[ni]+.15);
+     if(other===M.PLANT&&random()<.08)wet[ni]=Math.min(1,wet[ni]+.15);
     }
    }
   }
@@ -98,29 +98,29 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   const i=index(x,y),m=cells[i];if(!m)continue;
   const p=PROPERTIES[m]||{};
   age[i]=Math.min(65535,age[i]+1);
-  if(m===M.WATER&&ambient<0&&Math.random()<clamp(-ambient/9000,0,.12))cells[i]=M.ICE;
-  if(m===M.ICE&&ambient>0&&Math.random()<clamp(ambient/14000,0,.1))cells[i]=M.WATER;
-  if(m===M.WATER&&ambient>100&&Math.random()<clamp((ambient-100)/18000,0,.05)){cells[i]=M.STEAM;continue}
+  if(m===M.WATER&&ambient<0&&random()<clamp(-ambient/9000,0,.12))cells[i]=M.ICE;
+  if(m===M.ICE&&ambient>0&&random()<clamp(ambient/14000,0,.1))cells[i]=M.WATER;
+  if(m===M.WATER&&ambient>100&&random()<clamp((ambient-100)/18000,0,.05)){cells[i]=M.STEAM;continue}
   if(m===M.FIRE){
-   heat[i]=Math.max(heat[i],700+Math.random()*250);
-   const lifetime=100+Math.random()*100;
+   heat[i]=Math.max(heat[i],700+random()*250);
+   const lifetime=100+random()*100;
    burn[i]+=1;
    if(burn[i]>lifetime){cells[i]=M.SMOKE;heat[i]=120;burn[i]=0;continue}
    for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1],[-1,-1],[1,-1]]){
     const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
     const ni=index(nx,ny),target=cells[ni],tp=PROPERTIES[target];
     if(target===M.WATER||target===M.ICE){
-     if(Math.random()<.22){cells[i]=M.STEAM;heat[i]=0;burn[i]=0;break}
+     if(random()<.22){cells[i]=M.STEAM;heat[i]=0;burn[i]=0;break}
      continue;
     }
     if(tp?.flammability){
      const moisture=wet[ni]||0;
      const chance=(target===M.OIL ? .62 : target===M.PLANT ? .38 : target===M.WOOD ? .28 : .12)*(1-moisture*.94);
      heat[ni]=Math.min(1600,heat[ni]+(target===M.OIL?85:target===M.WOOD?55:target===M.PLANT?45:28));
-     if(heat[ni]>(tp.ignition||200)&&Math.random()<chance)ignite(cells,s,ni,target);
+     if(heat[ni]>(tp.ignition||200)&&random()<chance)ignite(cells,s,ni,target);
     }
    }
-   if(Math.random()<.006){cells[i]=M.SMOKE;heat[i]=0;burn[i]=0;}
+   if(random()<.006){cells[i]=M.SMOKE;heat[i]=0;burn[i]=0;}
    continue;
   }
   if(m===M.LAVA){
@@ -129,7 +129,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
     const ni=index(nx,ny),other=cells[ni];
     if(other===M.WATER||other===M.ICE){cells[i]=M.STONE;cells[ni]=M.STEAM;heat[ni]=180;break}
-    if(PROPERTIES[other]?.flammability){heat[ni]=Math.min(1600,heat[ni]+(other===M.OIL?100:other===M.WOOD?70:55));if(heat[ni]>(PROPERTIES[other].ignition||200)&&Math.random()<(other===M.OIL?.58:other===M.PLANT?.35:.24))ignite(cells,s,ni,other)}
+    if(PROPERTIES[other]?.flammability){heat[ni]=Math.min(1600,heat[ni]+(other===M.OIL?100:other===M.WOOD?70:55));if(heat[ni]>(PROPERTIES[other].ignition||200)&&random()<(other===M.OIL?.58:other===M.PLANT?.35:.24))ignite(cells,s,ni,other)}
    }
   }
   if(m===M.WOOD||m===M.PLANT||m===M.OIL||m===M.TNT){
@@ -137,14 +137,14 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     const cooling=(m===M.WOOD?1.2:m===M.PLANT?2.4:.7)+(wet[i]*8);
     heat[i]=Math.max(ambient,heat[i]-cooling);
    }
-   if(heat[i]>(p.ignition||220)&&Math.random()<(m===M.TNT?.22:m===M.OIL?.16:m===M.PLANT?.12:.075)*(1-(wet[i]||0)*.94))ignite(cells,s,i,m);
+   if(heat[i]>(p.ignition||220)&&random()<(m===M.TNT?.22:m===M.OIL?.16:m===M.PLANT?.12:.075)*(1-(wet[i]||0)*.94))ignite(cells,s,i,m);
    if(burn[i]>0){
     burn[i]+=1;
     const consume=(m===M.WOOD?.003:m===M.PLANT?.012:m===M.OIL?.025:.018)*(1-(wet[i]||0)*.8);
     fuel[i]=Math.max(0,(fuel[i]||p.fuel||1)-consume);
     if(fuel[i]<=0){
      if(m===M.WOOD){cells[i]=M.CHARCOAL;heat[i]=0;burn[i]=0;fuel[i]=0}
-     else if(m===M.PLANT){cells[i]=Math.random()<.55?M.EMPTY:M.SMOKE;heat[i]=0;burn[i]=0}
+     else if(m===M.PLANT){cells[i]=random()<.55?M.EMPTY:M.SMOKE;heat[i]=0;burn[i]=0}
      else if(m===M.TNT){cells[i]=M.FIRE;heat[i]=650;burn[i]=0}
      else {cells[i]=M.FIRE;heat[i]=650;burn[i]=0}
     }
@@ -163,9 +163,9 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
    }
    if(age[i]>1800){cells[i]=M.EMPTY;continue}
   }
-  if(m===M.SALT&&get(x,y+1)===M.WATER&&Math.random()<.04)cells[i]=M.EMPTY;
-  if(m===M.STEAM&&Math.random()<.003)cells[i]=M.WATER;
-  if(m===M.SMOKE&&Math.random()<.002)cells[i]=M.EMPTY;
+  if(m===M.SALT&&get(x,y+1)===M.WATER&&random()<.04)cells[i]=M.EMPTY;
+  if(m===M.STEAM&&random()<.003)cells[i]=M.WATER;
+  if(m===M.SMOKE&&random()<.002)cells[i]=M.EMPTY;
   if(m===M.SAND&&wet[i]>0)wet[i]=Math.max(0,wet[i]-.0008);
   // Conduct heat between neighboring cells, not just toward ambient temperature.
   if(heat[i]>ambient){
@@ -190,7 +190,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   if(prop?.flammability&&heat[i]>(prop.ignition||220)){
    const moisture=wet[i]||0;
    const chance=(m===M.WOOD?.018:m===M.PLANT?.025:m===M.OIL?.04:m===M.TNT?.025:.008)*(1-moisture*.94);
-   if(Math.random()<chance)ignite(cells,s,i,m);
+   if(random()<chance)ignite(cells,s,i,m);
   }
  }
  // Remove stale state when a particle has been erased or transformed.
