@@ -100,7 +100,7 @@ canvas.addEventListener('pointerdown',e=>{
 });
 canvas.addEventListener('pointermove',e=>{
  const p=canvasPoint(e);
- if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}
+ if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;if(!node.dragMoved){node.sx=node.x;node.sy=node.y;node.dragMoved=true}node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;const now=performance.now();if(now-(ropeDrag.lastPublish||0)>=1000/30){ropeDrag.lastPublish=now;publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,predicted:true})}return}
  if(!drawing)return;
  if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);
  if(tool==='rope'){lastPoint=p;return}act(p,e)
@@ -118,7 +118,7 @@ function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){f
 function findRopeAt(p){let best=null,bestDistance=5;for(const rope of ropes){for(let i=0;i<rope.points.length-1;i++){const a=rope.points[i],b=rope.points[i+1],dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len)):0,d=Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));if(d<bestDistance){bestDistance=d;best=rope}}}return best}
 function createRope(a,b){
  const distance=Math.hypot(b.x-a.x,b.y-a.y),segments=Math.max(3,Math.ceil(distance/1.5)),points=[];
- for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,anchor:i===0||i===segments})}
+ for(let i=0;i<=segments;i++){const t=i/segments,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;points.push({x,y,px:x,py:y,sx:x,sy:y,anchor:i===0||i===segments})}
  const rope={id:newRopeId(),points,length:distance/segments,stiffness:1};ropes.push(rope);
  log('Rope attached with '+segments+' physics segments');return rope
 }
@@ -170,7 +170,7 @@ function stepRopes(){
  for(const rope of ropes){
   const p=rope.points;if(p.length<2)continue;
   for(let i=0;i<p.length;i++){
-   const n=p[i];n.sx=n.x;n.sy=n.y;if(n.anchor)continue;
+   const n=p[i];if(!n.anchor){n.sx=n.x;n.sy=n.y}else if(!Number.isFinite(n.sx)){n.sx=n.x;n.sy=n.y}if(n.anchor)continue;
    const oldX=n.x,oldY=n.y,vx=(n.x-n.px)*.985,vy=(n.y-n.py)*.985;
    n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.12*gravity;
    resolveRopeNode(n,oldX,oldY);
@@ -188,6 +188,7 @@ function stepRopes(){
   for(const n of p){n.x=Math.max(.5,Math.min(W-.5,n.x));n.y=Math.max(.5,Math.min(H-.5,n.y))}
  }
  pushParticlesFromRopeSweep();
+ for(const rope of ropes)for(const n of rope.points){n.sx=n.x;n.sy=n.y;n.dragMoved=false}
 }
 let ropeCollisionBuckets=new Map();
 const ROPE_BUCKET_SIZE=4,ROPE_COLLISION_RADIUS=1.35;
