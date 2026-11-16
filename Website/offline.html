@@ -404,13 +404,13 @@ function createPhysicsEngine(){
    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){const i=y*w+x;if(!cells[i])continue;const q=closest(x+.5,y+.5,old);if(q.distance>RADIUS+.55)continue;if(Math.abs(gravity)>.001&&q.dy*gravity>Math.max(.35,q.distance*.25))continue;const ix=(dax+(dbx-dax)*q.t)*1.8,iy=(day+(dby-day)*q.t)*1.8;vx[i]=clamp(vx[i]+ix,-12,12);vy[i]=clamp(vy[i]+iy,-12,12)}
   }
  }
- function extractAirborne(cells,w,h,vx,vy,state,airborne){
+ function extractAirborne(cells,w,h,vx,vy,state,airborne,onExtract){
   if(!airborne)return;
   const keys=['wetness','heat','fuel','burn','age','corrosion'],limit=Math.min(cells.length,MAX_AIRBORNE-airborne.length);
   for(let i=0;i<limit;i++){const m=cells[i];if(!m)continue;const px=vx[i]||0,py=vy[i]||0;if(Math.hypot(px,py)<1.35)continue;
    const p={x:i%w+.5,y:Math.floor(i/w)+.5,vx:px,vy:py,material:m,sleep:0};
    for(const k of keys)p[k]=state?.[k]?.[i]||0;
-   cells[i]=0;vx[i]=0;vy[i]=0;for(const k of keys)if(state?.[k])state[k][i]=0;airborne.push(p);
+   cells[i]=0;vx[i]=0;vy[i]=0;for(const k of keys)if(state?.[k])state[k][i]=0;onExtract?.(i);airborne.push(p);
   }
  }
  function collideAirParticle(p,cells,w,h){
@@ -439,7 +439,7 @@ function createPhysicsEngine(){
   const cx=Math.floor(p.x),cy=Math.floor(p.y);let best=-1,bestD=Infinity;
   for(let r=0;r<=4;r++)for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
    if(x<0||x>=w||y<0||y>=h||Math.max(Math.abs(x-cx),Math.abs(y-cy))!==r)continue;
-   const i=y*w+x;if(cells[i])continue;const d=Math.hypot(x+.5-p.x,y+.5-p.y);if(d<bestD){bestD=d;best=i}
+   const i=y*w+x;if(cells[i])continue;let ropeBlocked=false;for(const segment of segments)if(closest(x+.5,y+.5,segment).distance<.56){ropeBlocked=true;break}if(ropeBlocked)continue;const d=Math.hypot(x+.5-p.x,y+.5-p.y);if(d<bestD){bestD=d;best=i}
   }
   return best;
  }
@@ -464,12 +464,12 @@ function createPhysicsEngine(){
   const count=Math.max(3,Math.min(MAX_POINTS-1,Math.ceil(distance/1.5))),points=[];for(let i=0;i<=count;i++){const t=i/count,x=x0+(x1-x0)*t,y=y0+(y1-y0)*t;points.push({x,y,px:x,py:y,sx:x,sy:y,anchor:i===0||i===count,sweepAge:0})}
   return{id,points,length:distance/count,stiffness:1};
  }
- function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,airborneParticles}){
+ function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,airborneParticles,onExtract}){
   if(!Array.isArray(ropes)||ropes.length>MAX_ROPES)return;
   solveRopes(ropes,cells,width,height,gravity);rebuildIndex(ropes);
   pushParticlesFromRopeSweep(ropes,cells,width,height,velocityX,velocityY,gravity);
   solveGridContacts(ropes,cells,width,height,velocityX,velocityY);
-  extractAirborne(cells,width,height,velocityX,velocityY,materialState,airborneParticles);
+  extractAirborne(cells,width,height,velocityX,velocityY,materialState,airborneParticles,onExtract);
   advanceAirborne(airborneParticles,cells,width,height,gravity,materialState,velocityX,velocityY);
  }
  return{step,blocksMove,rebuildIndex,makeRope};
@@ -613,7 +613,7 @@ const physicsEngine=createPhysicsEngine();
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
 function stepRopes(){
  // Keep the browser and generated offline builds on the same rope solver.
- physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,airborneParticles,recordMove:recordParticleMove});
+ physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,airborneParticles,onExtract:i=>snapshotMoves.delete(i),recordMove:recordParticleMove});
  for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
 }
 function applyLeafblowerImpulse(x,y,dx,dy,radius=46,strength=4.2){
