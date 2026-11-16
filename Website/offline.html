@@ -319,7 +319,7 @@ return {stepMaterialPhysics,materialState,resetMaterialState};
 })();
 const PixelPhyxEngine=(()=>{
 // Continuous airborne particle solver with a grid-backed material world.
-export function createPhysicsEngine(){
+function createPhysicsEngine(){
  const BUCKET=4,RADIUS=1.35,MAX_POINTS=120,MAX_ROPES=20,MAX_AIRBORNE=5000;
  let buckets=new Map(),segments=[],candidates=new Set();
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
