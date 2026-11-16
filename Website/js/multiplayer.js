@@ -40,20 +40,34 @@ export function createMultiplayer(callbacks = {}) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const now = Date.now();
     if (!force && cachedUsageStatus && now - cachedUsageAt < 10000) return cachedUsageStatus;
-    const snapshot = await get(ref(db, 'serviceStatus/monthlyUsagePercent'));
+    const snapshot = await get(ref(db, 'serviceStatus'));
     const raw = snapshot.val();
-    const parsed = Number(raw);
-    if (raw === null || raw === undefined || !Number.isFinite(parsed)) {
-      throw new Error('Monthly usage status is not configured. Set serviceStatus/monthlyUsagePercent in Firebase to a number from 0 to 100.');
+    const parsed = Number(raw?.monthlyUsagePercent);
+    if (!raw || !Number.isFinite(parsed)) {
+      throw new Error('Automatic bandwidth monitoring is not configured. Run the Firebase bandwidth monitor workflow.');
     }
+
+    const updatedAt = Date.parse(raw.updatedAt || '');
+    const sampleAge = now - updatedAt;
+    const stale = raw.monitoringStatus !== 'ok' ||
+      !Number.isFinite(updatedAt) ||
+      sampleAge < -5 * 60 * 1000 ||
+      sampleAge > 3 * 60 * 60 * 1000;
     const percent = Math.max(0, Math.min(100, parsed));
     cachedUsageAt = now;
-    cachedUsageStatus = { percent, limit: USAGE_LIMIT_PERCENT, blocked: percent >= USAGE_LIMIT_PERCENT };
+    cachedUsageStatus = {
+      percent,
+      limit: USAGE_LIMIT_PERCENT,
+      blocked: percent >= USAGE_LIMIT_PERCENT || stale,
+      stale,
+      updatedAt: raw.updatedAt || null
+    };
     return cachedUsageStatus;
   }
 
   async function assertMonthlyUsageAllowed() {
     const status = await getMonthlyUsageStatus();
+    if (status.stale) throw new Error('Online is disabled because the automatic bandwidth monitor is missing or stale.');
     if (status.blocked) throw new Error('Online is disabled because monthly bandwidth usage reached the 90% safety limit.');
     return status;
   }
