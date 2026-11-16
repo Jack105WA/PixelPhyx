@@ -368,7 +368,7 @@ function createPhysicsEngine(){
    // Treat both the particle and rope as swept capsules. This is deliberately
    // conservative: a particle cannot step across a rope, even during fast motion.
    const ropeTravel=Math.max(Math.hypot(s.ax-s.oldAx,s.ay-s.oldAy),Math.hypot(s.bx-s.oldBx,s.by-s.oldBy));
-   const steps=Math.max(1,Math.min(48,Math.ceil((travel+ropeTravel)*4)));
+   const steps=Math.max(1,Math.min(12,Math.ceil((travel+ropeTravel)*1.5)));
    for(let i=0;i<=steps;i++){
     const t=i/steps;
     const ax=s.oldAx+(s.ax-s.oldAx)*t,ay=s.oldAy+(s.ay-s.oldAy)*t;
@@ -387,7 +387,7 @@ function createPhysicsEngine(){
   else if(side===2){n.y=y-.002;n.py=n.y}else{n.y=y+1.002;n.py=n.y}
  }
  function solveRopes(ropes,cells,w,h,gravity){
-  const substeps=2,passes=40,dt=1/substeps;
+  const substeps=2,passes=10,dt=1/substeps;
   for(const rope of ropes){const p=rope.points;if(!Array.isArray(p)||p.length<2||p.length>MAX_POINTS)continue;
    for(const n of p){n.ox=n.x;n.oy=n.y}
    const rest=Number.isFinite(rope.length)&&rope.length>0?rope.length:1;
@@ -444,7 +444,7 @@ function createPhysicsEngine(){
 
  function pushParticlesFromRopeSweep(ropes,cells,w,h,vx,vy,state,recordMove){
   if(!recordMove)return;
-  const carried=new Uint8Array(cells.length);
+  let carried=pushParticlesFromRopeSweep.carried;if(!carried||carried.length!==cells.length)carried=pushParticlesFromRopeSweep.carried=new Uint8Array(cells.length);else carried.fill(0);
   const stateArrays=state?['wetness','heat','fuel','burn','age','corrosion'].map(k=>state[k]).filter(Boolean):[];
   const inside=(x,y)=>x>=0&&x<w&&y>=0&&y<h;
   const index=(x,y)=>y*w+x;
@@ -456,7 +456,7 @@ function createPhysicsEngine(){
   for(const rope of ropes)for(let j=0;j<rope.points.length-1;j++){
    const a=rope.points[j],b=rope.points[j+1],ax=Number.isFinite(a.ox)?a.ox:a.x,ay=Number.isFinite(a.oy)?a.oy:a.y,bx=Number.isFinite(b.ox)?b.ox:b.x,by=Number.isFinite(b.oy)?b.oy:b.y;
    const dax=a.x-ax,day=a.y-ay,dbx=b.x-bx,dby=b.y-by;
-   if(Math.max(Math.abs(dax),Math.abs(day),Math.abs(dbx),Math.abs(dby))<.015)continue;
+   if(Math.max(Math.abs(dax),Math.abs(day),Math.abs(dbx),Math.abs(dby))<.08)continue;
    const minX=Math.max(0,Math.floor(Math.min(ax,bx,a.x,b.x)-1)),maxX=Math.min(w-1,Math.ceil(Math.max(ax,bx,a.x,b.x)+1));
    const minY=Math.max(0,Math.floor(Math.min(ay,by,a.y,b.y)-1)),maxY=Math.min(h-1,Math.ceil(Math.max(ay,by,a.y,b.y)+1));
    const candidates=[];
@@ -470,11 +470,11 @@ function createPhysicsEngine(){
     candidates.push({from,material,stepX,stepY,dx,dy,tx,ty,side:Math.sign(cross)||1,progress:dx*(x-ax)+dy*(y-ay)});
    }
    candidates.sort((a,b)=>b.progress-a.progress);
-   const pushChain=(from,stepX,stepY,launchX,launchY,visiting)=>{
-    if(carried[from]||!cells[from]||visiting.has(from))return false;
+   const pushChain=(from,stepX,stepY,launchX,launchY,visiting,depth=0)=>{
+    if(depth>=8||carried[from]||!cells[from]||visiting.has(from))return false;
     const x=from%w,y=(from/w)|0,xx=x+stepX,yy=y+stepY;if(!inside(xx,yy))return false;
     const to=index(xx,yy);visiting.add(from);
-    if(cells[to]&&!pushChain(to,stepX,stepY,launchX,launchY,visiting)){visiting.delete(from);return false}
+    if(cells[to]&&!pushChain(to,stepX,stepY,launchX,launchY,visiting,depth+1)){visiting.delete(from);return false}
     const material=cells[from];if(!material||cells[to]){visiting.delete(from);return false}
     cells[to]=material;cells[from]=0;
     for(const arr of stateArrays){arr[to]=arr[from];arr[from]=0}
@@ -636,6 +636,7 @@ function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.ran
 const physicsEngine=createPhysicsEngine();
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
 function stepRopes(){
+ // Keep the browser and generated offline builds on the same rope solver.
  physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,recordMove:recordParticleMove});
  for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
 }
