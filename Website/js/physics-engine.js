@@ -134,55 +134,68 @@ export function createPhysicsEngine(){
   }
  }
 
- function pushParticlesFromRopeSweep(ropes,cells,w,h,vx,vy,state,recordMove){
+ function pushParticlesFromRopeSweep(ropes,cells,w,h,vx,vy,state,recordMove,gravity=1){
   if(!recordMove)return;
-  let carried=pushParticlesFromRopeSweep.carried;if(!carried||carried.length!==cells.length)carried=pushParticlesFromRopeSweep.carried=new Uint8Array(cells.length);else carried.fill(0);
+  let carried=pushParticlesFromRopeSweep.carried;
+  if(!carried||carried.length!==cells.length)carried=pushParticlesFromRopeSweep.carried=new Uint8Array(cells.length);
+  else carried.fill(0);
   const stateArrays=state?['wetness','heat','fuel','burn','age','corrosion'].map(k=>state[k]).filter(Boolean):[];
   const inside=(x,y)=>x>=0&&x<w&&y>=0&&y<h;
   const index=(x,y)=>y*w+x;
-  const inQuad=(px,py,ax,ay,bx,by,cx,cy,dx,dy)=>{
-   const pts=[[ax,ay],[bx,by],[cx,cy],[dx,dy]];let sign=0;
-   for(let k=0;k<4;k++){const a=pts[k],b=pts[(k+1)%4],v=(b[0]-a[0])*(py-a[1])-(b[1]-a[1])*(px-a[0]);if(Math.abs(v)<1e-5)continue;const s=Math.sign(v);if(sign&&s!==sign)return false;sign=s}
-   return true;
-  };
+  const candidates=[];
+  // Carry particles that are resting against the rope's OLD position. Looking only
+  // inside the swept strip misses particles sitting just above a rising rope.
   for(const rope of ropes)for(let j=0;j<rope.points.length-1;j++){
-   const a=rope.points[j],b=rope.points[j+1],ax=Number.isFinite(a.ox)?a.ox:a.x,ay=Number.isFinite(a.oy)?a.oy:a.y,bx=Number.isFinite(b.ox)?b.ox:b.x,by=Number.isFinite(b.oy)?b.oy:b.y;
-   const dax=a.x-ax,day=a.y-ay,dbx=b.x-bx,dby=b.y-by;
-   if(Math.max(Math.abs(dax),Math.abs(day),Math.abs(dbx),Math.abs(dby))<.08)continue;
-   const minX=Math.max(0,Math.floor(Math.min(ax,bx,a.x,b.x)-1)),maxX=Math.min(w-1,Math.ceil(Math.max(ax,bx,a.x,b.x)+1));
-   const minY=Math.max(0,Math.floor(Math.min(ay,by,a.y,b.y)-1)),maxY=Math.min(h-1,Math.ceil(Math.max(ay,by,a.y,b.y)+1));
-   const candidates=[];
-   const sx=bx-ax,sy=by-ay,len=sx*sx+sy*sy;
+   const a=rope.points[j],b=rope.points[j+1];
+   const old={ax:(Number.isFinite(a.ox)?a.ox:a.x)+.5,ay:(Number.isFinite(a.oy)?a.oy:a.y)+.5,bx:(Number.isFinite(b.ox)?b.ox:b.x)+.5,by:(Number.isFinite(b.oy)?b.oy:b.y)+.5};
+   const dax=a.x-(Number.isFinite(a.ox)?a.ox:a.x),day=a.y-(Number.isFinite(a.oy)?a.oy:a.y);
+   const dbx=b.x-(Number.isFinite(b.ox)?b.ox:b.x),dby=b.y-(Number.isFinite(b.oy)?b.oy:b.y);
+   const minX=Math.max(0,Math.floor(Math.min(old.ax,old.bx)-2)),maxX=Math.min(w-1,Math.ceil(Math.max(old.ax,old.bx)+2));
+   const minY=Math.max(0,Math.floor(Math.min(old.ay,old.by)-2)),maxY=Math.min(h-1,Math.ceil(Math.max(old.ay,old.by)+2));
+   const gravityY=gravity;
    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
     const from=index(x,y),material=cells[from];if(!material||carried[from])continue;
-    const px=x+.5,py=y+.5;if(!inQuad(px,py,ax,ay,bx,by,b.x,b.y,a.x,a.y))continue;
-    const t=len?clamp(((px-ax)*sx+(py-ay)*sy)/len,0,1):.5,dx=dax+(dbx-dax)*t,dy=day+(dby-day)*t,stepX=Math.round(dx),stepY=Math.round(dy);
-    if((!stepX&&!stepY)||!inside(x+stepX,y+stepY))continue;
-    const tx=sx/Math.sqrt(len||1),ty=sy/Math.sqrt(len||1),cross=sx*(py-(ay+sy*t))-sy*(px-(ax+sx*t));
-    candidates.push({from,material,stepX,stepY,dx,dy,tx,ty,side:Math.sign(cross)||1,progress:dx*(x-ax)+dy*(y-ay)});
-   }
-   candidates.sort((a,b)=>b.progress-a.progress);
-   const pushChain=(from,stepX,stepY,launchX,launchY,visiting,depth=0)=>{
-    if(depth>=8||carried[from]||!cells[from]||visiting.has(from))return false;
-    const x=from%w,y=(from/w)|0,xx=x+stepX,yy=y+stepY;if(!inside(xx,yy))return false;
-    const to=index(xx,yy);visiting.add(from);
-    if(cells[to]&&!pushChain(to,stepX,stepY,launchX,launchY,visiting,depth+1)){visiting.delete(from);return false}
-    const material=cells[from];if(!material||cells[to]){visiting.delete(from);return false}
-    cells[to]=material;cells[from]=0;
-    for(const arr of stateArrays){arr[to]=arr[from];arr[from]=0}
-    carried[from]=carried[to]=1;recordMove(from,to,material);
-    vx[to]=clamp(launchX,-8,8);vy[to]=clamp(launchY,-8,8);
-    visiting.delete(from);return true;
-   };
-   for(const c of candidates){
-    if(carried[c.from]||cells[c.from]!==c.material)continue;
-    const nx=-c.ty*c.side,ny=c.tx*c.side,spread=(Math.random()-.5)*.28;
-    const launchX=c.dx*1.35+c.tx*.3+nx*(.65+spread),launchY=c.dy*1.35+c.ty*.3+ny*(.65+spread);
-    pushChain(c.from,c.stepX,c.stepY,launchX,launchY,new Set());
+    const px=x+.5,py=y+.5,q=closest(px,py,old);
+    if(q.distance>RADIUS+.45)continue;
+    // A rope supports material on the side opposite gravity. This prevents the
+    // opposite face of the rope from dragging unrelated particles along.
+    if(Math.abs(gravityY)>.001&&q.dx*0+q.dy*gravityY>Math.max(.35,q.distance*.25))continue;
+    const moveX=dax+(dbx-dax)*q.t,moveY=day+(dby-day)*q.t;
+    if(Math.hypot(moveX,moveY)<.015)continue;
+    const stepX=Math.abs(moveX)>=.55?Math.sign(moveX):0;
+    const stepY=Math.abs(moveY)>=.55?Math.sign(moveY):0;
+    candidates.push({from,material,moveX,moveY,stepX,stepY,distance:q.distance});
    }
   }
+  // Process the most strongly supported cells first so a packed layer moves as one.
+  candidates.sort((a,b)=>a.distance-b.distance);
+  const pushChain=(from,stepX,stepY,launchX,launchY,visiting,depth=0)=>{
+   if(depth>=24||carried[from]||!cells[from]||visiting.has(from))return false;
+   const x=from%w,y=(from/w)|0,xx=x+stepX,yy=y+stepY;
+   if(!inside(xx,yy))return false;
+   const to=index(xx,yy);visiting.add(from);
+   if(cells[to]&&!pushChain(to,stepX,stepY,launchX,launchY,visiting,depth+1)){visiting.delete(from);return false}
+   const material=cells[from];if(!material||cells[to]){visiting.delete(from);return false}
+   cells[to]=material;cells[from]=0;
+   for(const arr of stateArrays){arr[to]=arr[from];arr[from]=0}
+   carried[from]=carried[to]=1;recordMove(from,to,material);
+   vx[to]=clamp(launchX,-8,8);vy[to]=clamp(launchY,-8,8);
+   visiting.delete(from);return true;
+  };
+  for(const c of candidates){
+   if(carried[c.from]||cells[c.from]!==c.material)continue;
+   const launchX=c.moveX*1.6,launchY=c.moveY*1.6;
+   if(!c.stepX&&!c.stepY){
+    // Preserve sub-cell rope motion as particle momentum instead of rounding it
+    // to zero; repeated small lifts now accumulate into actual grid movement.
+    vx[c.from]=clamp(vx[c.from]+launchX,-8,8);
+    vy[c.from]=clamp(vy[c.from]+launchY,-8,8);
+    carried[c.from]=1;
+    continue;
+   }
+   pushChain(c.from,c.stepX,c.stepY,launchX,launchY,new Set());
+  }
  }
-
  function makeRope(a,b,id,w=640,h=360){
   if(!a||!b||![a.x,a.y,b.x,b.y].every(Number.isFinite))return null;
   const x0=clamp(a.x,0,w-1),y0=clamp(a.y,0,h-1),x1=clamp(b.x,0,w-1),y1=clamp(b.y,0,h-1),distance=Math.hypot(x1-x0,y1-y0);
@@ -191,6 +204,6 @@ export function createPhysicsEngine(){
   for(let i=0;i<=count;i++){const t=i/count,x=x0+(x1-x0)*t,y=y0+(y1-y0)*t;points.push({x,y,px:x,py:y,sx:x,sy:y,anchor:i===0||i===count,sweepAge:0})}
   return{id,points,length:distance/count,stiffness:1};
  }
- function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,recordMove}){if(!Array.isArray(ropes)||ropes.length>MAX_ROPES)return;solveRopes(ropes,cells,width,height,gravity);rebuildIndex(ropes);pushParticlesFromRopeSweep(ropes,cells,width,height,velocityX,velocityY,materialState,recordMove);solveContacts(ropes,cells,width,height,velocityX,velocityY)}
+ function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,recordMove}){if(!Array.isArray(ropes)||ropes.length>MAX_ROPES)return;solveRopes(ropes,cells,width,height,gravity);rebuildIndex(ropes);pushParticlesFromRopeSweep(ropes,cells,width,height,velocityX,velocityY,materialState,recordMove,gravity);solveContacts(ropes,cells,width,height,velocityX,velocityY)}
  return{step,blocksMove,rebuildIndex,makeRope};
 }
