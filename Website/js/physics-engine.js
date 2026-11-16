@@ -40,18 +40,16 @@ export function createPhysicsEngine(){
   };
   return Math.min(pointDistance(ax,ay,cx,cy,dx,dy),pointDistance(bx,by,cx,cy,dx,dy),pointDistance(cx,cy,ax,ay,bx,by),pointDistance(dx,dy,ax,ay,bx,by));
  }
- function pointInSweptQuad(px,py,s){
+ function pointInSweptQuad(px,py,s,radius=0){
   const points=[[s.oldAx,s.oldAy],[s.oldBx,s.oldBy],[s.bx,s.by],[s.ax,s.ay]];
-  let sign=0;
-  for(let i=0;i<4;i++){
-   const a=points[i],b=points[(i+1)&3];
-   const cross=(b[0]-a[0])*(py-a[1])-(b[1]-a[1])*(px-a[0]);
-   if(Math.abs(cross)<1e-8)continue;
-   const next=Math.sign(cross);
-   if(sign&&next!==sign)return false;
-   sign=next;
+  let inside=false;
+  for(let i=0,j=points.length-1;i<points.length;j=i++){
+   const a=points[j],b=points[i],dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy;
+   const t=length?clamp(((px-a[0])*dx+(py-a[1])*dy)/length,0,1):0;
+   if(Math.hypot(px-(a[0]+dx*t),py-(a[1]+dy*t))<=radius)return true;
+   if((a[1]>py)!==(b[1]>py)&&px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])inside=!inside;
   }
-  return sign!==0;
+  return inside;
  }
  function blocksMove(x1,y1,x2,y2){
   if(!segments.length)return false;
@@ -160,7 +158,7 @@ export function createPhysicsEngine(){
     // Include particles crossed by the rope during this tick, not only particles
     // already touching its previous position. This prevents a fast-moving rope
     // from sweeping through and leaving particles on the wrong side.
-    const swept=pointInSweptQuad(px,py,sweep);
+    const swept=pointInSweptQuad(px,py,sweep,RADIUS+.25);
     if(q.distance>RADIUS+.45&&!swept)continue;
     // A rope supports material on the side opposite gravity. This prevents the
     // opposite face of the rope from dragging unrelated particles along.
