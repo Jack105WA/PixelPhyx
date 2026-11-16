@@ -24,30 +24,39 @@ import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/1
     return result;
   }
 
-// Approximate Realtime Database traffic from JSON payload sizes. Firebase's
-// dashboard remains the source of truth; this is a client-side safety estimate.
+// Approximate Realtime Database traffic from JSON payload sizes.
+// These are estimates, not Firebase's official billable usage metrics.
 let usageEstimateBytes = 0;
+let usageEstimateMonthlyBytes = 0;
 let usageEstimateUid = '';
 let usageEstimateDay = '';
+let usageEstimateMonth = '';
 let usageReportTimer = null;
 const usageStoragePrefix = 'pixelphyx-usage-estimate-v1-';
 const usageDailyLimitBytes = 360_000_000;
+const usageMonthlyLimitBytes = 10_000_000_000;
 
 function currentUsageDay() {
   return new Date().toISOString().slice(0, 10);
+}
+function currentUsageMonth() {
+  return new Date().toISOString().slice(0, 7);
 }
 function payloadBytes(value) {
   try { return new TextEncoder().encode(JSON.stringify(value ?? null)).length; }
   catch { return 0; }
 }
 function saveUsageEstimate() {
-  if (!usageEstimateUid || !usageEstimateDay) return;
+  if (!usageEstimateUid) return;
   try {
-    localStorage.setItem(usageStoragePrefix + usageEstimateUid + '-' + usageEstimateDay, String(usageEstimateBytes));
+    if (usageEstimateDay) localStorage.setItem(usageStoragePrefix + usageEstimateUid + '-day-' + usageEstimateDay, String(usageEstimateBytes));
+    if (usageEstimateMonth) localStorage.setItem(usageStoragePrefix + usageEstimateUid + '-month-' + usageEstimateMonth, String(usageEstimateMonthlyBytes));
   } catch {}
 }
 function recordUsage(value) {
-  usageEstimateBytes += payloadBytes(value);
+  const bytes = payloadBytes(value);
+  usageEstimateBytes += bytes;
+  usageEstimateMonthlyBytes += bytes;
   saveUsageEstimate();
 }
 async function get(...args) {
@@ -79,7 +88,9 @@ async function reportUsageEstimate(db, auth) {
   if (!db || !auth?.currentUser || !usageEstimateUid) return;
   const report = {
     day: usageEstimateDay,
-    estimatedBytes: Math.ceil(usageEstimateBytes * 1.5),
+    month: usageEstimateMonth,
+    estimatedDailyBytes: Math.ceil(usageEstimateBytes * 1.5),
+    estimatedMonthlyBytes: Math.ceil(usageEstimateMonthlyBytes * 1.5),
     updatedAt: Date.now()
   };
   try {
@@ -101,45 +112,70 @@ export function createMultiplayer(callbacks = {}) {
   let cachedUsageStatus = null, cachedUsageAt = 0;
   const USAGE_LIMIT_PERCENT = 90;
 
-  async function getDailyUsageStatus(force = false) {
+  async function getUsageStatus(force = false) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const now = Date.now();
     if (!force && cachedUsageStatus && now - cachedUsageAt < 30000) return cachedUsageStatus;
     const day = currentUsageDay();
-    if (usageEstimateUid !== auth.currentUser.uid || usageEstimateDay !== day) {
+    const month = currentUsageMonth();
+    if (usageEstimateUid !== auth.currentUser.uid) {
       usageEstimateUid = auth.currentUser.uid;
+      usageEstimateDay = '';
+      usageEstimateMonth = '';
+    }
+    if (usageEstimateDay !== day) {
       usageEstimateDay = day;
       try {
-        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + day)) || 0);
+        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-day-' + day)) || 0);
       } catch { usageEstimateBytes = 0; }
+    }
+    if (usageEstimateMonth !== month) {
+      usageEstimateMonth = month;
+      try {
+        usageEstimateMonthlyBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-month-' + month)) || 0);
+      } catch { usageEstimateMonthlyBytes = 0; }
     }
     await reportUsageEstimate(db, auth);
     const snapshot = await get(ref(db, 'usageReports'));
     const reports = snapshot.val() || {};
-    let totalBytes = 0;
+    let dailyBytes = 0;
+    let monthlyBytes = 0;
     for (const item of Object.values(reports)) {
-      if (item?.day === day && Number.isFinite(Number(item.estimatedBytes))) {
-        totalBytes += Math.max(0, Number(item.estimatedBytes));
+      if (item?.day === day && Number.isFinite(Number(item.estimatedDailyBytes))) {
+        dailyBytes += Math.max(0, Number(item.estimatedDailyBytes));
+      }
+      if (item?.month === month && Number.isFinite(Number(item.estimatedMonthlyBytes))) {
+        monthlyBytes += Math.max(0, Number(item.estimatedMonthlyBytes));
       }
     }
-    const percent = Math.min(100, Math.max(0, totalBytes / usageDailyLimitBytes * 100));
+    const dailyPercent = Math.min(100, Math.max(0, dailyBytes / usageDailyLimitBytes * 100));
+    const monthlyPercent = Math.min(100, Math.max(0, monthlyBytes / usageMonthlyLimitBytes * 100));
     cachedUsageAt = now;
     cachedUsageStatus = {
-      percent: Number(percent.toFixed(2)),
+      daily: {
+        percent: Number(dailyPercent.toFixed(2)),
+        limitBytes: usageDailyLimitBytes,
+        estimatedBytes: Math.round(dailyBytes),
+        blocked: dailyPercent >= USAGE_LIMIT_PERCENT
+      },
+      monthly: {
+        percent: Number(monthlyPercent.toFixed(2)),
+        limitBytes: usageMonthlyLimitBytes,
+        estimatedBytes: Math.round(monthlyBytes),
+        blocked: monthlyPercent >= USAGE_LIMIT_PERCENT
+      },
+      blocked: dailyPercent >= USAGE_LIMIT_PERCENT || monthlyPercent >= USAGE_LIMIT_PERCENT,
       limit: USAGE_LIMIT_PERCENT,
-      blocked: percent >= USAGE_LIMIT_PERCENT,
-      stale: false,
-      estimatedBytes: Math.round(totalBytes),
-      dailyLimitBytes: usageDailyLimitBytes,
       updatedAt: new Date().toISOString(),
       source: 'Client-side traffic estimate'
     };
     return cachedUsageStatus;
   }
 
-  async function assertDailyUsageAllowed() {
-    const status = await getDailyUsageStatus();
-    if (status.blocked) throw new Error('Online is disabled because the estimated daily bandwidth usage reached the 90% safety limit.');
+  async function assertUsageAllowed() {
+    const status = await getUsageStatus();
+    if (status.daily.blocked) throw new Error('Online is disabled because estimated daily bandwidth reached the 90% safety limit.');
+    if (status.monthly.blocked) throw new Error('Online is disabled because estimated monthly bandwidth reached the 90% safety limit.');
     return status;
   }
 
@@ -190,9 +226,11 @@ export function createMultiplayer(callbacks = {}) {
       playerId = auth.currentUser.uid;
       usageEstimateUid = playerId;
       usageEstimateDay = currentUsageDay();
+      usageEstimateMonth = currentUsageMonth();
       try {
-        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + usageEstimateDay)) || 0);
-      } catch { usageEstimateBytes = 0; }
+        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-day-' + usageEstimateDay)) || 0);
+        usageEstimateMonthlyBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-month-' + usageEstimateMonth)) || 0);
+      } catch { usageEstimateBytes = 0; usageEstimateMonthlyBytes = 0; }
       if (usageReportTimer) clearInterval(usageReportTimer);
       usageReportTimer = setInterval(() => { reportUsageEstimate(db, auth); }, 15 * 60 * 1000);
       report('online', 'FIREBASE ONLINE');
@@ -205,7 +243,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   async function joinRoom(code, identity = {}, approved = false, isHost = false) {
-    await assertDailyUsageAllowed();
+    await assertUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a room code');
@@ -352,7 +390,7 @@ export function createMultiplayer(callbacks = {}) {
 
 
   async function createLobby(identity = {}) {
-    await assertDailyUsageAllowed();
+    await assertUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
     let reserved = null;
@@ -397,7 +435,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   async function requestJoin(code, identity = {}) {
-    await assertDailyUsageAllowed();
+    await assertUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeCode = String(code || '').trim().toUpperCase();
     const lobbySnap = await get(ref(db, 'lobbyDirectory/' + safeCode));
@@ -583,7 +621,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, createLobby, watchLobbies, requestJoin, getDailyUsageStatus, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, updateCursor, updateIdentity,
+    connect, joinRoom, createLobby, watchLobbies, requestJoin, getUsageStatus, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, updateCursor, updateIdentity,
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
