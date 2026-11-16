@@ -797,7 +797,7 @@ export function createMultiplayer(callbacks = {}) {
     // needed occasionally to correct drift, not ten full-world downloads/sec.
     if (now - lastWorldWrite < 30000) return;
     const signature = [world.canvasSize, world.width, world.height, world.gravity, world.ambient, world.cells].join('|');
-    if (signature === lastWorldSignature) return;
+    if (signature === lastWorldSignature && !rtcMode) return;
 
     // Run-length encode the cell grid. Empty space and broad material regions
     // compress dramatically, keeping authoritative checkpoints inexpensive.
