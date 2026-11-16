@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
-  getDatabase, ref, onValue, set, onDisconnect, serverTimestamp,
-  push, onChildAdded, runTransaction, update, remove, get, query, limitToLast
+  getDatabase, ref, onValue as firebaseOnValue, set as firebaseSet, onDisconnect, serverTimestamp,
+  push, onChildAdded as firebaseOnChildAdded, runTransaction, update as firebaseUpdate, remove, get as firebaseGet, query, limitToLast
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
@@ -24,6 +24,71 @@ import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/1
     return result;
   }
 
+// Approximate Realtime Database traffic from JSON payload sizes. Firebase's
+// dashboard remains the source of truth; this is a client-side safety estimate.
+let usageEstimateBytes = 0;
+let usageEstimateUid = '';
+let usageEstimateMonth = '';
+let usageReportTimer = null;
+const usageStoragePrefix = 'pixelphyx-usage-estimate-v1-';
+const usageMonthlyLimitBytes = 10 * 1024 * 1024 * 1024;
+
+function currentUsageMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+function payloadBytes(value) {
+  try { return new TextEncoder().encode(JSON.stringify(value ?? null)).length; }
+  catch { return 0; }
+}
+function saveUsageEstimate() {
+  if (!usageEstimateUid || !usageEstimateMonth) return;
+  try {
+    localStorage.setItem(usageStoragePrefix + usageEstimateUid + '-' + usageEstimateMonth, String(usageEstimateBytes));
+  } catch {}
+}
+function recordUsage(value) {
+  usageEstimateBytes += payloadBytes(value);
+  saveUsageEstimate();
+}
+async function get(...args) {
+  const snapshot = await firebaseGet(...args);
+  recordUsage(snapshot.val());
+  return snapshot;
+}
+function onValue(queryRef, callback, ...args) {
+  return firebaseOnValue(queryRef, snapshot => {
+    recordUsage(snapshot.val());
+    callback(snapshot);
+  }, ...args);
+}
+function onChildAdded(queryRef, callback, ...args) {
+  return firebaseOnChildAdded(queryRef, snapshot => {
+    recordUsage(snapshot.val());
+    callback(snapshot);
+  }, ...args);
+}
+async function set(reference, value) {
+  recordUsage(value);
+  return firebaseSet(reference, value);
+}
+async function update(reference, value) {
+  recordUsage(value);
+  return firebaseUpdate(reference, value);
+}
+async function reportUsageEstimate() {
+  if (!db || !auth?.currentUser || !usageEstimateUid) return;
+  const report = {
+    month: usageEstimateMonth,
+    estimatedBytes: Math.ceil(usageEstimateBytes * 1.5),
+    updatedAt: Date.now()
+  };
+  try {
+    await firebaseSet(ref(db, 'usageReports/' + usageEstimateUid), report);
+  } catch (error) {
+    console.warn('Could not publish bandwidth estimate:', error);
+  }
+}
+
 export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
   let playerId = 'guest-' + secureRandomString(16);
@@ -39,36 +104,42 @@ export function createMultiplayer(callbacks = {}) {
   async function getMonthlyUsageStatus(force = false) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const now = Date.now();
-    if (!force && cachedUsageStatus && now - cachedUsageAt < 10000) return cachedUsageStatus;
-    const snapshot = await get(ref(db, 'serviceStatus'));
-    const raw = snapshot.val();
-    const parsed = Number(raw?.monthlyUsagePercent);
-    if (!raw || !Number.isFinite(parsed)) {
-      throw new Error('Automatic bandwidth monitoring is not configured. Run the Firebase bandwidth monitor workflow.');
+    if (!force && cachedUsageStatus && now - cachedUsageAt < 30000) return cachedUsageStatus;
+    const month = currentUsageMonth();
+    if (usageEstimateUid !== auth.currentUser.uid || usageEstimateMonth !== month) {
+      usageEstimateUid = auth.currentUser.uid;
+      usageEstimateMonth = month;
+      try {
+        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + month)) || 0);
+      } catch { usageEstimateBytes = 0; }
     }
-
-    const updatedAt = Date.parse(raw.updatedAt || '');
-    const sampleAge = now - updatedAt;
-    const stale = raw.monitoringStatus !== 'ok' ||
-      !Number.isFinite(updatedAt) ||
-      sampleAge < -5 * 60 * 1000 ||
-      sampleAge > 3 * 60 * 60 * 1000;
-    const percent = Math.max(0, Math.min(100, parsed));
+    await reportUsageEstimate();
+    const snapshot = await get(ref(db, 'usageReports'));
+    const reports = snapshot.val() || {};
+    let totalBytes = 0;
+    for (const item of Object.values(reports)) {
+      if (item?.month === month && Number.isFinite(Number(item.estimatedBytes))) {
+        totalBytes += Math.max(0, Number(item.estimatedBytes));
+      }
+    }
+    const percent = Math.min(100, Math.max(0, totalBytes / usageMonthlyLimitBytes * 100));
     cachedUsageAt = now;
     cachedUsageStatus = {
-      percent,
+      percent: Number(percent.toFixed(2)),
       limit: USAGE_LIMIT_PERCENT,
-      blocked: percent >= USAGE_LIMIT_PERCENT || stale,
-      stale,
-      updatedAt: raw.updatedAt || null
+      blocked: percent >= USAGE_LIMIT_PERCENT,
+      stale: false,
+      estimatedBytes: Math.round(totalBytes),
+      monthlyLimitBytes: usageMonthlyLimitBytes,
+      updatedAt: new Date().toISOString(),
+      source: 'Client-side traffic estimate'
     };
     return cachedUsageStatus;
   }
 
   async function assertMonthlyUsageAllowed() {
     const status = await getMonthlyUsageStatus();
-    if (status.stale) throw new Error('Online is disabled because the automatic bandwidth monitor is missing or stale.');
-    if (status.blocked) throw new Error('Online is disabled because monthly bandwidth usage reached the 90% safety limit.');
+    if (status.blocked) throw new Error('Online is disabled because the estimated monthly bandwidth usage reached the 90% safety limit.');
     return status;
   }
 
@@ -117,6 +188,13 @@ export function createMultiplayer(callbacks = {}) {
       }
       if (!auth.currentUser) await signInAnonymously(auth);
       playerId = auth.currentUser.uid;
+      usageEstimateUid = playerId;
+      usageEstimateMonth = currentUsageMonth();
+      try {
+        usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + usageEstimateMonth)) || 0);
+      } catch { usageEstimateBytes = 0; }
+      if (usageReportTimer) clearInterval(usageReportTimer);
+      usageReportTimer = setInterval(() => { reportUsageEstimate(); }, 15 * 60 * 1000);
       report('online', 'FIREBASE ONLINE');
       log('Signed in anonymously. Firebase multiplayer is ready.');
       return playerId;
