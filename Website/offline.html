@@ -406,8 +406,8 @@ function createPhysicsEngine(){
  }
  function extractAirborne(cells,w,h,vx,vy,state,airborne,onExtract){
   if(!airborne)return;
-  const keys=['wetness','heat','fuel','burn','age','corrosion'],limit=Math.min(cells.length,MAX_AIRBORNE-airborne.length);
-  for(let i=0;i<limit;i++){const m=cells[i];if(!m)continue;const px=vx[i]||0,py=vy[i]||0;if(Math.hypot(px,py)<1.35)continue;
+  const keys=['wetness','heat','fuel','burn','age','corrosion'];
+  for(let i=0;i<cells.length&&airborne.length<MAX_AIRBORNE;i++){const m=cells[i];if(!m)continue;const px=vx[i]||0,py=vy[i]||0;if(Math.hypot(px,py)<1.35)continue;
    const p={x:i%w+.5,y:Math.floor(i/w)+.5,vx:px,vy:py,material:m,sleep:0};
    for(const k of keys)p[k]=state?.[k]?.[i]||0;
    cells[i]=0;vx[i]=0;vy[i]=0;for(const k of keys)if(state?.[k])state[k][i]=0;onExtract?.(i);airborne.push(p);
