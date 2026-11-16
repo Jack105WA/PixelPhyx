@@ -26,10 +26,8 @@
     },
 
     "serviceStatus": {
-      "monthlyUsagePercent": {
-        ".read": "auth != null",
-        ".write": false
-      }
+      ".read": "auth != null",
+      ".write": false
     }
   }
 }
