@@ -3,64 +3,38 @@ import vm from 'node:vm';
 
 const websiteDir = 'Website/';
 const read = path => readFile(websiteDir + path, 'utf8');
-
-const [offlineHtml, mainSource, physicsSource] = await Promise.all([
+const [offlineHtml, mainSource, physicsSource, engineSource] = await Promise.all([
   read('offline.html'),
   read('js/main.js'),
-  read('js/material-physics.js')
+  read('js/material-physics.js'),
+  read('js/physics-engine.js')
 ]);
+const stripExports = source => source.replace(/\\bexport\\s+(?=(?:const|function)\\b)/g, '');
+const physics = stripExports(physicsSource);
+const engine = stripExports(engineSource);
+if (/\\bexport\\s/.test(physics) || /\\bexport\\s/.test(engine)) throw new Error('Unsupported export syntax in physics modules.');
 
-const physics = physicsSource.replace(/\bexport\s+(?=(?:const|function)\b)/g, '');
-if (/\bexport\s/.test(physics)) {
-  throw new Error('Unsupported export syntax in Website/js/material-physics.js');
-}
-
-const mainStart = mainSource.replace(
-  /^\/\/ Reuse the cache-busting version[\s\S]*?\n\]\);\s*/,
-  ''
-);
-if (mainStart === mainSource) {
-  throw new Error('Could not remove the module imports from Website/js/main.js');
-}
-
+const mainStart = mainSource.replace(/^\\/\\/ Reuse the cache-busting version[\\s\\S]*?\\n\\]\\);\\s*/, '');
+if (mainStart === mainSource) throw new Error('Could not remove module imports from main.js.');
 const offlineMain = mainStart.replace(
   "const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));",
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
 );
-if (offlineMain === mainStart) {
-  throw new Error('Could not replace the multiplayer import in Website/js/main.js');
-}
+if (offlineMain === mainStart) throw new Error('Could not replace multiplayer import.');
 
 const gameScript = [
-  '/* Generated from Website/js/main.js and Website/js/material-physics.js. Do not edit this block manually. */',
-  'window.__pixelphyxOfflineMultiplayer = {',
-  '  createMultiplayer() {',
-  "    throw new Error('Multiplayer is unavailable in the offline edition.');",
-  '  }',
-  '};',
-  'const PixelPhyxMaterial = (() => {',
-  physics,
-  '  return { stepMaterialPhysics, materialState, resetMaterialState };',
-  '})();',
-  '(() => {',
-  '  const firebaseConfig = {};',
-  '  const { stepMaterialPhysics, materialState, resetMaterialState } = PixelPhyxMaterial;',
+  '/* Generated from main.js, material-physics.js and physics-engine.js. */',
+  'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error(\'Multiplayer is unavailable in the offline edition.\')}};',
+  'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
+  'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
+  '(()=>{const firebaseConfig={};',
+  'const {stepMaterialPhysics,materialState,resetMaterialState}=PixelPhyxMaterial;',
+  'const {createPhysicsEngine}=PixelPhyxEngine;',
   offlineMain,
   '})();'
-].join('\n');
-
+].join('\\n');
 new vm.Script(gameScript, { filename: 'offline-game.js' });
-
-// Match script tags regardless of casing, attributes, or whitespace in end tags.
-const firstScript = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
-if (!firstScript.test(offlineHtml)) {
-  throw new Error('Could not find the embedded game script in Website/offline.html');
-}
-
-const updatedHtml = offlineHtml.replace(
-  firstScript,
-  '<script>\n' + gameScript + '\n</script>'
-);
-
-await writeFile(websiteDir + 'offline.html', updatedHtml, 'utf8');
-console.log('Built Website/offline.html from the current website game and physics sources.');
+const scriptTag = /<script\\b[^>]*>[\\s\\S]*?<\\/script\\b[^>]*>/i;
+if (!scriptTag.test(offlineHtml)) throw new Error('Offline game script not found.');
+await writeFile(websiteDir + 'offline.html', offlineHtml.replace(scriptTag, '<script>\\n' + gameScript + '\\n</script>'), 'utf8');
+console.log('Built offline.html with the unified physics engine.');
