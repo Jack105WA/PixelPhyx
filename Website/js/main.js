@@ -737,7 +737,7 @@ function reconcileWorldSnapshots(snapshots){
   const gravity=worlds.reduce((sum,w)=>sum+(Number.isFinite(w.s.gravity)?w.s.gravity:1),0)/worlds.length;
   const ambient=worlds.reduce((sum,w)=>sum+(Number.isFinite(w.s.ambient)?w.s.ambient:20),0)/worlds.length;
   const snapshot={
-   width:W,height:H,canvasSize,cells:encodeCells(mergedCells),packed:false,
+   width:W,height:H,canvasSize,simulationTick:Math.round(worlds.reduce((sum,w)=>sum+(Number.isSafeInteger(w.s.simulationTick)?w.s.simulationTick:simulationTick),0)/worlds.length),cells:encodeCells(mergedCells),packed:false,
    materialState:{...averaged,age:encodeUint16Field(mergedAge)},
    ropes:Array.isArray(reference.ropes)?reference.ropes:[],gravity,ambient,by:'consensus'
   };
