@@ -346,16 +346,40 @@ export function createMultiplayer(callbacks = {}) {
     const now = Date.now();
     // Every peer predicts locally. A compact authoritative checkpoint is only
     // needed occasionally to correct drift, not ten full-world downloads/sec.
-    if (now - lastWorldWrite < 15000) return;
+    if (now - lastWorldWrite < 30000) return;
     const signature = [world.canvasSize, world.width, world.height, world.gravity, world.ambient, world.cells].join('|');
     if (signature === lastWorldSignature) return;
 
+    // Run-length encode the cell grid. Empty space and broad material regions
+    // compress dramatically, keeping authoritative checkpoints inexpensive.
+    const source = atob(world.cells);
+    const encoded = new Uint8Array(source.length * 2);
+    let encodedLength = 0;
+    for (let i = 0; i < source.length;) {
+      const material = source.charCodeAt(i);
+      let count = 1;
+      while (count < 255 && i + count < source.length && source.charCodeAt(i + count) === material) count++;
+      encoded[encodedLength++] = count;
+      encoded[encodedLength++] = material;
+      i += count;
+    }
+    let cellData = world.cells;
+    let rle = false;
+    if (encodedLength < source.length) {
+      let binary = '';
+      for (let i = 0; i < encodedLength; i += 0x8000) {
+        binary += String.fromCharCode(...encoded.subarray(i, Math.min(encodedLength, i + 0x8000)));
+      }
+      cellData = btoa(binary);
+      rle = true;
+    }
     const payload = {
       width: world.width,
       height: world.height,
       canvasSize: world.canvasSize,
-      cells: world.cells,
+      cells: cellData,
       packed: false,
+      rle,
       gravity: world.gravity,
       ambient: world.ambient,
       by: playerId,
