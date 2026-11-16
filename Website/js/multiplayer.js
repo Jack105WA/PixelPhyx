@@ -111,6 +111,14 @@ export function createMultiplayer(callbacks = {}) {
   let lastCursorWriteAt = 0, lastCursorSignature = '', lastLeafblowerWriteAt = 0;
   let cachedUsageStatus = null, cachedUsageAt = 0;
   const USAGE_LIMIT_PERCENT = 90;
+  let rtcMode = false;
+  let rtcPeople = {};
+  let rtcRoomPath = '';
+  let rtcRoomListener = null;
+  let rtcRoomPeers = new Map();
+  let lastLanWorld = null;
+  let lastLanRopes = null;
+  const rtcTransfers = new Map();
 
   async function getUsageStatus(force = false) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
@@ -190,6 +198,191 @@ export function createMultiplayer(callbacks = {}) {
     stopCursors?.(); stopCursors = null;
     stopLeafblowers?.(); stopLeafblowers = null;
     stopJoinRequests?.(); stopJoinRequests = null;
+    stopRtcRoom();
+  }
+
+  function stopRtcRoom() {
+    rtcRoomListener?.(); rtcRoomListener = null;
+    for (const peer of rtcRoomPeers.values()) {
+      peer.stopSignal?.(); peer.stopCandidates?.();
+      try { peer.channel?.close(); } catch {}
+      try { peer.connection?.close(); } catch {}
+    }
+    rtcRoomPeers.clear();
+    rtcTransfers.clear();
+    rtcRoomPath = '';
+  }
+
+  function rtcPairKey(remoteId) {
+    return [playerId, remoteId].sort().join('--');
+  }
+
+  function rtcSendTo(remoteId, type, data) {
+    const peer = rtcRoomPeers.get(remoteId);
+    if (!peer || peer.channel?.readyState !== 'open') return false;
+    const body = JSON.stringify({ type, data });
+    const chunkSize = 42000;
+    if (body.length <= chunkSize) {
+      try { peer.channel.send(body); return true; } catch { return false; }
+    }
+    const transfer = secureRandomString(12);
+    const total = Math.ceil(body.length / chunkSize);
+    for (let index = 0; index < total; index++) {
+      try {
+        peer.channel.send(JSON.stringify({
+          type: '__chunk', transfer, index, total,
+          part: body.slice(index * chunkSize, (index + 1) * chunkSize)
+        }));
+      } catch (error) { log('LAN transfer failed: ' + error.message); return false; }
+    }
+    return true;
+  }
+
+  function rtcBroadcast(type, data, exceptId = '') {
+    for (const remoteId of rtcRoomPeers.keys()) {
+      if (remoteId !== exceptId) rtcSendTo(remoteId, type, data);
+    }
+  }
+
+  function decodeRtcOperation(operation) {
+    if (operation?.type === 'stroke' && typeof operation.pointsPacked === 'string') {
+      try {
+        const raw = atob(operation.pointsPacked);
+        const points = [];
+        for (let i = 0; i + 3 < raw.length; i += 4) {
+          const x = raw.charCodeAt(i) | (raw.charCodeAt(i + 1) << 8);
+          const y = raw.charCodeAt(i + 2) | (raw.charCodeAt(i + 3) << 8);
+          points.push({ x: x / 4, y: y / 4 });
+        }
+        return { ...operation, points };
+      } catch (error) { log('Compressed LAN edit could not be decoded: ' + error.message); return null; }
+    }
+    return operation;
+  }
+
+  function handleRtcMessage(remoteId, raw) {
+    let message;
+    try { message = JSON.parse(raw); } catch { return; }
+    if (message?.type === '__chunk') {
+      if (!Number.isInteger(message.index) || !Number.isInteger(message.total) || message.total < 1 || message.total > 1000 || typeof message.part !== 'string') return;
+      let transfer = rtcTransfers.get(message.transfer);
+      if (!transfer) {
+        transfer = { parts: new Array(message.total), received: 0 };
+        rtcTransfers.set(message.transfer, transfer);
+      }
+      if (transfer.parts.length !== message.total || transfer.parts[message.index] !== undefined) return;
+      transfer.parts[message.index] = message.part;
+      transfer.received++;
+      if (transfer.received === message.total) {
+        rtcTransfers.delete(message.transfer);
+        handleRtcMessage(remoteId, transfer.parts.join(''));
+      }
+      return;
+    }
+    if (!message || typeof message.type !== 'string') return;
+    if (message.type === 'operation') {
+      const operation = decodeRtcOperation(message.data);
+      if (!operation || operation.by === playerId) return;
+      callbacks.onOperation?.(operation);
+      if (hostId === playerId) rtcBroadcast('operation', operation, remoteId);
+    } else if (message.type === 'world' && hostId !== playerId) {
+      if (message.data?.by === hostId) callbacks.onWorld?.(message.data);
+    } else if (message.type === 'ropes' && hostId !== playerId) {
+      if (message.data?.by === hostId && Array.isArray(message.data.ropes)) callbacks.onRopes?.(message.data);
+    }
+  }
+
+  function attachRtcChannel(remoteId, peer, channel) {
+    peer.channel = channel;
+    channel.binaryType = 'arraybuffer';
+    channel.onopen = () => {
+      log('Direct LAN link established with ' + (rtcPeople[remoteId]?.name || 'a peer'));
+      if (hostId === playerId) {
+        if (lastLanWorld) rtcSendTo(remoteId, 'world', lastLanWorld);
+        if (lastLanRopes) rtcSendTo(remoteId, 'ropes', lastLanRopes);
+      }
+    };
+    channel.onmessage = event => handleRtcMessage(remoteId, event.data);
+    channel.onclose = () => log('Direct LAN link closed with ' + (rtcPeople[remoteId]?.name || 'a peer'));
+    channel.onerror = () => log('Direct LAN link error with ' + (rtcPeople[remoteId]?.name || 'a peer'));
+  }
+
+  function startRtcPeer(remoteId) {
+    if (!rtcMode || !joined || !remoteId || remoteId === playerId || rtcRoomPeers.has(remoteId) || !rtcRoomPath) return;
+    const pairPath = rtcRoomPath + '/' + rtcPairKey(remoteId);
+    const initiator = playerId.localeCompare(remoteId) < 0;
+    const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const peer = { connection, channel: null, stopSignal: null, stopCandidates: null };
+    rtcRoomPeers.set(remoteId, peer);
+    const ownCandidates = ref(db, pairPath + '/candidates/' + playerId);
+    const remoteCandidates = ref(db, pairPath + '/candidates/' + remoteId);
+    connection.onicecandidate = event => {
+      if (event.candidate) push(ownCandidates, event.candidate.toJSON()).catch(error => log('LAN signaling failed: ' + error.message));
+    };
+    connection.onconnectionstatechange = () => {
+      if (connection.connectionState === 'failed' || connection.connectionState === 'closed') {
+        peer.stopSignal?.(); peer.stopCandidates?.();
+        try { peer.channel?.close(); } catch {}
+        try { connection.close(); } catch {}
+        rtcRoomPeers.delete(remoteId);
+        if (connection.connectionState === 'failed') log('LAN connection failed. Check that both devices allow WebRTC/local network traffic.');
+      }
+    };
+    if (initiator) attachRtcChannel(remoteId, peer, connection.createDataChannel('pixelphyx', { ordered: true }));
+    else connection.ondatachannel = event => attachRtcChannel(remoteId, peer, event.channel);
+
+    peer.stopCandidates = onChildAdded(remoteCandidates, snapshot => {
+      const candidate = snapshot.val();
+      if (candidate) connection.addIceCandidate(candidate).catch(() => {});
+    }, error => log('LAN candidate signaling failed: ' + error.message));
+
+    let handlingSignal = false;
+    peer.stopSignal = onValue(ref(db, pairPath), snapshot => {
+      const signal = snapshot.val();
+      if (!signal || handlingSignal) return;
+      handlingSignal = true;
+      (async () => {
+        try {
+          if (initiator && signal.answer && !connection.currentRemoteDescription) {
+            await connection.setRemoteDescription(signal.answer);
+          } else if (!initiator && signal.offer && !connection.currentRemoteDescription) {
+            await connection.setRemoteDescription(signal.offer);
+            const answer = await connection.createAnswer();
+            await connection.setLocalDescription(answer);
+            await set(ref(db, pairPath + '/answer'), { type: answer.type, sdp: answer.sdp });
+          }
+        } catch (error) { log('LAN negotiation failed: ' + error.message); }
+        finally { handlingSignal = false; }
+      })();
+    }, error => log('LAN signaling listener failed: ' + error.message));
+
+    if (initiator) {
+      (async () => {
+        try {
+          await set(ref(db, pairPath), null);
+          await set(ownCandidates, null);
+          const offer = await connection.createOffer();
+          await connection.setLocalDescription(offer);
+          await update(ref(db, pairPath), { offer: { type: offer.type, sdp: offer.sdp }, createdAt: Date.now() });
+        } catch (error) { log('Could not start LAN connection: ' + error.message); }
+      })();
+    }
+  }
+
+  function reconcileRtcPeers(people = rtcPeople) {
+    if (!rtcMode || !joined || !hostId) return;
+    const wanted = hostId === playerId
+      ? Object.keys(people).filter(id => id !== playerId)
+      : (people[hostId] ? [hostId] : []);
+    for (const id of wanted) startRtcPeer(id);
+    for (const [id, peer] of rtcRoomPeers) {
+      if (!wanted.includes(id)) {
+        peer.stopSignal?.(); peer.stopCandidates?.();
+        try { peer.channel?.close(); } catch {}
+        try { peer.connection?.close(); } catch {}
+        rtcRoomPeers.delete(id);
+      }
+    }
   }
 
   function syncJoinRequestListener() {
@@ -242,7 +435,7 @@ export function createMultiplayer(callbacks = {}) {
     }
   }
 
-  async function joinRoom(code, identity = {}, approved = false, isHost = false) {
+  async function joinRoom(code, identity = {}, approved = false, isHost = false, options = {}) {
     await assertUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
@@ -252,6 +445,10 @@ export function createMultiplayer(callbacks = {}) {
 
     stopListeners();
     joined = false;
+    rtcMode = !!options.lan;
+    rtcPeople = {};
+    lastLanWorld = null;
+    lastLanRopes = null;
     if (presenceRef) await remove(presenceRef).catch(() => {});
     if (cursorRef) await remove(cursorRef).catch(() => {});
     room = nextRoom;
@@ -293,7 +490,7 @@ export function createMultiplayer(callbacks = {}) {
         joinedAt: serverTimestamp()
       });
 
-      stopWorld = onValue(ref(db, roomPath + '/worldStates'), snapshot => {
+      if (!rtcMode) stopWorld = onValue(ref(db, roomPath + '/worldStates'), snapshot => {
         // Only the elected host is allowed to drive the shared simulation.
         // Ignore stale checkpoints left by previous peers or older clients.
         const latest = snapshot.child(hostId || '__no_host__').val();
@@ -304,7 +501,7 @@ export function createMultiplayer(callbacks = {}) {
         callbacks.onWorld?.(latest);
       }, error => log('World sync error: ' + error.message));
 
-      stopRopes = onValue(ref(db, roomPath + '/ropeStates'), snapshot => {
+      if (!rtcMode) stopRopes = onValue(ref(db, roomPath + '/ropeStates'), snapshot => {
         const state = snapshot.child(hostId || '__no_host__').val();
         if (!state || state.by !== hostId || !Array.isArray(state.ropes)) return;
         callbacks.onRopes?.(state);
@@ -315,7 +512,7 @@ export function createMultiplayer(callbacks = {}) {
       const operationQuery = query(operationsRef, limitToLast(25));
       const existingOperations = await get(operationQuery);
       const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
-      stopOperations = onChildAdded(operationQuery, snapshot => {
+      if (!rtcMode) stopOperations = onChildAdded(operationQuery, snapshot => {
         if (existingKeys.has(snapshot.key)) {
           if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
           return;
@@ -345,7 +542,9 @@ export function createMultiplayer(callbacks = {}) {
 
       stopPlayers = onValue(ref(db, roomPath + '/players'), async snapshot => {
         const people = snapshot.val() || {};
+        rtcPeople = people;
         callbacks.onPlayers?.(people);
+        if (rtcMode) reconcileRtcPeers(people);
         if (hostId === playerId) update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
         const ids = Object.keys(people).sort();
         if (hostId && people[hostId]) {
@@ -379,17 +578,22 @@ export function createMultiplayer(callbacks = {}) {
       hostId = confirmedHost.val() || playerId;
       joined = true;
       syncJoinRequestListener();
-      report('online', 'ROOM ONLINE');
+      if (rtcMode) {
+        rtcRoomPath = roomPath + '/rtc';
+        reconcileRtcPeers(rtcPeople);
+      }
+      report('online', rtcMode ? 'LAN P2P' : 'ROOM ONLINE');
       log('Connected to room ' + room + (hostId === playerId ? ' as host' : ''));
     } catch (error) {
       joined = false;
+      stopRtcRoom();
       report('', 'ROOM ERROR');
       throw error;
     }
   }
 
 
-  async function createLobby(identity = {}) {
+  async function createLobby(identity = {}, options = {}) {
     await assertUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
@@ -408,7 +612,7 @@ export function createMultiplayer(callbacks = {}) {
     }
     if (!reserved) throw new Error('All 20 lobby slots are full. Try joining an existing lobby.');
     try {
-      await joinRoom(reserved.code, identity, true, true);
+      await joinRoom(reserved.code, identity, true, true, options);
       lobbySlot = reserved.slot;
       await set(ref(db, 'lobbyDirectory/' + reserved.code), {
         room: reserved.code, slot: reserved.slot, hostId: playerId, hostName: safeName,
@@ -483,8 +687,13 @@ export function createMultiplayer(callbacks = {}) {
         payload.pointsPacked = btoa(binary);
         payload.pointScale = 4;
       }
-      push(ref(db, 'rooms/' + operationRoom + '/operations'), payload)
-        .catch(error => log('Edit sync failed: ' + error.message));
+      if (rtcMode) {
+        if (hostId === playerId) rtcBroadcast('operation', payload);
+        else rtcSendTo(hostId, 'operation', payload);
+      } else {
+        push(ref(db, 'rooms/' + operationRoom + '/operations'), payload)
+          .catch(error => log('Edit sync failed: ' + error.message));
+      }
     };
 
     // Send rope drag updates immediately. An artificial delay makes the
@@ -559,6 +768,12 @@ export function createMultiplayer(callbacks = {}) {
       updatedAt: now
     };
     lastWorldWrite = now;
+    if (rtcMode) {
+      lastLanWorld = payload;
+      lastWorldSignature = signature;
+      rtcBroadcast('world', payload);
+      return;
+    }
     pendingWorld = { payload, signature };
     if (worldWriteInFlight) return;
 
@@ -588,6 +803,12 @@ export function createMultiplayer(callbacks = {}) {
     if (now - lastRopeWrite < 1000 / 10) return;
     lastRopeWrite = now;
     pendingRopes = { by: playerId, updatedAt: now, ropes };
+    if (rtcMode) {
+      lastLanRopes = pendingRopes;
+      lastRopeSignature = signature;
+      rtcBroadcast('ropes', pendingRopes);
+      return;
+    }
     if (ropeWriteInFlight) return;
     ropeWriteInFlight = true;
     (async () => {
@@ -622,6 +843,7 @@ export function createMultiplayer(callbacks = {}) {
 
   return {
     connect, joinRoom, createLobby, watchLobbies, requestJoin, getUsageStatus, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, updateCursor, updateIdentity,
+    get lanMode() { return rtcMode; },
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
