@@ -417,6 +417,10 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
  // Host snapshots remain authoritative checkpoints that periodically correct drift.
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
+ if(multiplayer?.joined&&multiplayer.isHost&&multiplayer.lanMode){
+  if(now-lastWorldPublish>=30000){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
+  if(now-lastRopePublish>=100){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
+ }
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
