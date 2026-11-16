@@ -1,5 +1,4 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 
 const websiteDir = 'Website/';
@@ -43,14 +42,9 @@ new vm.Script(gameScript, { filename: 'offline-game.js' });
 
 const scriptTag = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
 if (!scriptTag.test(offlineHtml)) throw new Error('Offline game script not found.');
-const buildId = createHash('sha256').update(gameScript).digest('hex');
-const updater = `<script id="pixelphyx-offline-updater">\n(async()=>{\n  const latestUrl='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Website/offline.html';\n  try{\n    const response=await fetch(latestUrl+'?t='+Date.now(),{cache:'no-store'});\n    if(!response.ok)return;\n    const latestHtml=await response.text();\n    const latestBuild=latestHtml.match(/<meta\\s+name=["']pixelphyx-offline-build["']\\s+content=["']([^"']+)["']/i)?.[1];\n    const currentBuild=document.querySelector('meta[name="pixelphyx-offline-build"]')?.content;\n    if(latestBuild&&currentBuild&&latestBuild!==currentBuild){document.open();document.write(latestHtml);document.close()}\n  }catch(error){console.info('PixelPhyx is running from the available offline copy.',error)}\n})();\n</script>`;
-let builtHtml = offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>');
-builtHtml = builtHtml.replace(/<meta\s+name=["']pixelphyx-offline-build["'][^>]*>\s*/i, '');
-builtHtml = builtHtml.replace(/<script\s+id=["']pixelphyx-offline-updater["'][^>]*>[\s\S]*?<\/script>\s*/i, '');
-builtHtml = builtHtml.replace(/<head\b[^>]*>/i, match => `${match}\n<meta name="pixelphyx-offline-build" content="${buildId}">`);
-if (!/<head\b/i.test(builtHtml)) throw new Error('Offline document head not found.');
-builtHtml = builtHtml.replace(/<\/body>/i, `${updater}\n</body>`);
-if (builtHtml === offlineHtml) throw new Error('Could not update offline.html.');
-await writeFile(websiteDir + 'offline.html', builtHtml, 'utf8');
-console.log(`Built offline.html (${buildId}) with the unified physics engine and open-time updater.`);
+await writeFile(
+  websiteDir + 'offline.html',
+  offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>'),
+  'utf8'
+);
+console.log('Built offline.html with the unified physics engine.');
