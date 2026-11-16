@@ -1,60 +1,66 @@
 const { initializeApp } = require("firebase-admin/app");
 const { getDatabase } = require("firebase-admin/database");
-const { onValueDeleted } = require("firebase-functions/v2/database");
+const { onValueWritten } = require("firebase-functions/v2/database");
 const logger = require("firebase-functions/logger");
 
-initializeApp();
+const DATABASE_URL = "https://pixelphyx-backendv2-default-rtdb.firebaseio.com";
+const CLEANUP_GRACE_MS = 3000;
 
-const DATABASE_INSTANCE = "pixelphyx-backendv2-default-rtdb";
-const CLEANUP_GRACE_MS = 2000;
+const app = initializeApp({ databaseURL: DATABASE_URL });
+const database = getDatabase(app);
 
-exports.clearEmptyRoom = onValueDeleted(
+exports.clearEmptyRoom = onValueWritten(
   {
-    ref: "/rooms/{roomId}/players/{playerId}",
-    instance: DATABASE_INSTANCE,
+    ref: "/rooms/{roomId}/players",
+    instance: "pixelphyx-backendv2-default-rtdb",
     region: "us-central1"
   },
   async (event) => {
-    const { roomId, playerId } = event.params;
-    const database = getDatabase();
-    const roomRef = database.ref(`rooms/${roomId}`);
+    const { roomId } = event.params;
+    const playersAfterWrite = event.data.after.val();
 
-    // Allow the remaining clients' onDisconnect handlers to finish first.
+    // This parent-level trigger runs for both child deletion and whole-list deletion.
+    if (playersAfterWrite && Object.keys(playersAfterWrite).length > 0) return;
+
     await new Promise((resolve) => setTimeout(resolve, CLEANUP_GRACE_MS));
 
-    // Delete only if the room is still empty. A concurrent rejoin aborts this.
+    // Recheck atomically so a player who rejoins during the grace period is safe.
+    const roomRef = database.ref(`rooms/${roomId}`);
     const result = await roomRef.transaction((room) => {
       if (!room) return;
-      if (room.players && Object.keys(room.players).length !== 0) return;
+      if (room.players && Object.keys(room.players).length > 0) return;
       return null;
     });
 
     if (!result.committed) {
-      logger.info("Kept PixelPhyx room because it is active or already removed", { roomId });
+      logger.info("Kept room because it became active or was already removed", { roomId });
       return;
     }
 
-    // Remove the public gallery entry and its reserved slot as well.
-    const directoryRef = database.ref(`lobbyDirectory/${roomId}`);
-    const directorySnapshot = await directoryRef.get();
-    const slot = directorySnapshot.child("slot").val();
-
-    await directoryRef.transaction((current) => {
+    // Remove the gallery entry only if it still points to this room.
+    await database.ref(`lobbyDirectory/${roomId}`).transaction((current) => {
       if (!current || current.room !== roomId) return;
       return null;
     });
 
-    if (typeof slot === "string" && /^slot-\d{2}$/.test(slot)) {
-      await database.ref(`lobbySlots/${slot}`).transaction((current) => {
+    // Search the small, fixed 20-slot reservation list. This also cleans up
+    // reservations when a lobby directory entry was missing or stale.
+    const slotsSnapshot = await database.ref("lobbySlots").get();
+    const slots = slotsSnapshot.val() || {};
+    const matchingSlots = Object.entries(slots)
+      .filter(([, value]) => value?.room === roomId)
+      .map(([slot]) => slot);
+
+    await Promise.all(matchingSlots.map((slot) =>
+      database.ref(`lobbySlots/${slot}`).transaction((current) => {
         if (!current || current.room !== roomId) return;
         return null;
-      });
-    }
+      })
+    ));
 
-    logger.info("Deleted empty PixelPhyx room and lobby listing", {
+    logger.info("Removed empty room, gallery entry, and slot reservations", {
       roomId,
-      departedPlayerId: playerId,
-      slot: slot || null
+      removedSlots: matchingSlots
     });
   }
 );
