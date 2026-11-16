@@ -33,6 +33,30 @@ export function createMultiplayer(callbacks = {}) {
   let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0, lastWorldSignature = null;
   let lastRopeWrite = 0, ropeWriteInFlight = false, pendingRopes = null, lastRopeSignature = null;
   let lastCursorWriteAt = 0, lastCursorSignature = '', lastLeafblowerWriteAt = 0;
+  let cachedUsageStatus = null, cachedUsageAt = 0;
+  const USAGE_LIMIT_PERCENT = 90;
+
+  async function getMonthlyUsageStatus(force = false) {
+    if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
+    const now = Date.now();
+    if (!force && cachedUsageStatus && now - cachedUsageAt < 10000) return cachedUsageStatus;
+    const snapshot = await get(ref(db, 'serviceStatus/monthlyUsagePercent'));
+    const raw = snapshot.val();
+    const parsed = Number(raw);
+    if (raw === null || raw === undefined || !Number.isFinite(parsed)) {
+      throw new Error('Monthly usage status is not configured. Set serviceStatus/monthlyUsagePercent in Firebase to a number from 0 to 100.');
+    }
+    const percent = Math.max(0, Math.min(100, parsed));
+    cachedUsageAt = now;
+    cachedUsageStatus = { percent, limit: USAGE_LIMIT_PERCENT, blocked: percent >= USAGE_LIMIT_PERCENT };
+    return cachedUsageStatus;
+  }
+
+  async function assertMonthlyUsageAllowed() {
+    const status = await getMonthlyUsageStatus();
+    if (status.blocked) throw new Error('Online is disabled because monthly bandwidth usage reached the 90% safety limit.');
+    return status;
+  }
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -89,6 +113,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   async function joinRoom(code, identity = {}, approved = false, isHost = false) {
+    await assertMonthlyUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a room code');
@@ -235,6 +260,7 @@ export function createMultiplayer(callbacks = {}) {
 
 
   async function createLobby(identity = {}) {
+    await assertMonthlyUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
     let reserved = null;
@@ -279,6 +305,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   async function requestJoin(code, identity = {}) {
+    await assertMonthlyUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeCode = String(code || '').trim().toUpperCase();
     const lobbySnap = await get(ref(db, 'lobbyDirectory/' + safeCode));
@@ -464,7 +491,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, updateCursor, updateIdentity,
+    connect, joinRoom, createLobby, watchLobbies, requestJoin, getMonthlyUsageStatus, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, updateCursor, updateIdentity,
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
