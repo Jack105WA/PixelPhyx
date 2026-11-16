@@ -28,10 +28,11 @@ export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
   let playerId = 'guest-' + secureRandomString(16);
   let joined = false, hostId = null, presenceRef = null;
-  let stopOperations = null, stopWorld = null, stopRopes = null, stopPlayers = null, stopCursors = null, stopHost = null;
+  let stopOperations = null, stopWorld = null, stopRopes = null, stopPlayers = null, stopCursors = null, stopLeafblowers = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
-  let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0;
-  let lastRopeWrite = 0, ropeWriteInFlight = false, pendingRopes = null;
+  let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0, lastWorldSignature = null;
+  let lastRopeWrite = 0, ropeWriteInFlight = false, pendingRopes = null, lastRopeSignature = null;
+  let lastCursorWriteAt = 0, lastCursorSignature = '', lastLeafblowerWriteAt = 0;
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -42,6 +43,7 @@ export function createMultiplayer(callbacks = {}) {
     stopPlayers?.(); stopPlayers = null;
     stopHost?.(); stopHost = null;
     stopCursors?.(); stopCursors = null;
+    stopLeafblowers?.(); stopLeafblowers = null;
     stopJoinRequests?.(); stopJoinRequests = null;
   }
 
@@ -112,9 +114,15 @@ export function createMultiplayer(callbacks = {}) {
     }, error => log('Host sync error: ' + error.message));
     presenceRef = ref(db, roomPath + '/players/' + playerId);
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
-    const leafblowerRef = ref(db, roomPath + '/cursors/' + playerId + '/leafblower');
+    const leafblowerRef = ref(db, roomPath + '/leafblowers/' + playerId + '/leafblower');
     const worldStateRef = ref(db, roomPath + '/worldStates/' + playerId);
     lastWorldRevision = 0;
+    lastWorldWrite = 0;
+    lastWorldSignature = null;
+    lastRopeWrite = 0;
+    lastRopeSignature = null;
+    lastCursorWriteAt = 0;
+    lastCursorSignature = '';
 
     try {
       const hostResult = await runTransaction(hostRef, current => current || playerId);
@@ -149,7 +157,7 @@ export function createMultiplayer(callbacks = {}) {
 
       const operationsRef = ref(db, roomPath + '/operations');
       // Read only a bounded tail. Old operation history must never be downloaded in full.
-      const operationQuery = query(operationsRef, limitToLast(100));
+      const operationQuery = query(operationsRef, limitToLast(25));
       const existingOperations = await get(operationQuery);
       const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
       stopOperations = onChildAdded(operationQuery, snapshot => {
@@ -165,15 +173,17 @@ export function createMultiplayer(callbacks = {}) {
       }, error => log('Edit sync error: ' + error.message));
 
       stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
-        const cursors = snapshot.val() || {};
-        callbacks.onCursors?.(cursors);
-        callbacks.onLeafblowers?.(cursors);
+        callbacks.onCursors?.(snapshot.val() || {});
       }, error => log('Cursor sync error: ' + error.message));
+
+      stopLeafblowers = onValue(ref(db, roomPath + '/leafblowers'), snapshot => {
+        callbacks.onLeafblowers?.(snapshot.val() || {});
+      }, error => log('Leafblower sync error: ' + error.message));
 
       stopPlayers = onValue(ref(db, roomPath + '/players'), async snapshot => {
         const people = snapshot.val() || {};
         callbacks.onPlayers?.(people);
-        update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
+        if (hostId === playerId) update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
         const ids = Object.keys(people).sort();
         if (hostId && people[hostId]) {
           syncJoinRequestListener();
@@ -196,14 +206,7 @@ export function createMultiplayer(callbacks = {}) {
               hostId,
               ...(electedPlayer?.name ? { hostName: electedPlayer.name } : {})
             }).catch(() => {});
-            get(directoryRef).then(directory => {
-              const slot = directory.val()?.slot;
-              if (slot) update(ref(db, 'lobbySlots/' + slot), {
-                hostId,
-                ...(electedPlayer?.name ? { hostName: electedPlayer.name } : {})
-              }).catch(() => {});
-            }).catch(() => {});
-          }
+            }
         } catch (error) {
           log('Host election failed: ' + error.message);
         }
@@ -319,11 +322,16 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function publishLeafblower(state) {
-    if (!db || !joined || !room || !cursorRef) return;
-    const payload = state?.active && [state.x, state.y, state.dx, state.dy].every(Number.isFinite)
-      ? { active: true, x: state.x, y: state.y, dx: state.dx, dy: state.dy, updatedAt: Date.now() }
-      : { active: false, updatedAt: Date.now() };
-    update(cursorRef, { leafblower: payload }).catch(error => log('Leafblower sync failed: ' + error.message));
+    if (!db || !joined || !room) return;
+    const active = !!(state?.active && [state.x, state.y, state.dx, state.dy].every(Number.isFinite));
+    const now = Date.now();
+    if (active && now - lastLeafblowerWriteAt < 100) return;
+    lastLeafblowerWriteAt = now;
+    const payload = active
+      ? { active: true, x: state.x, y: state.y, dx: state.dx, dy: state.dy, updatedAt: now }
+      : { active: false, updatedAt: now };
+    set(ref(db, 'rooms/' + room + '/leafblowers/' + playerId + '/leafblower'), payload)
+      .catch(error => log('Leafblower sync failed: ' + error.message));
   }
 
   function updateIdentity(name, color) {
@@ -334,24 +342,40 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function publishWorld(world) {
-    if (!db || !joined || !room || hostId !== playerId) return;
+    if (!db || !joined || !room || hostId !== playerId || !world || typeof world.cells !== 'string') return;
     const now = Date.now();
-    if (now - lastWorldWrite < 1000 / 60) return;
+    // Every peer predicts locally. A compact authoritative checkpoint is only
+    // needed occasionally to correct drift, not ten full-world downloads/sec.
+    if (now - lastWorldWrite < 15000) return;
+    const signature = [world.canvasSize, world.width, world.height, world.gravity, world.ambient, world.cells].join('|');
+    if (signature === lastWorldSignature) return;
+
+    const payload = {
+      width: world.width,
+      height: world.height,
+      canvasSize: world.canvasSize,
+      cells: world.cells,
+      packed: false,
+      gravity: world.gravity,
+      ambient: world.ambient,
+      by: playerId,
+      updatedAt: now
+    };
     lastWorldWrite = now;
-    pendingWorld = world;
+    pendingWorld = { payload, signature };
     if (worldWriteInFlight) return;
 
     worldWriteInFlight = true;
     (async () => {
       try {
-        while (pendingWorld && joined && room) {
+        while (pendingWorld && joined && room && hostId === playerId) {
           const latest = pendingWorld;
           pendingWorld = null;
-          await set(ref(db, 'rooms/' + room + '/worldStates/' + playerId), {
-            ...latest, by: playerId, updatedAt: serverTimestamp()
-          });
+          await set(ref(db, 'rooms/' + room + '/worldStates/' + playerId), latest.payload);
+          lastWorldSignature = latest.signature;
         }
       } catch (error) {
+        lastWorldWrite = 0;
         log('World sync failed: ' + error.message);
       } finally {
         worldWriteInFlight = false;
@@ -361,8 +385,10 @@ export function createMultiplayer(callbacks = {}) {
 
   function publishRopes(ropes) {
     if (!db || !joined || !room || hostId !== playerId) return;
+    const signature = JSON.stringify(ropes);
+    if (signature === lastRopeSignature) return;
     const now = Date.now();
-    if (now - lastRopeWrite < 1000 / 30) return;
+    if (now - lastRopeWrite < 1000 / 10) return;
     lastRopeWrite = now;
     pendingRopes = { by: playerId, updatedAt: now, ropes };
     if (ropeWriteInFlight) return;
@@ -373,6 +399,7 @@ export function createMultiplayer(callbacks = {}) {
           const latest = pendingRopes;
           pendingRopes = null;
           await set(ref(db, 'rooms/' + room + '/ropeStates/' + playerId), latest);
+          lastRopeSignature = JSON.stringify(latest.ropes);
         }
       } catch (error) {
         log('Rope sync failed: ' + error.message);
@@ -383,9 +410,14 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function updateCursor(point, color, name) {
-    if (!db || !joined || !room) return;
+    if (!db || !joined || !room || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+    const signature = [Math.round(point.x * 2), Math.round(point.y * 2), color, name].join('|');
+    const now = Date.now();
+    if (signature === lastCursorSignature || now - lastCursorWriteAt < 100) return;
+    lastCursorSignature = signature;
+    lastCursorWriteAt = now;
     update(ref(db, 'rooms/' + room + '/cursors/' + playerId), {
-      x: point.x, y: point.y, color, name, updatedAt: Date.now()
+      x: point.x, y: point.y, color, name, updatedAt: now
     }).catch(() => {});
   }
 
