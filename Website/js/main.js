@@ -492,7 +492,7 @@ function render(){
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
  // Draw pointers in the CSS-sized overlay so canvas resolution never changes
  // their on-screen dimensions. Keep the medium-canvas pointer slightly smaller.
- const cursorScale=.75;
+ const cursorScale=1.25;
  if(localCursor){
   drawPlayerCursor({x:localCursor.x/W*canvasRect.width,y:localCursor.y/H*canvasRect.height},true,nameCtx,cursorScale);
  }
