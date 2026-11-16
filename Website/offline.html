@@ -579,7 +579,7 @@ function pushParticlesFromRopeSweep(){
   for(let i=0;i<4;i++){
    const a=points[i],b=points[(i+1)%4],v=cross(b[0]-a[0],b[1]-a[1],px-a[0],py-a[1]);
    if(Math.abs(v)<.0001)continue;
-   const s=Math.sign(v);if(sign&&s!==sign)return false;sign=s;
+   const currentSign=Math.sign(v);if(sign&&currentSign!==sign)return false;sign=currentSign;
   }
   return true;
  };
@@ -593,43 +593,44 @@ function pushParticlesFromRopeSweep(){
    const minY=Math.max(0,Math.floor(Math.min(ay,by,a.y,b.y)-1)),maxY=Math.min(H-1,Math.ceil(Math.max(ay,by,a.y,b.y)+1));
    const candidates=[];
    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
-    const from=idx(x,y),m=cells[from];if(!m||carried[from])continue;
+    const from=idx(x,y),material=cells[from];if(!material||carried[from])continue;
     const px=x+.5,py=y+.5;
     if(!insideQuad(px,py,ax,ay,bx,by,b.x,b.y,a.x,a.y))continue;
     const sx=bx-ax,sy=by-ay,len=sx*sx+sy*sy;
     const t=len?Math.max(0,Math.min(1,((px-ax)*sx+(py-ay)*sy)/len)):.5;
     const dx=daX+(dbX-daX)*t,dy=daY+(dbY-daY)*t;
-    const tx=Math.round(x+dx),ty=Math.round(y+dy);
-    if(!inside(tx,ty)||(!dx&&!dy))continue;
-    candidates.push({from,to:idx(tx,ty),material:m,progress:dx*(x-ax)+dy*(y-ay),dx,dy});
+    const stepX=Math.round(dx),stepY=Math.round(dy);
+    if(!inside(x+stepX,y+stepY)||(!stepX&&!stepY))continue;
+    candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY});
    }
-   // Push the leading edge first, recursively moving occupied destinations.
-   // This makes packed particles travel together instead of being skipped.
    candidates.sort((u,v)=>v.progress-u.progress);
-   const pushChain=(from,stepX,stepY,visiting)=>{
+   const pushChain=(from,stepX,stepY,launchVx,launchVy,visiting)=>{
     if(carried[from]||!cells[from]||visiting.has(from))return false;
     const x=from%W,y=(from/W)|0,tx=x+stepX,ty=y+stepY;
     if(!inside(tx,ty))return false;
-    const to=idx(tx,ty);
-    if(to===from)return false;
+    const to=idx(tx,ty);if(to===from)return false;
     visiting.add(from);
     if(cells[to]!==M.EMPTY){
-     if(carried[to]||!pushChain(to,stepX,stepY,visiting)){visiting.delete(from);return false}
+     if(carried[to]||!pushChain(to,stepX,stepY,launchVx,launchVy,visiting)){visiting.delete(from);return false}
     }
     const material=cells[from];
     if(!material||cells[to]!==M.EMPTY){visiting.delete(from);return false}
     cells[to]=material;cells[from]=M.EMPTY;
     for(const state of stateArrays){state[to]=state[from];state[from]=0}
     carried[from]=1;carried[to]=1;
-    recordParticleMove(from,to,material);particleVelocityX[to]=Math.max(-8,Math.min(8,particleVelocityX[to]+stepX*.72));particleVelocityY[to]=Math.max(-8,Math.min(8,particleVelocityY[to]+stepY*.72));
+    recordParticleMove(from,to,material);
+    // Preserve the rope's actual direction and speed, not just its rounded grid step.
+    particleVelocityX[to]=Math.max(-8,Math.min(8,launchVx));
+    particleVelocityY[to]=Math.max(-8,Math.min(8,launchVy));
     visiting.delete(from);
     return true;
    };
    for(const c of candidates){
     if(carried[c.from]||cells[c.from]!==c.material)continue;
-    const stepX=Math.round(c.dx),stepY=Math.round(c.dy);
-    if(!stepX&&!stepY)continue;
-    pushChain(c.from,stepX,stepY,new Set());
+    if(!c.stepX&&!c.stepY)continue;
+    const launchVx=Math.max(-8,Math.min(8,c.dx*1.65));
+    const launchVy=Math.max(-8,Math.min(8,c.dy*1.65));
+    pushChain(c.from,c.stepX,c.stepY,launchVx,launchVy,new Set());
    }
   }
  }
@@ -695,7 +696,7 @@ function drawVisualParticles(){
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);rebuildRopeCollisionIndex();updated.fill(0);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.28;if(sy)vy*=-.24}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);rebuildRopeCollisionIndex();updated.fill(0);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
