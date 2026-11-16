@@ -20,7 +20,7 @@ async function getAccessToken() {
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const claims = base64url(JSON.stringify({
     iss: serviceAccount.client_email,
-    scope: 'https://www.googleapis.com/auth/cloud-platform',
+    scope: [\n      'https://www.googleapis.com/auth/cloud-platform',\n      'https://www.googleapis.com/auth/firebase.database',\n      'https://www.googleapis.com/auth/userinfo.email'\n    ].join(' '),
     aud: serviceAccount.token_uri || 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600
@@ -106,7 +106,7 @@ async function main() {
   };
 
   const response = await fetch(databaseUrl + '/serviceStatus.json', {
-    method: 'PUT',
+    method: 'PATCH',
     headers: {
       authorization: 'Bearer ' + accessToken,
       'content-type': 'application/json'
