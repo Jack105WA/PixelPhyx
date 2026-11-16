@@ -127,17 +127,10 @@ export function createMultiplayer(callbacks = {}) {
       });
 
       stopWorld = onValue(ref(db, roomPath + '/worldStates'), snapshot => {
-        const states = Object.values(snapshot.val() || {}).filter(world =>
-          world && typeof world === 'object' && Number.isFinite(Number(world.updatedAt))
-        );
-        if (!states.length) return;
-        // Every participant publishes its own checkpoint. All peers follow the
-        // newest checkpoint, so no single player owns the live world.
-        states.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
-        const latest = states[0];
-        // Do not let our own checkpoint hide a slightly older checkpoint
-        // from another peer; local state is already available on this client.
-        if (latest.by === playerId) return;
+        // Only the elected host is allowed to drive the shared simulation.
+        // Ignore stale checkpoints left by previous peers or older clients.
+        const latest = snapshot.child(hostId || '__no_host__').val();
+        if (!latest || latest.by !== hostId || !Number.isFinite(Number(latest.updatedAt))) return;
         const revision = Number(latest.updatedAt) || 0;
         if (revision <= lastWorldRevision) return;
         lastWorldRevision = revision;
@@ -313,7 +306,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function publishWorld(world) {
-    if (!db || !joined || !room) return;
+    if (!db || !joined || !room || hostId !== playerId) return;
     const now = Date.now();
     if (now - lastWorldWrite < 1000 / 60) return;
     lastWorldWrite = now;
