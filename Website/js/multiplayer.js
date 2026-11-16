@@ -30,7 +30,7 @@ export function createMultiplayer(callbacks = {}) {
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
-  const processedOperations = new Map();
+  let operationPublishQueue = Promise.resolve();
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -124,28 +124,44 @@ export function createMultiplayer(callbacks = {}) {
       });
 
       const operationsRef = ref(db, roomPath + '/operations');
-      // Keep the edit log durable. Firebase replays existing children on attach,
-      // then streams new ones; never let the host delete events before peers reconnect.
-      let processed = processedOperations.get(room);
-      if (!processed) {
-        processed = new Set();
-        processedOperations.set(room, processed);
-      }
-      stopOperations = onChildAdded(operationsRef, snapshot => {
-        // Push IDs contain client-clock timestamps, so they are not a safe
-        // global cursor when players have different or incorrect system clocks.
-        // Deduplicate by exact operation ID instead of skipping IDs below a cursor.
-        if (processed.has(snapshot.key)) return;
-        processed.add(snapshot.key);
-        const operation = snapshot.val();
-        if (operation && operation.by !== playerId) {
-          try {
-            callbacks.onOperation?.(operation);
-          } catch (error) {
-            log('Could not apply a multiplayer edit: ' + error.message);
+      const sequenceRef = ref(db, roomPath + '/operationSequence');
+      // Every edit receives a transactionally allocated sequence. Firebase push IDs
+      // depend on client clocks and cannot establish a reliable shared edit order.
+      let nextSequence = 1;
+      const pendingOperations = new Map();
+      let gapTimer = null;
+      const applyQueuedOperations = () => {
+        while (pendingOperations.has(nextSequence)) {
+          const operation = pendingOperations.get(nextSequence);
+          pendingOperations.delete(nextSequence++);
+          if (operation && operation.by !== playerId) {
+            try { callbacks.onOperation?.(operation); }
+            catch (error) { log('Could not apply multiplayer edit: ' + error.message); }
           }
         }
+        if (pendingOperations.size && !gapTimer) {
+          gapTimer = setTimeout(() => {
+            gapTimer = null;
+            const available = [...pendingOperations.keys()].sort((a, b) => a - b);
+            if (available.length && available[0] > nextSequence) {
+              log('A missing edit sequence was skipped to recover synchronization.');
+              nextSequence = available[0];
+              applyQueuedOperations();
+            }
+          }, 1500);
+        } else if (!pendingOperations.size && gapTimer) {
+          clearTimeout(gapTimer);
+          gapTimer = null;
+        }
+      };
+      stopOperations = onChildAdded(operationsRef, snapshot => {
+        const operation = snapshot.val();
+        const sequence = Number(operation?.sequence);
+        if (!Number.isSafeInteger(sequence) || sequence < 1 || sequence < nextSequence) return;
+        pendingOperations.set(sequence, operation);
+        applyQueuedOperations();
       }, error => log('Edit sync error: ' + error.message));
+      stopOperations._clearGapTimer = () => { if (gapTimer) clearTimeout(gapTimer); };
 
       stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
         callbacks.onCursors?.(snapshot.val() || {});
@@ -286,8 +302,19 @@ export function createMultiplayer(callbacks = {}) {
 
   function publishOperation(operation) {
     if (!db || !joined || !room) return;
-    push(ref(db, 'rooms/' + room + '/operations'), {
-      ...operation, by: playerId, createdAt: serverTimestamp()
+    const targetRoom = room;
+    operationPublishQueue = operationPublishQueue.then(async () => {
+      if (!db || !joined || room !== targetRoom) return;
+      const sequenceRef = ref(db, 'rooms/' + targetRoom + '/operationSequence');
+      const result = await runTransaction(sequenceRef, current =>
+        (Number.isSafeInteger(current) && current >= 0 ? current : 0) + 1
+      );
+      if (!result.committed) throw new Error('Could not reserve an edit sequence');
+      const sequence = result.snapshot.val();
+      const key = String(sequence).padStart(12, '0');
+      await set(ref(db, 'rooms/' + targetRoom + '/operations/' + key), {
+        ...operation, sequence, by: playerId, createdAt: serverTimestamp()
+      });
     }).catch(error => log('Edit sync failed: ' + error.message));
   }
 
