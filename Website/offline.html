@@ -427,7 +427,7 @@ function createPhysicsEngine(){
  }
  function collideAirRopes(p){
   let hit=false;
-  for(const s of segments){const q=closest(p.x,p.y,s),radius=.52;if(q.distance>=radius)continue;
+  for(const s of nearby(p.x-.7,p.y-.7,p.x+.7,p.y+.7)){const q=closest(p.x,p.y,s),radius=.52;if(q.distance>=radius)continue;
    let nx,ny;if(q.distance>1e-7){nx=q.dx/q.distance;ny=q.dy/q.distance}else{const dx=s.bx-s.ax,dy=s.by-s.ay,l=Math.hypot(dx,dy)||1;nx=-dy/l;ny=dx/l}
    p.x+=nx*(radius-q.distance+.001);p.y+=ny*(radius-q.distance+.001);
    const rvx=p.vx-((s.a.x-s.a.px)*(1-q.t)+(s.b.x-s.b.px)*q.t),rvy=p.vy-((s.a.y-s.a.py)*(1-q.t)+(s.b.y-s.b.py)*q.t),vn=rvx*nx+rvy*ny;
@@ -439,7 +439,7 @@ function createPhysicsEngine(){
   const cx=Math.floor(p.x),cy=Math.floor(p.y);let best=-1,bestD=Infinity;
   for(let r=0;r<=4;r++)for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
    if(x<0||x>=w||y<0||y>=h||Math.max(Math.abs(x-cx),Math.abs(y-cy))!==r)continue;
-   const i=y*w+x;if(cells[i])continue;let ropeBlocked=false;for(const segment of segments)if(closest(x+.5,y+.5,segment).distance<.56){ropeBlocked=true;break}if(ropeBlocked)continue;const d=Math.hypot(x+.5-p.x,y+.5-p.y);if(d<bestD){bestD=d;best=i}
+   const i=y*w+x;if(cells[i])continue;let ropeBlocked=false;for(const segment of nearby(x+.5-.6,y+.5-.6,x+.5+.6,y+.5+.6))if(closest(x+.5,y+.5,segment).distance<.56){ropeBlocked=true;break}if(ropeBlocked)continue;const d=Math.hypot(x+.5-p.x,y+.5-p.y);if(d<bestD){bestD=d;best=i}
   }
   return best;
  }
