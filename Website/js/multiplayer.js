@@ -293,9 +293,18 @@ export function createMultiplayer(callbacks = {}) {
 
   function publishOperation(operation) {
     if (!db || !joined || !room) return;
-    push(ref(db, 'rooms/' + room + '/operations'), {
-      ...operation, by: playerId, createdAt: serverTimestamp()
-    }).catch(error => log('Edit sync failed: ' + error.message));
+    const operationRoom = room;
+    const send = () => {
+      if (!db || !joined || room !== operationRoom) return;
+      push(ref(db, 'rooms/' + operationRoom + '/operations'), {
+        ...operation, by: playerId, createdAt: serverTimestamp()
+      }).catch(error => log('Edit sync failed: ' + error.message));
+    };
+
+    // Give non-host clients a short buffer before their actions reach the
+    // authoritative host. Host actions remain immediate.
+    if (hostId === playerId) send();
+    else setTimeout(send, 80);
   }
 
   function updateIdentity(name, color) {
