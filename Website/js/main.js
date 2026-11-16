@@ -547,7 +547,7 @@ document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
  try{
   await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
+  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error(usage.daily.blocked?'Online is disabled: daily bandwidth usage has reached 90%.':'Online is disabled: monthly bandwidth usage has reached 90%.');
   room=await multiplayer.createLobby({name:playerName,color:playerColor});
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
