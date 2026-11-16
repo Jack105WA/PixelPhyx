@@ -40,13 +40,32 @@ export function createPhysicsEngine(){
   };
   return Math.min(pointDistance(ax,ay,cx,cy,dx,dy),pointDistance(bx,by,cx,cy,dx,dy),pointDistance(cx,cy,ax,ay,bx,by),pointDistance(dx,dy,ax,ay,bx,by));
  }
+ function pointInSweptQuad(px,py,s){
+  const points=[[s.oldAx,s.oldAy],[s.oldBx,s.oldBy],[s.bx,s.by],[s.ax,s.ay]];
+  let sign=0;
+  for(let i=0;i<4;i++){
+   const a=points[i],b=points[(i+1)&3];
+   const cross=(b[0]-a[0])*(py-a[1])-(b[1]-a[1])*(px-a[0]);
+   if(Math.abs(cross)<1e-8)continue;
+   const next=Math.sign(cross);
+   if(sign&&next!==sign)return false;
+   sign=next;
+  }
+  return sign!==0;
+ }
  function blocksMove(x1,y1,x2,y2){
   if(!segments.length)return false;
   const minX=Math.min(x1,x2)-RADIUS,minY=Math.min(y1,y2)-RADIUS,maxX=Math.max(x1,x2)+RADIUS,maxY=Math.max(y1,y2)+RADIUS;
   for(const s of nearby(minX,minY,maxX,maxY)){
-   // Exact distance between the particle's attempted movement and the
-   // rope's current segment. No capped time samples or tunnelling gaps.
+   // Test the entire swept quadrilateral plus all four boundary paths.
+   // This catches translation and rotation between physics frames.
+   if(pointInSweptQuad(x1,y1,s)||pointInSweptQuad(x2,y2,s))return true;
    if(segmentDistance(x1,y1,x2,y2,s.ax,s.ay,s.bx,s.by)<=RADIUS)return true;
+   if(segmentDistance(x1,y1,x2,y2,s.oldAx,s.oldAy,s.oldBx,s.oldBy)<=RADIUS)return true;
+   if(segmentDistance(x1,y1,x2,y2,s.oldAx,s.oldAy,s.ax,s.ay)<=RADIUS)return true;
+   if(segmentDistance(x1,y1,x2,y2,s.oldBx,s.oldBy,s.bx,s.by)<=RADIUS)return true;
+   if(segmentDistance(x1,y1,x2,y2,s.oldAx,s.oldAy,s.oldBx,s.oldBy)<=RADIUS)return true;
+   if(segmentDistance(x1,y1,x2,y2,s.oldBx,s.oldBy,s.bx,s.by)<=RADIUS)return true;
   }
   return false;
  }
