@@ -1,6 +1,6 @@
 // Unified particle and rope solver. All rope constraints and particle contacts share this step.
 export function createPhysicsEngine(){
- const BUCKET=4,RADIUS=.88,MAX_POINTS=120,MAX_ROPES=20;
+ const BUCKET=4,RADIUS=1.35,MAX_POINTS=120,MAX_ROPES=20;
  let buckets=new Map(),segments=[],candidates=new Set();
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const key=(x,y)=>y*1000+x;
@@ -27,20 +27,33 @@ export function createPhysicsEngine(){
   }
   return candidates;
  }
+ function segmentDistance(ax,ay,bx,by,cx,cy,dx,dy){
+  const cross=(x1,y1,x2,y2)=>x1*y2-y1*x2;
+  const rx=bx-ax,ry=by-ay,sx=dx-cx,sy=dy-cy,den=cross(rx,ry,sx,sy);
+  if(Math.abs(den)>1e-9){
+   const qx=cx-ax,qy=cy-ay,t=cross(qx,qy,sx,sy)/den,u=cross(qx,qy,rx,ry)/den;
+   if(t>=0&&t<=1&&u>=0&&u<=1)return 0;
+  }
+  const pointDistance=(px,py,x1,y1,x2,y2)=>{
+   const vx=x2-x1,vy=y2-y1,l=vx*vx+vy*vy,t=l?clamp(((px-x1)*vx+(py-y1)*vy)/l,0,1):0;
+   return Math.hypot(px-(x1+vx*t),py-(y1+vy*t));
+  };
+  return Math.min(pointDistance(ax,ay,cx,cy,dx,dy),pointDistance(bx,by,cx,cy,dx,dy),pointDistance(cx,cy,ax,ay,bx,by),pointDistance(dx,dy,ax,ay,bx,by));
+ }
  function blocksMove(x1,y1,x2,y2){
   if(!segments.length)return false;
   const minX=Math.min(x1,x2)-RADIUS,minY=Math.min(y1,y2)-RADIUS,maxX=Math.max(x1,x2)+RADIUS,maxY=Math.max(y1,y2)+RADIUS;
+  const travel=Math.hypot(x2-x1,y2-y1);
   for(const s of nearby(minX,minY,maxX,maxY)){
-   // Test the particle's complete movement against the rope's complete movement.
-   // This catches a rope sweeping across a particle between simulation frames.
+   // Treat both the particle and rope as swept capsules. This is deliberately
+   // conservative: a particle cannot step across a rope, even during fast motion.
    const ropeTravel=Math.max(Math.hypot(s.ax-s.oldAx,s.ay-s.oldAy),Math.hypot(s.bx-s.oldBx,s.by-s.oldBy));
-   const particleTravel=Math.hypot(x2-x1,y2-y1);
-   const steps=Math.max(4,Math.min(32,Math.ceil((ropeTravel+particleTravel)*3)));
+   const steps=Math.max(1,Math.min(48,Math.ceil((travel+ropeTravel)*4)));
    for(let i=0;i<=steps;i++){
     const t=i/steps;
-    const movingSegment={ax:s.oldAx+(s.ax-s.oldAx)*t,ay:s.oldAy+(s.ay-s.oldAy)*t,bx:s.oldBx+(s.bx-s.oldBx)*t,by:s.oldBy+(s.by-s.oldBy)*t};
-    const px=x1+(x2-x1)*t,py=y1+(y2-y1)*t;
-    if(closest(px,py,movingSegment).distance<=RADIUS)return true;
+    const ax=s.oldAx+(s.ax-s.oldAx)*t,ay=s.oldAy+(s.ay-s.oldAy)*t;
+    const bx=s.oldBx+(s.bx-s.oldBx)*t,by=s.oldBy+(s.by-s.oldBy)*t;
+    if(segmentDistance(x1,y1,x2,y2,ax,ay,bx,by)<=RADIUS)return true;
    }
   }
   return false;
