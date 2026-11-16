@@ -1,23 +1,34 @@
+
 {
   "rules": {
     ".read": false,
     ".write": false,
+
     "rooms": {
       "$room": {
         ".read": "auth != null",
         ".write": "auth != null"
       }
     },
+
     "lobbyDirectory": {
       ".read": "auth != null",
       "$room": {
         ".write": "auth != null"
       }
     },
+
     "lobbySlots": {
       ".read": "auth != null",
       "$slot": {
         ".write": "auth != null"
+      }
+    },
+
+    "serviceStatus": {
+      "monthlyUsagePercent": {
+        ".read": "auth != null",
+        ".write": false
       }
     }
   }
