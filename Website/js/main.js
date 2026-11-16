@@ -96,7 +96,24 @@ document.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointerdown',e=>{
  const p=canvasPoint(e);if(!inside(p.x,p.y))return;
  if(tool==='rope'&&e.button===2){e.preventDefault();const hit=findRopeAt(p);if(hit){ropes=ropes.filter(r=>r.id!==hit.id);publishOperation({type:'ropeDelete',ropeId:hit.id});log('Rope deleted')}return}
- if(tool==='grab'&&e.button===0){const particles=findParticleGrab(p);if(particles.length){particleGrab={particles,lastX:p.x,lastY:p.y,vx:0,vy:0};grabbedParticleIndices=new Set(particles.map(item=>item.index));drawing=true;canvas.setPointerCapture(e.pointerId);log('Particles grabbed — drag to move and release to launch')}else{const hit=findRopeGrab(p);if(hit){ropeDrag={kind:'rope',...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.setPointerCapture(e.pointerId);ropeDrag.lastPublish=0;log('Rope grabbed — pull to move it')}return}
+ if(tool==='grab'&&e.button===0){
+  const particles=findParticleGrab(p);
+  if(particles.length){
+   particleGrab={particles,lastX:p.x,lastY:p.y,vx:0,vy:0};
+   grabbedParticleIndices=new Set(particles.map(item=>item.index));
+   drawing=true;canvas.setPointerCapture(e.pointerId);
+   log('Particles grabbed — drag to move and release to launch');
+  }else{
+   const hit=findRopeGrab(p);
+   if(hit){
+    ropeDrag={kind:'rope',...hit,wasAnchor:hit.node.anchor};
+    hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;
+    drawing=true;canvas.setPointerCapture(e.pointerId);ropeDrag.lastPublish=0;
+    log('Rope grabbed — pull to move it');
+   }
+  }
+  return;
+ }
  drawing=true;activeErase=e.button===2||tool==='erase';canvas.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)
 });
 canvas.addEventListener('pointermove',e=>{
@@ -319,7 +336,7 @@ function pushParticlesFromRopeSweep(){
     const dx=daX+(dbX-daX)*t,dy=daY+(dbY-daY)*t;
     const stepX=Math.round(dx),stepY=Math.round(dy);
     if(!inside(x+stepX,y+stepY)||(!stepX&&!stepY))continue;
-    candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY});
+    const qx=ax+sx*t,qy=ay+sy*t,tangentLength=Math.hypot(sx,sy)||1,tangentX=sx/tangentLength,tangentY=sy/tangentLength,cross=sx*(py-qy)-sy*(px-qx);candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY,tangentX,tangentY,side:Math.sign(cross)||1});
    }
    candidates.sort((u,v)=>v.progress-u.progress);
    const pushChain=(from,stepX,stepY,launchVx,launchVy,visiting)=>{
@@ -346,8 +363,12 @@ function pushParticlesFromRopeSweep(){
    for(const c of candidates){
     if(carried[c.from]||cells[c.from]!==c.material)continue;
     if(!c.stepX&&!c.stepY)continue;
-    const launchVx=Math.max(-8,Math.min(8,c.dx*1.65));
-    const launchVy=Math.max(-8,Math.min(8,c.dy*1.65));
+    // Add a local tangent and outward normal impulse so a rope flick
+    // fans particles naturally instead of launching them in one rigid line.
+    const normalX=-c.tangentY*c.side,normalY=c.tangentX*c.side;
+    const spread=(Math.random()-.5)*.34;
+    const launchVx=Math.max(-8,Math.min(8,c.dx*1.45+c.tangentX*.38+normalX*(.72+spread)));
+    const launchVy=Math.max(-8,Math.min(8,c.dy*1.45+c.tangentY*.38+normalY*(.72+spread)));
     pushChain(c.from,c.stepX,c.stepY,launchVx,launchVy,new Set());
    }
   }
