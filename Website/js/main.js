@@ -315,10 +315,10 @@ function pushParticlesFromRopeSweep(){
     // The rope's swept velocity transfers normal momentum; friction transfers
     // only a limited amount of tangential momentum.
     const mass=particleMass(material),ropeMass=1.0;
-    const restitution=material===M.WATER||material===M.OIL||material===M.ACID?.035:
-     material===M.SAND||material===M.SALT||material===M.CHARCOAL?.12:.2;
-    const friction=material===M.WATER||material===M.OIL||material===M.LAVA?.025:
-     material===M.SAND||material===M.SALT||material===M.CHARCOAL?.24:.16;
+    const restitution=material===M.WATER||material===M.OIL||material===M.ACID ? .035 :
+     material===M.SAND||material===M.SALT||material===M.CHARCOAL ? .12 : .2;
+    const friction=material===M.WATER||material===M.OIL||material===M.LAVA ? .025 :
+     material===M.SAND||material===M.SALT||material===M.CHARCOAL ? .24 : .16;
     let vx=particleVelocityX[to],vy=particleVelocityY[to];
     const relativeX=vx-contact.vx,relativeY=vy-contact.vy;
     const normalSpeed=relativeX*contact.nx+relativeY*contact.ny;
