@@ -146,8 +146,9 @@ export function createMultiplayer(callbacks = {}) {
             gapTimer = null;
             const available = [...pendingOperations.keys()].sort((a, b) => a - b);
             if (available.length && available[0] > nextSequence) {
-              log('A missing edit sequence was skipped to recover synchronization.');
+              log('A missing edit sequence was skipped; requesting a fresh world checkpoint.');
               nextSequence = available[0];
+              callbacks.onResyncNeeded?.();
               applyQueuedOperations();
             }
           }, 1500);
