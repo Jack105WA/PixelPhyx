@@ -31,7 +31,7 @@ let usageEstimateUid = '';
 let usageEstimateMonth = '';
 let usageReportTimer = null;
 const usageStoragePrefix = 'pixelphyx-usage-estimate-v1-';
-const usageMonthlyLimitBytes = 10 * 1024 * 1024 * 1024;
+const usageMonthlyLimitBytes = 10_000_000_000;
 
 function currentUsageMonth() {
   return new Date().toISOString().slice(0, 7);
