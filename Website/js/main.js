@@ -42,7 +42,7 @@ const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 let cells=new Uint8Array(N),updated=new Uint8Array(N),movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let temperatureUnit='C';
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
-let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
+let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastCursorWrite=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
 function setConnection(state,label){const el=document.querySelector('#connection');el.className='status '+state;document.querySelector('#connectionText').textContent=label}
@@ -527,7 +527,6 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
- if(multiplayer?.joined&&room&&now-lastWorldPublish>=2500){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -585,7 +584,7 @@ async function connectFirebase(config){
    multiplayerLoading=(async()=>{
     const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
     multiplayer=createMultiplayer({
-     onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,
+     onStatus:setConnection,onLog:log,onOperation:applyOperation,
      onPlayers:renderPlayers,
      onJoinRequest:request=>queueJoinRequest(request),
      onCursors:people=>{remoteCursorTargets={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&Number.isFinite(p.x)&&Number.isFinite(p.y))remoteCursorTargets[id]={x:p.x,y:p.y,color:p.color||'#ffffff',name:p.name||'Guest'}}}
@@ -688,7 +687,6 @@ async function joinRoom(code,approved=false){
  try{
   await connectFirebase(firebaseConfig);
   if(!multiplayer)throw new Error('Multiplayer failed to initialize');
-  lastRemoteWorldAt=0;lastWorldPublish=0;
   await multiplayer.joinRoom(clean,{name:playerName,color:playerColor},approved,false);room=clean;
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
