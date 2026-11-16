@@ -360,18 +360,16 @@ function createPhysicsEngine(){
   };
   return Math.min(pointDistance(ax,ay,cx,cy,dx,dy),pointDistance(bx,by,cx,cy,dx,dy),pointDistance(cx,cy,ax,ay,bx,by),pointDistance(dx,dy,ax,ay,bx,by));
  }
- function pointInSweptQuad(px,py,s){
+ function pointInSweptQuad(px,py,s,radius=0){
   const points=[[s.oldAx,s.oldAy],[s.oldBx,s.oldBy],[s.bx,s.by],[s.ax,s.ay]];
-  let sign=0;
-  for(let i=0;i<4;i++){
-   const a=points[i],b=points[(i+1)&3];
-   const cross=(b[0]-a[0])*(py-a[1])-(b[1]-a[1])*(px-a[0]);
-   if(Math.abs(cross)<1e-8)continue;
-   const next=Math.sign(cross);
-   if(sign&&next!==sign)return false;
-   sign=next;
+  let inside=false;
+  for(let i=0,j=points.length-1;i<points.length;j=i++){
+   const a=points[j],b=points[i],dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy;
+   const t=length?clamp(((px-a[0])*dx+(py-a[1])*dy)/length,0,1):0;
+   if(Math.hypot(px-(a[0]+dx*t),py-(a[1]+dy*t))<=radius)return true;
+   if((a[1]>py)!==(b[1]>py)&&px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])inside=!inside;
   }
-  return sign!==0;
+  return inside;
  }
  function blocksMove(x1,y1,x2,y2){
   if(!segments.length)return false;
@@ -480,7 +478,7 @@ function createPhysicsEngine(){
     // Include particles crossed by the rope during this tick, not only particles
     // already touching its previous position. This prevents a fast-moving rope
     // from sweeping through and leaving particles on the wrong side.
-    const swept=pointInSweptQuad(px,py,sweep);
+    const swept=pointInSweptQuad(px,py,sweep,RADIUS+.25);
     if(q.distance>RADIUS+.45&&!swept)continue;
     // A rope supports material on the side opposite gravity. This prevents the
     // opposite face of the rope from dragging unrelated particles along.
@@ -678,19 +676,24 @@ function stepRopes(){
  physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,recordMove:recordParticleMove});
  for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
 }
-function applyLeafblowerImpulse(x,y,dx,dy,radius=28,strength=1.15){
+function applyLeafblowerImpulse(x,y,dx,dy,radius=46,strength=4.2){
  const length=Math.hypot(dx,dy)||1;dx/=length;dy/=length;
+ // A broad forward jet: the nozzle is at the pointer and the airflow travels
+ // outward in a cone rather than pushing particles in a small circular patch.
  const minX=Math.max(0,Math.floor(x-radius)),maxX=Math.min(W-1,Math.ceil(x+radius));
  const minY=Math.max(0,Math.floor(y-radius)),maxY=Math.min(H-1,Math.ceil(y+radius));
  for(let py=minY;py<=maxY;py++)for(let px=minX;px<=maxX;px++){
   const i=idx(px,py);if(cells[i]===M.EMPTY)continue;
-  const ox=px+.5-x,oy=py+.5-y,distance=Math.hypot(ox,oy);if(distance>radius||distance<.5)continue;
-  const forward=(ox*dx+oy*dy)/distance;if(forward<-.12)continue;
+  const ox=px+.5-x,oy=py+.5-y,distance=Math.hypot(ox,oy);
+  if(distance>radius||distance<1)continue;
+  const forward=(ox*dx+oy*dy)/distance;
+  if(forward<-.2)continue;
   const falloff=1-distance/radius;
-  const force=strength*falloff*(.28+Math.max(0,forward)*.72);
-  const sideX=ox/distance,sideY=oy/distance;
-  particleVelocityX[i]=Math.max(-5.5,Math.min(5.5,particleVelocityX[i]+dx*force+sideX*force*.12));
-  particleVelocityY[i]=Math.max(-5.5,Math.min(5.5,particleVelocityY[i]+dy*force+sideY*force*.12));
+  const force=strength*Math.pow(falloff,.65)*(.35+Math.max(0,forward)*.9);
+  // Add a little outward spread so the jet fans out naturally.
+  const spread=force*.16;
+  particleVelocityX[i]=Math.max(-12,Math.min(12,particleVelocityX[i]+dx*force+(ox/distance)*spread));
+  particleVelocityY[i]=Math.max(-12,Math.min(12,particleVelocityY[i]+dy*force+(oy/distance)*spread));
  }
 }
 // Small sub-cell particles add subtle material effects without obscuring the pixel world.
@@ -754,7 +757,7 @@ function drawVisualParticles(){
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);stepRopes();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,28,1.15);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);stepRopes();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
@@ -1121,7 +1124,7 @@ function renderPlayers(people){
   d.append(av,nm,you);el.append(d);
  }
 }
-function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);resetMaterialState(N);ropes=[]}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='leafblower'&&[op.x,op.y,op.dx,op.dy].every(Number.isFinite)){applyLeafblowerImpulse(op.x,op.y,op.dx,op.dy,28,1.15)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
+function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);resetMaterialState(N);ropes=[]}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='leafblower'&&[op.x,op.y,op.dx,op.dy].every(Number.isFinite)){applyLeafblowerImpulse(op.x,op.y,op.dx,op.dy,46,4.2)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
 let localCursor=null;
 canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;const now=Date.now();if(now-lastCursorWrite<33)return;if(lastCursorPoint&&Math.abs(p.x-lastCursorPoint.x)+Math.abs(p.y-lastCursorPoint.y)<1)return;lastCursorWrite=now;lastCursorPoint=p;multiplayer.updateCursor(p,playerColor,playerName)});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
