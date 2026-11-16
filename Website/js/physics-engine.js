@@ -150,13 +150,18 @@ export function createPhysicsEngine(){
    const old={ax:(Number.isFinite(a.ox)?a.ox:a.x)+.5,ay:(Number.isFinite(a.oy)?a.oy:a.y)+.5,bx:(Number.isFinite(b.ox)?b.ox:b.x)+.5,by:(Number.isFinite(b.oy)?b.oy:b.y)+.5};
    const dax=a.x-(Number.isFinite(a.ox)?a.ox:a.x),day=a.y-(Number.isFinite(a.oy)?a.oy:a.y);
    const dbx=b.x-(Number.isFinite(b.ox)?b.ox:b.x),dby=b.y-(Number.isFinite(b.oy)?b.oy:b.y);
-   const minX=Math.max(0,Math.floor(Math.min(old.ax,old.bx)-2)),maxX=Math.min(w-1,Math.ceil(Math.max(old.ax,old.bx)+2));
-   const minY=Math.max(0,Math.floor(Math.min(old.ay,old.by)-2)),maxY=Math.min(h-1,Math.ceil(Math.max(old.ay,old.by)+2));
+   const sweep={oldAx:old.ax,oldAy:old.ay,oldBx:old.bx,oldBy:old.by,ax:a.x+.5,ay:a.y+.5,bx:b.x+.5,by:b.y+.5};
+   const minX=Math.max(0,Math.floor(Math.min(old.ax,old.bx,sweep.ax,sweep.bx)-2)),maxX=Math.min(w-1,Math.ceil(Math.max(old.ax,old.bx,sweep.ax,sweep.bx)+2));
+   const minY=Math.max(0,Math.floor(Math.min(old.ay,old.by,sweep.ay,sweep.by)-2)),maxY=Math.min(h-1,Math.ceil(Math.max(old.ay,old.by,sweep.ay,sweep.by)+2));
    const gravityY=gravity;
    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
     const from=index(x,y),material=cells[from];if(!material||carried[from])continue;
     const px=x+.5,py=y+.5,q=closest(px,py,old);
-    if(q.distance>RADIUS+.45)continue;
+    // Include particles crossed by the rope during this tick, not only particles
+    // already touching its previous position. This prevents a fast-moving rope
+    // from sweeping through and leaving particles on the wrong side.
+    const swept=pointInSweptQuad(px,py,sweep);
+    if(q.distance>RADIUS+.45&&!swept)continue;
     // A rope supports material on the side opposite gravity. This prevents the
     // opposite face of the rope from dragging unrelated particles along.
     if(Math.abs(gravityY)>.001&&q.dx*0+q.dy*gravityY>Math.max(.35,q.distance*.25))continue;
@@ -176,10 +181,14 @@ export function createPhysicsEngine(){
    const to=index(xx,yy);visiting.add(from);
    if(cells[to]&&!pushChain(to,stepX,stepY,launchX,launchY,visiting,depth+1)){visiting.delete(from);return false}
    const material=cells[from];if(!material||cells[to]){visiting.delete(from);return false}
+   // Keep the particle's existing momentum and add the rope's impulse. Replacing
+   // velocity here made launched particles lose nearly all of their motion.
+   const particleVx=vx[from]||0,particleVy=vy[from]||0;
    cells[to]=material;cells[from]=0;
    for(const arr of stateArrays){arr[to]=arr[from];arr[from]=0}
    carried[from]=carried[to]=1;recordMove(from,to,material);
-   vx[to]=clamp(launchX,-8,8);vy[to]=clamp(launchY,-8,8);
+   vx[to]=clamp(particleVx+launchX,-8,8);vy[to]=clamp(particleVy+launchY,-8,8);
+   vx[from]=0;vy[from]=0;
    visiting.delete(from);return true;
   };
   for(const c of candidates){
