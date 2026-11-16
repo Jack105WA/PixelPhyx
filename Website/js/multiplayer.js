@@ -135,6 +135,9 @@ export function createMultiplayer(callbacks = {}) {
         // newest checkpoint, so no single player owns the live world.
         states.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
         const latest = states[0];
+        // Do not let our own checkpoint hide a slightly older checkpoint
+        // from another peer; local state is already available on this client.
+        if (latest.by === playerId) return;
         const revision = Number(latest.updatedAt) || 0;
         if (revision <= lastWorldRevision) return;
         lastWorldRevision = revision;
