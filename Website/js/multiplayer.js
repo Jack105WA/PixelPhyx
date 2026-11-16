@@ -349,7 +349,7 @@ export function createMultiplayer(callbacks = {}) {
     if (!rtcMode || !joined || !remoteId || remoteId === playerId || rtcRoomPeers.has(remoteId) || !rtcRoomPath) return;
     const pairPath = rtcRoomPath + '/' + rtcPairKey(remoteId);
     const initiator = playerId.localeCompare(remoteId) < 0;
-    const connection = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const connection = new RTCPeerConnection({ iceServers: [] });
     const peer = { connection, channel: null, stopSignal: null, stopCandidates: null, pendingCandidates: [], remoteDescriptionSet: false, pendingMessages: rtcPendingMessages.get(remoteId) || [], ready: false, gotWorld: false, gotRopes: false };
     rtcPendingMessages.delete(remoteId);
     rtcRoomPeers.set(remoteId, peer);
