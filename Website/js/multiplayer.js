@@ -142,7 +142,7 @@ export function createMultiplayer(callbacks = {}) {
       }, error => log('World sync error: ' + error.message));
 
       stopRopes = onValue(ref(db, roomPath + '/ropeStates'), snapshot => {
-        const state = snapshot.val();
+        const state = snapshot.child(hostId || '__no_host__').val();
         if (!state || state.by !== hostId || !Array.isArray(state.ropes)) return;
         callbacks.onRopes?.(state);
       }, error => log('Rope sync error: ' + error.message));
