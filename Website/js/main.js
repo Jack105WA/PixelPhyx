@@ -490,7 +490,7 @@ function render(){
  }
  nameCtx.setTransform(dpr,0,0,dpr,0,0);
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
- const cursorScale=Math.max(.1,2.5*320/Math.max(1,canvasRect.width));
+ const cursorScale=W/320;
  if(localCursor){
   drawPlayerCursor(localCursor,true,cursorCtx,cursorScale);
  }
