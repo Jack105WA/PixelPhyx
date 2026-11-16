@@ -403,17 +403,36 @@ function drawInterpolatedCells(){
 function drawPlayerCursor(c,isYou=false,targetCtx=ctx,scale=1){
  if(!c||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const cursorColor=isYou?'#ffffff':(c.color||'#fff');
+ // Draw a true pixel-grid arrow in CSS pixels, independent of canvas resolution.
+ const pixels=[
+  '##......',
+  '#.#.....',
+  '#..#....',
+  '#...#...',
+  '#....#..',
+  '#.....#.',
+  '#......#',
+  '#.......',
+  '#...##..',
+  '#..#....',
+  '#.#.....',
+  '##......'
+ ];
+ const pixelSize=2.5*scale;
  targetCtx.save();
  targetCtx.globalAlpha=1;
  targetCtx.globalCompositeOperation='source-over';
  targetCtx.fillStyle=cursorColor;
- targetCtx.beginPath();
- targetCtx.moveTo(c.x,c.y);
- targetCtx.lineTo(c.x+3.5*scale,c.y+8*scale);
- targetCtx.lineTo(c.x+5.5*scale,c.y+5*scale);
- targetCtx.lineTo(c.x+8.5*scale,c.y+4.5*scale);
- targetCtx.closePath();
- targetCtx.fill();
+ for(let y=0;y<pixels.length;y++){
+  for(let x=0;x<pixels[y].length;x++){
+   if(pixels[y][x]==='#')targetCtx.fillRect(
+    Math.round(c.x+x*pixelSize),
+    Math.round(c.y+y*pixelSize),
+    Math.ceil(pixelSize),
+    Math.ceil(pixelSize)
+   );
+  }
+ }
  targetCtx.restore();
 }
 function drawCursorName(c,targetCtx){
@@ -492,7 +511,7 @@ function render(){
  nameCtx.clearRect(0,0,canvasRect.width,canvasRect.height);
  // Draw pointers in the CSS-sized overlay so canvas resolution never changes
  // their on-screen dimensions. Keep the medium-canvas pointer slightly smaller.
- const cursorScale=1.25;
+ const cursorScale=1;
  if(localCursor){
   drawPlayerCursor({x:localCursor.x/W*canvasRect.width,y:localCursor.y/H*canvasRect.height},true,nameCtx,cursorScale);
  }
