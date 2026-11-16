@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
   getDatabase, ref, onValue, set, onDisconnect, serverTimestamp,
-  push, onChildAdded, onChildChanged, runTransaction, update, remove, get, query, limitToLast
+  push, onChildAdded, runTransaction, update, remove, get
 } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js';
 
@@ -30,7 +30,7 @@ export function createMultiplayer(callbacks = {}) {
   let joined = false, hostId = null, presenceRef = null;
   let stopOperations = null, stopWorld = null, stopPlayers = null, stopCursors = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
-  let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0;
+  const operationCursors = new Map();
 
   const report = (state, label) => callbacks.onStatus?.(state, label);
   const log = message => callbacks.onLog?.(message);
@@ -111,7 +111,6 @@ export function createMultiplayer(callbacks = {}) {
     presenceRef = ref(db, roomPath + '/players/' + playerId);
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
     const worldStateRef = ref(db, roomPath + '/worldStates/' + playerId);
-    lastWorldRevision = 0;
 
     try {
       const hostResult = await runTransaction(hostRef, current => current || playerId);
@@ -119,53 +118,22 @@ export function createMultiplayer(callbacks = {}) {
 
       await onDisconnect(presenceRef).remove();
       await onDisconnect(cursorRef).remove();
-      await onDisconnect(worldStateRef).remove();
       await set(presenceRef, {
         name: String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest',
         color: /^#[0-9a-f]{6}$/i.test(identity.color || '') ? identity.color : '#65d6ad',
         joinedAt: serverTimestamp()
       });
 
-      const remoteWorldStates = new Map();
-      const publishLatestRemoteWorld = () => {
-        let latest = null;
-        for (const world of remoteWorldStates.values()) {
-          if (!latest || Number(world.updatedAt) > Number(latest.updatedAt)) latest = world;
-        }
-        if (!latest) return;
-        const revision = Number(latest.updatedAt) || 0;
-        if (revision <= lastWorldRevision) return;
-        lastWorldRevision = revision;
-        callbacks.onWorld?.(latest);
-      };
-      const handleWorldState = snapshot => {
-        const world = snapshot.val();
-        if (!world || world.by === playerId || !Number.isFinite(Number(world.updatedAt))) return;
-        remoteWorldStates.set(snapshot.key, world);
-        publishLatestRemoteWorld();
-      };
-      const worldStatesRef = ref(db, roomPath + '/worldStates');
-      const stopWorldAdded = onChildAdded(worldStatesRef, handleWorldState,
-        error => log('World sync error: ' + error.message));
-      const stopWorldChanged = onChildChanged(worldStatesRef, handleWorldState,
-        error => log('World sync error: ' + error.message));
-      stopWorld = () => { stopWorldAdded(); stopWorldChanged(); };
-
       const operationsRef = ref(db, roomPath + '/operations');
-      // Read only a bounded tail. Old operation history must never be downloaded in full.
-      const operationQuery = query(operationsRef, limitToLast(100));
-      const existingOperations = await get(operationQuery);
-      const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
-      stopOperations = onChildAdded(operationQuery, snapshot => {
-        if (existingKeys.has(snapshot.key)) {
-          if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
-          return;
-        }
+      // Keep the edit log durable. Firebase replays existing children on attach,
+      // then streams new ones; never let the host delete events before peers reconnect.
+      let lastOperationKey = operationCursors.get(room) || '';
+      stopOperations = onChildAdded(operationsRef, snapshot => {
+        if (snapshot.key <= lastOperationKey) return;
         const operation = snapshot.val();
         if (operation && operation.by !== playerId) callbacks.onOperation?.(operation);
-        // Only the host removes processed operations. This keeps the shared queue tiny
-        // while preserving the add event for every connected client.
-        if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
+        lastOperationKey = snapshot.key;
+        operationCursors.set(room, lastOperationKey);
       }, error => log('Edit sync error: ' + error.message));
 
       stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
@@ -319,31 +287,7 @@ export function createMultiplayer(callbacks = {}) {
     update(presenceRef, { name: safeName, color: safeColor }).catch(error => log('Profile update failed: ' + error.message));
   }
 
-  function publishWorld(world) {
-    if (!db || !joined || !room) return;
-    const now = Date.now();
-    if (now - lastWorldWrite < 1000 / 60) return;
-    lastWorldWrite = now;
-    pendingWorld = world;
-    if (worldWriteInFlight) return;
 
-    worldWriteInFlight = true;
-    (async () => {
-      try {
-        while (pendingWorld && joined && room) {
-          const latest = pendingWorld;
-          pendingWorld = null;
-          await set(ref(db, 'rooms/' + room + '/worldStates/' + playerId), {
-            ...latest, by: playerId, updatedAt: serverTimestamp()
-          });
-        }
-      } catch (error) {
-        log('World sync failed: ' + error.message);
-      } finally {
-        worldWriteInFlight = false;
-      }
-    })();
-  }
 
   function updateCursor(point, color, name) {
     if (!db || !joined || !room) return;
@@ -353,7 +297,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, publishWorld, updateCursor, updateIdentity,
+    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, updateCursor, updateIdentity,
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
