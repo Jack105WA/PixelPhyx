@@ -75,7 +75,7 @@ async function update(reference, value) {
   recordUsage(value);
   return firebaseUpdate(reference, value);
 }
-async function reportUsageEstimate() {
+async function reportUsageEstimate(db, auth) {
   if (!db || !auth?.currentUser || !usageEstimateUid) return;
   const report = {
     month: usageEstimateMonth,
@@ -113,7 +113,7 @@ export function createMultiplayer(callbacks = {}) {
         usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + month)) || 0);
       } catch { usageEstimateBytes = 0; }
     }
-    await reportUsageEstimate();
+    await reportUsageEstimate(db, auth);
     const snapshot = await get(ref(db, 'usageReports'));
     const reports = snapshot.val() || {};
     let totalBytes = 0;
@@ -194,7 +194,7 @@ export function createMultiplayer(callbacks = {}) {
         usageEstimateBytes = Math.max(0, Number(localStorage.getItem(usageStoragePrefix + usageEstimateUid + '-' + usageEstimateMonth)) || 0);
       } catch { usageEstimateBytes = 0; }
       if (usageReportTimer) clearInterval(usageReportTimer);
-      usageReportTimer = setInterval(() => { reportUsageEstimate(); }, 15 * 60 * 1000);
+      usageReportTimer = setInterval(() => { reportUsageEstimate(db, auth); }, 15 * 60 * 1000);
       report('online', 'FIREBASE ONLINE');
       log('Signed in anonymously. Firebase multiplayer is ready.');
       return playerId;
