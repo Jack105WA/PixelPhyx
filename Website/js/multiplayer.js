@@ -317,7 +317,11 @@ export function createMultiplayer(callbacks = {}) {
     const ownCandidates = ref(db, pairPath + '/candidates/' + playerId);
     const remoteCandidates = ref(db, pairPath + '/candidates/' + remoteId);
     connection.onicecandidate = event => {
-      if (event.candidate) push(ownCandidates, event.candidate.toJSON()).catch(error => log('LAN signaling failed: ' + error.message));
+      if (event.candidate) {
+        const candidate = event.candidate.toJSON();
+        recordUsage(candidate);
+        push(ownCandidates, candidate).catch(error => log('LAN signaling failed: ' + error.message));
+      }
     };
     connection.onconnectionstatechange = () => {
       if (connection.connectionState === 'failed' || connection.connectionState === 'closed') {
@@ -437,6 +441,7 @@ export function createMultiplayer(callbacks = {}) {
 
   async function joinRoom(code, identity = {}, approved = false, isHost = false, options = {}) {
     await assertUsageAllowed();
+    if (options.lan && typeof RTCPeerConnection === 'undefined') throw new Error('LAN Multiplayer requires a browser with WebRTC support.');
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a room code');
@@ -463,6 +468,7 @@ export function createMultiplayer(callbacks = {}) {
     stopHost = onValue(hostRef, snapshot => {
       hostId = snapshot.val() || null;
       syncJoinRequestListener();
+      if (rtcMode) reconcileRtcPeers(rtcPeople);
     }, error => log('Host sync error: ' + error.message));
     presenceRef = ref(db, roomPath + '/players/' + playerId);
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
@@ -507,12 +513,13 @@ export function createMultiplayer(callbacks = {}) {
         callbacks.onRopes?.(state);
       }, error => log('Rope sync error: ' + error.message));
 
-      const operationsRef = ref(db, roomPath + '/operations');
-      // Read only a bounded tail. Old operation history must never be downloaded in full.
-      const operationQuery = query(operationsRef, limitToLast(25));
-      const existingOperations = await get(operationQuery);
-      const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
-      if (!rtcMode) stopOperations = onChildAdded(operationQuery, snapshot => {
+      if (!rtcMode) {
+        const operationsRef = ref(db, roomPath + '/operations');
+        // Read only a bounded tail. Old operation history must never be downloaded in full.
+        const operationQuery = query(operationsRef, limitToLast(25));
+        const existingOperations = await get(operationQuery);
+        const existingKeys = new Set(Object.keys(existingOperations.val() || {}));
+        stopOperations = onChildAdded(operationQuery, snapshot => {
         if (existingKeys.has(snapshot.key)) {
           if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
           return;
@@ -535,7 +542,8 @@ export function createMultiplayer(callbacks = {}) {
         // Only the host removes processed operations. This keeps the shared queue tiny
         // while preserving the add event for every connected client.
         if (hostId === playerId) remove(snapshot.ref).catch(error => log('Operation cleanup failed: ' + error.message));
-      }, error => log('Edit sync error: ' + error.message));
+        }, error => log('Edit sync error: ' + error.message));
+      }
 
       // Cursor and continuous leafblower streams are intentionally not subscribed.
       // They create constant bandwidth use without changing the shared world state.
@@ -561,6 +569,7 @@ export function createMultiplayer(callbacks = {}) {
           });
           hostId = result.snapshot.val() || null;
           syncJoinRequestListener();
+          if (rtcMode) reconcileRtcPeers(people);
           if (hostId) {
             const electedPlayer = people[hostId];
             const directoryRef = ref(db, 'lobbyDirectory/' + room);
