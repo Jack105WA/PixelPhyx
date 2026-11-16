@@ -35,7 +35,7 @@ function ignite(cells,state,i,m){
  state.heat[i]=Math.max(state.heat[i],p.ignition||100);
  return true;
 }
-export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state,recordMove,lockedParticles}){
+export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ropeBlocksMove,materials,state:s=state,recordMove}){
  const M=materials,W=width,H=height,N=W*H;
  if(s.wetness.length!==N)resetMaterialState(N);
  const wet=s.wetness,heat=s.heat,fuel=s.fuel,burn=s.burn,age=s.age,corrosion=s.corrosion;
@@ -45,7 +45,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
  for(let y=H-2;y>=0;y--){
   const start=Math.random()<.5?0:W-1,step=start===0?1:-1;
   for(let x=start;x>=0&&x<W;x+=step){
-   const i=index(x,y),m=cells[i];if(!m||lockedParticles?.has(i))continue;
+   const i=index(x,y),m=cells[i];if(!m)continue;
    if(m===M.SAND){
     const below=index(x,y+1),under=cells[below];
     if(under===M.WATER||under===M.OIL){
@@ -80,7 +80,7 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
  // air, rising air carries heat upward, and exposed materials absorb it without contact.
  const air=s.airHeat,nextAir=s.airNext;
  for(let i=0;i<N;i++){
-  if(lockedParticles?.has(i))continue;
+  
   const m=cells[i],source=m===M.FIRE||m===M.LAVA;
   const target=source?Math.max(heat[i],m===M.LAVA?900:780):ambient;
   air[i]+=(target-air[i])*(source?.16:.0015);
