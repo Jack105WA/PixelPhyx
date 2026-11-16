@@ -160,15 +160,21 @@ function resolveRopeNode(n,oldX=n.x,oldY=n.y){
   const target=findRopeFreeCell(gx,gy,dx,dy,5);
   if(target){cells[target.index]=material;cells[here]=M.EMPTY;return false}
  }
- // A rope node cannot remain inside a solid cell. Remove its inward velocity to prevent jitter.
- const target=findRopeFreeCell(gx,gy,dx,dy,7);
- if(target){
-  n.x=target.x+.5;n.y=target.y+.5;
-  const vx=n.x-n.px,vy=n.y-n.py;
-  n.px=n.x-vx*.15;n.py=n.y-vy*.15;
-  return true;
+ // Keep the node against the surface it hit. Searching for a free cell several
+ // pixels away teleports the node and can violently stretch the entire rope.
+ const left=Math.abs(n.x-gx),right=Math.abs(gx+1-n.x);
+ const top=Math.abs(n.y-gy),bottom=Math.abs(gy+1-n.y);
+ const crossedLeft=oldX<gx&&dx>0,crossedRight=oldX>gx+1&&dx<0;
+ const crossedTop=oldY<gy&&dy>0,crossedBottom=oldY>gy+1&&dy<0;
+ if(crossedLeft||(!crossedRight&&!crossedTop&&!crossedBottom&&left<=right&&left<=top&&left<=bottom)){
+  n.x=gx-.001;n.px=n.x;
+ }else if(crossedRight||(!crossedTop&&!crossedBottom&&right<=top&&right<=bottom)){
+  n.x=gx+1.001;n.px=n.x;
+ }else if(crossedTop||(!crossedBottom&&top<=bottom)){
+  n.y=gy-.001;n.py=n.y;
+ }else{
+  n.y=gy+1.001;n.py=n.y;
  }
- n.x=oldX;n.y=oldY;n.px=oldX;n.py=oldY;
  return true;
 }
 function stepRopes(){
@@ -176,6 +182,7 @@ function stepRopes(){
   const points=rope.points;if(points.length<2)continue;
   for(let substep=0;substep<2;substep++){
    for(const n of points){
+    n.sweepAge=(n.sweepAge||0)+1;
     if(n.anchor)continue;
     const oldX=n.x,oldY=n.y,vx=(n.x-n.px)*.992,vy=(n.y-n.py)*.992;
     n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.12*gravity/2;
@@ -258,6 +265,7 @@ let carriedParticles=new Uint8Array(N);
 function pushParticlesFromRopeSweep(){
  if(!ropes.length)return;
  const carried=carriedParticles;carried.fill(0);
+ const sweptNodes=new Set();
  const stateArrays=['wetness','heat','fuel','burn','age','corrosion'].map(key=>materialState[key]).filter(Boolean);
  const insideQuad=(px,py,ax,ay,bx,by,cx,cy,dx,dy)=>{
   const cross=(x1,y1,x2,y2)=>x1*y2-y1*x2,points=[[ax,ay],[bx,by],[cx,cy],[dx,dy]];let sign=0;
@@ -273,7 +281,10 @@ function pushParticlesFromRopeSweep(){
   for(let i=0;i<points.length-1;i++){
    const a=points[i],b=points[i+1],ax=a.sx??a.x,ay=a.sy??a.y,bx=b.sx??b.x,by=b.sy??b.y;
    const daX=a.x-ax,daY=a.y-ay,dbX=b.x-bx,dbY=b.y-by;
-   if(Math.max(Math.abs(daX),Math.abs(daY),Math.abs(dbX),Math.abs(dbY))<.01)continue;
+   // Keep the old sweep origin until enough sub-pixel movement accumulates
+   // to move at least one grid cell.
+   if(Math.max(Math.abs(daX),Math.abs(daY),Math.abs(dbX),Math.abs(dbY))<.5)continue;
+   sweptNodes.add(a);sweptNodes.add(b);
    const minX=Math.max(0,Math.floor(Math.min(ax,bx,a.x,b.x)-1)),maxX=Math.min(W-1,Math.ceil(Math.max(ax,bx,a.x,b.x)+1));
    const minY=Math.max(0,Math.floor(Math.min(ay,by,a.y,b.y)-1)),maxY=Math.min(H-1,Math.ceil(Math.max(ay,by,a.y,b.y)+1));
    const candidates=[];
@@ -284,8 +295,13 @@ function pushParticlesFromRopeSweep(){
     const sx=bx-ax,sy=by-ay,len=sx*sx+sy*sy;
     const t=len?Math.max(0,Math.min(1,((px-ax)*sx+(py-ay)*sy)/len)):.5;
     const dx=daX+(dbX-daX)*t,dy=daY+(dbY-daY)*t;
-    const stepX=Math.round(dx),stepY=Math.round(dy);
-    if(!inside(x+stepX,y+stepY)||(!stepX&&!stepY))continue;
+    if(Math.hypot(dx,dy)<.35)continue;
+    let stepX=Math.round(dx),stepY=Math.round(dy);
+    if(!stepX&&!stepY){
+     if(Math.abs(dx)>=Math.abs(dy))stepX=Math.sign(dx);
+     else stepY=Math.sign(dy);
+    }
+    if(!inside(x+stepX,y+stepY))continue;
     const qx=ax+sx*t,qy=ay+sy*t,tangentLength=Math.hypot(sx,sy)||1,tangentX=sx/tangentLength,tangentY=sy/tangentLength,cross=sx*(py-qy)-sy*(px-qx);candidates.push({from,material,progress:dx*(x-ax)+dy*(y-ay),dx,dy,stepX,stepY,t,tangentX,tangentY,side:Math.sign(cross)||1});
    }
    candidates.sort((u,v)=>v.progress-u.progress);
@@ -349,14 +365,16 @@ function pushParticlesFromRopeSweep(){
     const normalX=-c.tangentY*c.side,normalY=c.tangentX*c.side;
     const ropeSpeed=Math.hypot(c.dx,c.dy);
     if(ropeSpeed<.01)continue;
+    const sweepFrames=Math.max(1,a.sweepAge*(1-c.t)+b.sweepAge*c.t);
     const contact={
-     vx:c.dx,vy:c.dy,nx:normalX,ny:normalY,
+     vx:c.dx/sweepFrames,vy:c.dy/sweepFrames,nx:normalX,ny:normalY,
      tx:c.tangentX,ty:c.tangentY,a,b,t:c.t
     };
     pushChain(c.from,c.stepX,c.stepY,contact,new Set());
    }
   }
  }
+ for(const node of sweptNodes){node.sx=node.x;node.sy=node.y;node.sweepAge=0}
 }
 // Small sub-cell particles add subtle material effects without obscuring the pixel world.
 const visualParticles=[];
