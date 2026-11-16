@@ -2,17 +2,6 @@
 
 PixelPhyx is an online pixel-art physics and chemistry sandbox. Build worlds with falling particles, liquids, gases, reactions, explosions, and ropes with live Verlet-physics simulation. Invite friends to the same multiplayer room and experiment together.
 
-## Repository layout
-
-- `Website/` contains the complete live website published by GitHub Pages.
-  - `Website/index.html` is the website entry point.
-  - `Website/js/` contains the browser-side game, physics, multiplayer, and Firebase configuration modules.
-  - `Website/offline.html` is the generated single-file offline edition.
-- `.github/workflows/` contains GitHub Actions automation.
-- `Server/functions/` contains the Firebase Cloud Function for empty-room cleanup.
-- `Server/firebase.json`, `Server/.firebaserc`, and `Server/database.rules.json` are Firebase project files.
-- `build-offline.mjs` builds the offline edition from the website source.
-
 ## Play online
 
 After GitHub Pages finishes deploying, open:
@@ -54,3 +43,14 @@ Everyone in a room shares the same particle world and rope structures. Player pr
 ## GitHub Pages deployment
 
 The repository deploys from `main` using the workflow in `.github/workflows/pages.yml`. In GitHub, open **Settings → Pages** and make sure the source is **GitHub Actions**. The workflow rebuilds the standalone offline edition and publishes only the contents of `Website/` as the site root. Repository files and Firebase administration files remain outside the deployed website.
+
+## Repository layout
+
+- `Website/` contains the complete live website published by GitHub Pages.
+  - `Website/index.html` is the website entry point.
+  - `Website/js/` contains the browser-side game, physics, multiplayer, and Firebase configuration modules.
+  - `Website/offline.html` is the generated single-file offline edition.
+- `.github/workflows/` contains GitHub Actions automation.
+- `Server/functions/` contains the Firebase Cloud Function for empty-room cleanup.
+- `Server/firebase.json`, `Server/.firebaserc`, and `Server/database.rules.json` are Firebase project files.
+- `build-offline.mjs` builds the offline edition from the website source.
