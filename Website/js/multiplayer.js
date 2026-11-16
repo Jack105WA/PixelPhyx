@@ -110,6 +110,7 @@ export function createMultiplayer(callbacks = {}) {
     }, error => log('Host sync error: ' + error.message));
     presenceRef = ref(db, roomPath + '/players/' + playerId);
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
+    const leafblowerRef = ref(db, roomPath + '/cursors/' + playerId + '/leafblower');
     const worldStateRef = ref(db, roomPath + '/worldStates/' + playerId);
     lastWorldRevision = 0;
 
@@ -120,6 +121,7 @@ export function createMultiplayer(callbacks = {}) {
       await onDisconnect(presenceRef).remove();
       await onDisconnect(cursorRef).remove();
       await onDisconnect(worldStateRef).remove();
+      await onDisconnect(leafblowerRef).remove();
       await set(presenceRef, {
         name: String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest',
         color: /^#[0-9a-f]{6}$/i.test(identity.color || '') ? identity.color : '#65d6ad',
@@ -155,7 +157,9 @@ export function createMultiplayer(callbacks = {}) {
       }, error => log('Edit sync error: ' + error.message));
 
       stopCursors = onValue(ref(db, roomPath + '/cursors'), snapshot => {
-        callbacks.onCursors?.(snapshot.val() || {});
+        const cursors = snapshot.val() || {};
+        callbacks.onCursors?.(cursors);
+        callbacks.onLeafblowers?.(cursors);
       }, error => log('Cursor sync error: ' + error.message));
 
       stopPlayers = onValue(ref(db, roomPath + '/players'), async snapshot => {
@@ -306,6 +310,14 @@ export function createMultiplayer(callbacks = {}) {
     send();
   }
 
+  function publishLeafblower(state) {
+    if (!db || !joined || !room || !cursorRef) return;
+    const payload = state?.active && [state.x, state.y, state.dx, state.dy].every(Number.isFinite)
+      ? { active: true, x: state.x, y: state.y, dx: state.dx, dy: state.dy, updatedAt: Date.now() }
+      : { active: false, updatedAt: Date.now() };
+    update(cursorRef, { leafblower: payload }).catch(error => log('Leafblower sync failed: ' + error.message));
+  }
+
   function updateIdentity(name, color) {
     if (!db || !joined || !presenceRef) return;
     const safeName = String(name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
@@ -347,7 +359,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, publishWorld, updateCursor, updateIdentity,
+    connect, joinRoom, createLobby, watchLobbies, requestJoin, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, updateCursor, updateIdentity,
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
     get playerId() { return playerId; },
