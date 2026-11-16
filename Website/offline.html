@@ -319,7 +319,7 @@ return {stepMaterialPhysics,materialState,resetMaterialState};
 })();
 const PixelPhyxEngine=(()=>{
 // Continuous airborne particle solver with a grid-backed material world.
-function createPhysicsEngine(){
+export function createPhysicsEngine(){
  const BUCKET=4,RADIUS=1.35,MAX_POINTS=120,MAX_ROPES=20,MAX_AIRBORNE=5000;
  let buckets=new Map(),segments=[],candidates=new Set();
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -396,18 +396,47 @@ function createPhysicsEngine(){
    const tx=-ny,ty=nx,friction=clamp(-(rvx*tx+rvy*ty)*.12,-impulse*.18,impulse*.18);vx[i]=clamp(vx[i]+friction/pm*tx,-12,12);vy[i]=clamp(vy[i]+friction/pm*ty,-12,12);
   }
  }
- function pushParticlesFromRopeSweep(ropes,cells,w,h,vx,vy,gravity){
+ function pushParticlesFromRopeSweep(ropes,cells,w,h,vx,vy){
+  // Transfer only the component of rope motion that is actually pushing into a particle.
+  // This avoids giving every nearby particle the rope's full velocity in an arbitrary direction.
   for(const rope of ropes)for(let j=0;j<rope.points.length-1;j++){
-   const a=rope.points[j],b=rope.points[j+1],old={ax:(Number.isFinite(a.ox)?a.ox:a.x)+.5,ay:(Number.isFinite(a.oy)?a.oy:a.y)+.5,bx:(Number.isFinite(b.ox)?b.ox:b.x)+.5,by:(Number.isFinite(b.oy)?b.oy:b.y)+.5};
-   const dax=a.x-(Number.isFinite(a.ox)?a.ox:a.x),day=a.y-(Number.isFinite(a.oy)?a.oy:a.y),dbx=b.x-(Number.isFinite(b.ox)?b.ox:b.x),dby=b.y-(Number.isFinite(b.oy)?b.oy:b.y),motion=Math.max(Math.hypot(dax,day),Math.hypot(dbx,dby));if(motion<.04)continue;
-   const minX=Math.max(0,Math.floor(Math.min(old.ax,old.bx,a.x+.5,b.x+.5)-2)),maxX=Math.min(w-1,Math.ceil(Math.max(old.ax,old.bx,a.x+.5,b.x+.5)+2)),minY=Math.max(0,Math.floor(Math.min(old.ay,old.by,a.y+.5,b.y+.5)-2)),maxY=Math.min(h-1,Math.ceil(Math.max(old.ay,old.by,a.y+.5,b.y+.5)+2));
-   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){const i=y*w+x;if(!cells[i])continue;const q=closest(x+.5,y+.5,old);if(q.distance>RADIUS+.55)continue;if(Math.abs(gravity)>.001&&q.dy*gravity>Math.max(.35,q.distance*.25))continue;const ix=(dax+(dbx-dax)*q.t)*1.8,iy=(day+(dby-day)*q.t)*1.8;vx[i]=clamp(vx[i]+ix,-12,12);vy[i]=clamp(vy[i]+iy,-12,12)}
+   const a=rope.points[j],b=rope.points[j+1];
+   const old={ax:(Number.isFinite(a.ox)?a.ox:a.x)+.5,ay:(Number.isFinite(a.oy)?a.oy:a.y)+.5,bx:(Number.isFinite(b.ox)?b.ox:b.x)+.5,by:(Number.isFinite(b.oy)?b.oy:b.y)+.5};
+   const dax=a.x-(Number.isFinite(a.ox)?a.ox:a.x),day=a.y-(Number.isFinite(a.oy)?a.oy:a.y);
+   const dbx=b.x-(Number.isFinite(b.ox)?b.ox:b.x),dby=b.y-(Number.isFinite(b.oy)?b.oy:b.y);
+   const motion=Math.max(Math.hypot(dax,day),Math.hypot(dbx,dby));
+   if(motion<.025)continue;
+   const minX=Math.max(0,Math.floor(Math.min(old.ax,old.bx,a.x+.5,b.x+.5)-RADIUS-motion));
+   const maxX=Math.min(w-1,Math.ceil(Math.max(old.ax,old.bx,a.x+.5,b.x+.5)+RADIUS+motion));
+   const minY=Math.max(0,Math.floor(Math.min(old.ay,old.by,a.y+.5,b.y+.5)-RADIUS-motion));
+   const maxY=Math.min(h-1,Math.ceil(Math.max(old.ay,old.by,a.y+.5,b.y+.5)+RADIUS+motion));
+   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+    const i=y*w+x;if(!cells[i])continue;
+    const q=closest(x+.5,y+.5,old);
+    if(q.distance>RADIUS+motion+.08)continue;
+    let nx,ny;
+    if(q.distance>1e-6){nx=q.dx/q.distance;ny=q.dy/q.distance}
+    else{const dx=old.bx-old.ax,dy=old.by-old.ay,l=Math.hypot(dx,dy)||1;nx=-dy/l;ny=dx/l}
+    const ropeVx=dax+(dbx-dax)*q.t,ropeVy=day+(dby-day)*q.t;
+    const particleNormal=vx[i]*nx+vy[i]*ny;
+    const ropeNormal=ropeVx*nx+ropeVy*ny;
+    const closing=ropeNormal-particleNormal;
+    if(closing<=.015)continue;
+    const impulse=Math.min(12,closing*1.12);
+    vx[i]=clamp(vx[i]+nx*impulse,-12,12);
+    vy[i]=clamp(vy[i]+ny*impulse,-12,12);
+    // A small tangential transfer lets a moving rope drag, rather than magnetically
+    // attract, particles that are sliding along its surface.
+    const tx=-ny,ty=nx,tangent=(ropeVx-vx[i])*tx+(ropeVy-vy[i])*ty;
+    vx[i]=clamp(vx[i]+tx*tangent*.045,-12,12);
+    vy[i]=clamp(vy[i]+ty*tangent*.045,-12,12);
+   }
   }
  }
  function extractAirborne(cells,w,h,vx,vy,state,airborne,onExtract){
   if(!airborne)return;
   const keys=['wetness','heat','fuel','burn','age','corrosion'];
-  for(let i=0;i<cells.length&&airborne.length<MAX_AIRBORNE;i++){const m=cells[i];if(!m)continue;const px=vx[i]||0,py=vy[i]||0;if(Math.hypot(px,py)<1.35)continue;
+  for(let i=0;i<cells.length&&airborne.length<MAX_AIRBORNE;i++){const m=cells[i];if(!m)continue;const px=vx[i]||0,py=vy[i]||0;if(Math.hypot(px,py)<.65)continue;
    const p={x:i%w+.5,y:Math.floor(i/w)+.5,vx:px,vy:py,material:m,sleep:0};
    for(const k of keys)p[k]=state?.[k]?.[i]||0;
    cells[i]=0;vx[i]=0;vy[i]=0;for(const k of keys)if(state?.[k])state[k][i]=0;onExtract?.(i);airborne.push(p);
@@ -425,13 +454,29 @@ function createPhysicsEngine(){
   }
   return hit;
  }
- function collideAirRopes(p){
+ function collideAirRopes(p,prevX=p.x,prevY=p.y){
   let hit=false;
-  for(const s of nearby(p.x-.7,p.y-.7,p.x+.7,p.y+.7)){const q=closest(p.x,p.y,s),radius=.52;if(q.distance>=radius)continue;
-   let nx,ny;if(q.distance>1e-7){nx=q.dx/q.distance;ny=q.dy/q.distance}else{const dx=s.bx-s.ax,dy=s.by-s.ay,l=Math.hypot(dx,dy)||1;nx=-dy/l;ny=dx/l}
-   p.x+=nx*(radius-q.distance+.001);p.y+=ny*(radius-q.distance+.001);
-   const rvx=p.vx-((s.a.x-s.a.px)*(1-q.t)+(s.b.x-s.b.px)*q.t),rvy=p.vy-((s.a.y-s.a.py)*(1-q.t)+(s.b.y-s.b.py)*q.t),vn=rvx*nx+rvy*ny;
-   if(vn<0){p.vx-=1.45*vn*nx;p.vy-=1.45*vn*ny;p.vx*=.94;p.vy*=.94}hit=true;
+  const travel=Math.hypot(p.x-prevX,p.y-prevY);
+  for(const s of nearby(Math.min(prevX,p.x)-RADIUS,Math.min(prevY,p.y)-RADIUS,Math.max(prevX,p.x)+RADIUS,Math.max(prevY,p.y)+RADIUS)){
+   const ropeMotion=Math.max(Math.hypot(s.ax-s.oldAx,s.ay-s.oldAy),Math.hypot(s.bx-s.oldBx,s.by-s.oldBy));
+   const steps=clamp(Math.ceil((travel+ropeMotion)/.2),2,48);
+   for(let k=1;k<=steps;k++){
+    const t=k/steps,px=prevX+(p.x-prevX)*t,py=prevY+(p.y-prevY)*t;
+    const segment={ax:s.oldAx+(s.ax-s.oldAx)*t,ay:s.oldAy+(s.ay-s.oldAy)*t,bx:s.oldBx+(s.bx-s.oldBx)*t,by:s.oldBy+(s.by-s.oldBy)*t};
+    const q=closest(px,py,segment);
+    if(q.distance>=RADIUS)continue;
+    let nx,ny;
+    if(q.distance>1e-7){nx=q.dx/q.distance;ny=q.dy/q.distance}
+    else{const dx=segment.bx-segment.ax,dy=segment.by-segment.ay,l=Math.hypot(dx,dy)||1;nx=-dy/l;ny=dx/l}
+    // Resolve at the first point of contact, not after the particle has crossed the rope.
+    p.x=px+nx*(RADIUS-q.distance+.002);
+    p.y=py+ny*(RADIUS-q.distance+.002);
+    const ropeVx=(s.a.x-s.a.px)*(1-q.t)+(s.b.x-s.b.px)*q.t;
+    const ropeVy=(s.a.y-s.a.py)*(1-q.t)+(s.b.y-s.b.py)*q.t;
+    const rvx=p.vx-ropeVx,rvy=p.vy-ropeVy,vn=rvx*nx+rvy*ny;
+    if(vn<0){p.vx-=1.28*vn*nx;p.vy-=1.28*vn*ny;p.vx*=.96;p.vy*=.96}
+    hit=true;break;
+   }
   }
   return hit;
  }
@@ -439,7 +484,7 @@ function createPhysicsEngine(){
   const cx=Math.floor(p.x),cy=Math.floor(p.y);let best=-1,bestD=Infinity;
   for(let r=0;r<=4;r++)for(let y=cy-r;y<=cy+r;y++)for(let x=cx-r;x<=cx+r;x++){
    if(x<0||x>=w||y<0||y>=h||Math.max(Math.abs(x-cx),Math.abs(y-cy))!==r)continue;
-   const i=y*w+x;if(cells[i])continue;let ropeBlocked=false;for(const segment of nearby(x+.5-.6,y+.5-.6,x+.5+.6,y+.5+.6))if(closest(x+.5,y+.5,segment).distance<.56){ropeBlocked=true;break}if(ropeBlocked)continue;const d=Math.hypot(x+.5-p.x,y+.5-p.y);if(d<bestD){bestD=d;best=i}
+   const i=y*w+x;if(cells[i])continue;let ropeBlocked=false;for(const segment of nearby(x+.5-.6,y+.5-.6,x+.5+.6,y+.5+.6))if(closest(x+.5,y+.5,segment).distance<RADIUS){ropeBlocked=true;break}if(ropeBlocked)continue;const d=Math.hypot(x+.5-p.x,y+.5-p.y);if(d<bestD){bestD=d;best=i}
   }
   return best;
  }
@@ -448,10 +493,10 @@ function createPhysicsEngine(){
   const keys=['wetness','heat','fuel','burn','age','corrosion'];
   for(let i=airborne.length-1;i>=0;i--){const p=airborne[i];p.vy=clamp(p.vy+.055*gravity,-16,16);p.vx*=.998;p.vy*=.998;
    const steps=clamp(Math.ceil(Math.max(Math.abs(p.vx),Math.abs(p.vy))/.3),1,64),dt=1/steps;let touched=false;
-   for(let s=0;s<steps;s++){p.x+=p.vx*dt;p.y+=p.vy*dt;
+   for(let s=0;s<steps;s++){const prevX=p.x,prevY=p.y;p.x+=p.vx*dt;p.y+=p.vy*dt;
     if(p.x<.5){p.x=.5;p.vx=Math.abs(p.vx)*.35;touched=true}else if(p.x>w-.5){p.x=w-.5;p.vx=-Math.abs(p.vx)*.35;touched=true}
     if(p.y<.5){p.y=.5;p.vy=Math.abs(p.vy)*.35;touched=true}else if(p.y>h-.5){p.y=h-.5;p.vy=-Math.abs(p.vy)*.25;touched=true}
-    if(collideAirRopes(p))touched=true;if(collideAirParticle(p,cells,w,h))touched=true;
+    if(collideAirRopes(p,prevX,prevY))touched=true;if(collideAirParticle(p,cells,w,h))touched=true;
    }
    const speed=Math.hypot(p.vx,p.vy);
    if(touched&&speed<.85)p.sleep++;else if(speed<.18)p.sleep++;else p.sleep=0;
