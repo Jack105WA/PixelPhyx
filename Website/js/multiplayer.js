@@ -299,8 +299,18 @@ export function createMultiplayer(callbacks = {}) {
     channel.onopen = () => {
       log('Direct LAN link established with ' + (rtcPeople[remoteId]?.name || 'a peer'));
       if (hostId === playerId) {
-        if (lastLanWorld) rtcSendTo(remoteId, 'world', lastLanWorld);
-        if (lastLanRopes) rtcSendTo(remoteId, 'ropes', lastLanRopes);
+        const world = callbacks.getWorld?.() || lastLanWorld;
+        const ropes = callbacks.getRopes?.() || lastLanRopes;
+        if (world) {
+          world.by = playerId;
+          lastLanWorld = world;
+          rtcSendTo(remoteId, 'world', world);
+        }
+        if (ropes) {
+          ropes.by = playerId;
+          lastLanRopes = ropes;
+          rtcSendTo(remoteId, 'ropes', ropes);
+        }
       }
     };
     channel.onmessage = event => handleRtcMessage(remoteId, event.data);
