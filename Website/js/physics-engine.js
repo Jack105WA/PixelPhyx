@@ -70,11 +70,15 @@ export function createPhysicsEngine(){
   const mass=m=>m===1?1.6:m===2?1:m===3||m===15?2.7:m===4?.65:m===6?.82:m===7?1.1:m===10?.92:m===11?2.5:m===12?1.1:m===14?1.9:m===16?.85:.35;
   const contacts=new Map();
   for(const s of segments){
-   const x0=Math.max(0,Math.floor(Math.min(s.ax,s.bx)-1)),x1=Math.min(w-1,Math.ceil(Math.max(s.ax,s.bx)+1));
-   const y0=Math.max(0,Math.floor(Math.min(s.ay,s.by)-1)),y1=Math.min(h-1,Math.ceil(Math.max(s.ay,s.by)+1));
+   const oldSegment={ax:s.a.px+.5,ay:s.a.py+.5,bx:s.b.px+.5,by:s.b.py+.5};
+   const x0=Math.max(0,Math.floor(Math.min(s.ax,s.bx,oldSegment.ax,oldSegment.bx)-1)),x1=Math.min(w-1,Math.ceil(Math.max(s.ax,s.bx,oldSegment.ax,oldSegment.bx)+1));
+   const y0=Math.max(0,Math.floor(Math.min(s.ay,s.by,oldSegment.ay,oldSegment.by)-1)),y1=Math.min(h-1,Math.ceil(Math.max(s.ay,s.by,oldSegment.ay,oldSegment.by)+1));
    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const i=y*w+x,m=cells[i];if(!m)continue;
-    const q=closest(x+.5,y+.5,s);if(q.distance>=RADIUS)continue;
-    const old=contacts.get(i);if(!old||q.distance<old.q.distance)contacts.set(i,{i,m,s,q});
+    const px=x+.5,py=y+.5,qOld=closest(px,py,oldSegment);let qBest=null;
+    for(let sample=0;sample<=6;sample++){const t=sample/6,interpolated={ax:oldSegment.ax+(s.ax-oldSegment.ax)*t,ay:oldSegment.ay+(s.ay-oldSegment.ay)*t,bx:oldSegment.bx+(s.bx-oldSegment.bx)*t,by:oldSegment.by+(s.by-oldSegment.by)*t};const q=closest(px,py,interpolated);if(!qBest||q.distance<qBest.distance)qBest=q}
+    if(!qBest||qBest.distance>=RADIUS)continue;
+    const q=qOld.distance>1e-5&&qBest.distance>1e-5&&qOld.dx*qBest.dx+qOld.dy*qBest.dy<0?qOld:qBest;
+    const old=contacts.get(i);if(!old||qBest.distance<old.distance)contacts.set(i,{i,m,s,q,distance:qBest.distance});
    }
   }
   for(const {i,m,s,q} of contacts.values()){
