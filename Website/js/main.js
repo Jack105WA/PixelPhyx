@@ -440,10 +440,10 @@ addEventListener('keydown',e=>{
  });
 
 const openModal=id=>document.querySelector('#'+id).classList.add('open');
-document.querySelector('#firebaseBtn').onclick=async()=>{try{await connectFirebase(firebaseConfig)}catch(e){alert('Firebase connection failed: '+e.message)}};document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
+document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
-document.querySelector('#connectFirebase').onclick=async()=>{try{await connectFirebase(firebaseConfig);document.querySelector('#firebaseModal').classList.remove('open')}catch(e){setConnection('','SETUP ERROR');alert('Firebase setup failed: '+e.message)}};
+
 let multiplayerLoading=null;
 const pendingJoinRequests=new Map();
 function queueJoinRequest(request){
@@ -487,7 +487,7 @@ async function connectFirebase(config){
  playerId=await multiplayer.connect(config);
  return playerId;
 }
-connectFirebase(firebaseConfig).catch(e=>{console.warn(e);log('Firebase connection unavailable: '+e.message)});
+// Firebase is initialized only after the user selects Online.
 function updateCurrentRoomUI(){
  const section=document.querySelector('#currentRoomSection'),code=document.querySelector('#currentRoomCode');
  if(!section||!code)return;
