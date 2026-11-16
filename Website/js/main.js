@@ -203,7 +203,7 @@ function stepRopes(){
   for(const n of points){n.x=Math.max(.5,Math.min(W-.5,n.x));n.y=Math.max(.5,Math.min(H-.5,n.y))}
  }
  pushParticlesFromRopeSweep();
- for(const rope of ropes)for(const n of rope.points){n.sx=n.x;n.sy=n.y;n.dragMoved=false}
+ for(const rope of ropes)for(const n of rope.points)n.dragMoved=false
 }
 let ropeCollisionBuckets=new Map();
 const ROPE_BUCKET_SIZE=4,ROPE_COLLISION_RADIUS=1.35;
