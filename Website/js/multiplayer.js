@@ -311,7 +311,7 @@ export function createMultiplayer(callbacks = {}) {
       if (hostId === playerId) rtcBroadcast('operation', operation, remoteId);
     } else if (message.type === 'world' && hostId !== playerId) {
       const peer = rtcRoomPeers.get(remoteId);
-      if (message.data?.by === hostId) { callbacks.onWorld?.(message.data); if (peer) { peer.gotWorld = true; completeRtcHandshake(remoteId, peer); } }
+      if (message.data?.by === hostId) { const applied = callbacks.onWorld?.(message.data); if (peer && applied !== false) { peer.gotWorld = true; completeRtcHandshake(remoteId, peer); } }
     } else if (message.type === 'ropes' && hostId !== playerId) {
       const peer = rtcRoomPeers.get(remoteId);
       if (message.data?.by === hostId && Array.isArray(message.data.ropes)) { callbacks.onRopes?.(message.data); if (peer) { peer.gotRopes = true; completeRtcHandshake(remoteId, peer); } }
