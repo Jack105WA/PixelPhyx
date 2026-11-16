@@ -445,6 +445,27 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.m
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 
 let multiplayerLoading=null;
+let monthlyUsageStatus=null;
+function renderMonthlyUsage(status){
+ monthlyUsageStatus=status;
+ const value=document.querySelector('#monthlyUsageValue');
+ const bar=document.querySelector('#monthlyUsageBar');
+ const message=document.querySelector('#monthlyUsageMessage');
+ if(!value||!bar||!message)return;
+ const percent=Math.max(0,Math.min(100,Number(status?.percent)||0));
+ const blocked=percent>=90;
+ value.textContent=percent+'% / 90%';
+ bar.style.width=percent+'%';
+ bar.classList.toggle('warning',percent>=75&&!blocked);
+ bar.classList.toggle('blocked',blocked);
+ message.textContent=blocked
+  ? 'Online is disabled because monthly bandwidth usage reached the 90% safety limit.'
+  : 'Online access automatically locks at 90% monthly usage.';
+ document.querySelector('#createLobby').disabled=blocked;
+ document.querySelector('#join').disabled=blocked;
+ document.querySelector('#roomCode').disabled=blocked;
+ document.querySelectorAll('#lobbyGallery .lobby-join').forEach(button=>button.disabled=blocked);
+}
 const pendingJoinRequests=new Map();
 function queueJoinRequest(request){
  if(!request?.key)return;
@@ -512,6 +533,7 @@ document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
  try{
   await connectFirebase(firebaseConfig);
+  const usage=await multiplayer.getMonthlyUsageStatus(true);renderMonthlyUsage(usage);if(usage.blocked)throw new Error('Online is disabled: monthly bandwidth usage has reached 90%.');
   room=await multiplayer.createLobby({name:playerName,color:playerColor});
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
@@ -526,6 +548,7 @@ let stopLobbyGallery=null;
 async function openLobbyGallery(){
  try{
   await connectFirebase(firebaseConfig);
+  const usage=await multiplayer.getMonthlyUsageStatus(true);renderMonthlyUsage(usage);
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
   updateCurrentRoomUI();
@@ -545,7 +568,7 @@ function renderLobbyGallery(lobbies){
   top.append(number,count);
   const host=document.createElement('div');host.className='lobby-host';host.textContent='HOST · ';
   const hostName=document.createElement('strong');hostName.textContent=lobby.hostName||'Unknown';host.append(hostName);
-  const join=document.createElement('button');join.className='btn primary';join.textContent='Request to join';
+  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=!!monthlyUsageStatus?.blocked;
   join.onclick=async()=>{
    join.disabled=true;join.textContent='Request sent…';
    try{await requestAndJoinRoom(lobby.room);document.querySelector('#roomModal').classList.remove('open')}
@@ -559,6 +582,7 @@ async function requestAndJoinRoom(code){
  if(!clean){alert('Choose a lobby first');return}
  try{
   await connectFirebase(firebaseConfig);
+  const usage=await multiplayer.getMonthlyUsageStatus(true);renderMonthlyUsage(usage);if(usage.blocked)throw new Error('Online is disabled: monthly bandwidth usage has reached 90%.');
   log('Sending join request to '+clean+'…');
   const approved=await multiplayer.requestJoin(clean,{name:playerName});
   if(!approved)throw new Error('The host declined your request');
