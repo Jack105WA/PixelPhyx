@@ -1078,7 +1078,7 @@ document.querySelector('#createLobby').onclick=async()=>{
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
   document.querySelector('#roomModal').classList.remove('open');
-  log('Created server '+room+' — you are the host');
+  log('Created server '+room+' — you are the host'+(multiplayer.lanMode?' using direct LAN multiplayer':''));
  }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
  finally{button.disabled=false;button.textContent='+ Create server'}
 };
@@ -1168,7 +1168,7 @@ async function joinRoom(code,approved=false){
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
-  log('Joined room '+room+' — shared world synchronization active');
+  log('Joined room '+room+(multiplayer.lanMode?' — direct LAN connection starting':' — shared world synchronization active'));
  }catch(e){log('Could not join room: '+e.message);alert('Could not join room: '+e.message)}
 }
 function publishOperation(operation){lastOperationAppliedAt=performance.now();multiplayer?.publishOperation(operation)}
