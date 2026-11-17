@@ -1,7 +1,6 @@
 // Canvas rendering for PixelPhyx rigid bodies.
 export function drawObjectBodies(ctx,bodies,drag,worldPoint){
  function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
- function drawObjectBodies(ctx,bodies,drag,worldPoint){
   ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
   for(const b of bodies){
    ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.angle);
@@ -25,5 +24,4 @@ export function drawObjectBodies(ctx,bodies,drag,worldPoint){
   }
   if(drag){const p=worldPoint(drag.body,drag.point.x,drag.point.y);ctx.strokeStyle='rgba(131,228,189,.8)';ctx.lineWidth=.8;ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(drag.target.x,drag.target.y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#83e4bd';ctx.beginPath();ctx.arc(p.x,p.y,1.8,0,Math.PI*2);ctx.fill()}
   ctx.restore();
- }
 }
