@@ -1,7 +1,7 @@
 name: PixelPhyx workflows
 on:
   push:
-    branches: [main, server-migrate, photon-test]
+    branches: [main, server-migrate, photon-test, photon-wasm]
   workflow_dispatch:
 
 permissions:
@@ -16,9 +16,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-wasm:
+    name: Build and validate Rust WebAssembly engine
+    if: github.ref == 'refs/heads/photon-wasm'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - name: Compile optimized browser WASM
+        run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
+      - name: Validate JavaScript modules
+        run: |
+          for file in Website/js/*.js Website/pkg/*.js; do
+            node --input-type=module --check < "$file"
+          done
+
   request-main-deploy:
     name: Queue deployment from preview branch
-    if: github.ref != 'refs/heads/main'
+    if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/photon-wasm'
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch the Pages deployment on main
