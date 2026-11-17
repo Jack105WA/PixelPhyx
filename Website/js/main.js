@@ -126,7 +126,7 @@ canvas.addEventListener('pointerup',e=>{
  else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});
  drawing=false;activeErase=false;lastPoint=null;strokePoints=[]
 });
-canvas.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null});
+canvas.addEventListener('pointercancel',()=>{if(objectSystem.dragging)objectSystem.releaseGrab();if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeErase=false});
 canvas.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
@@ -143,7 +143,7 @@ function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.ran
 const physicsEngine=createPhysicsEngine();
 function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
  if(!inside(x,y))return false;
- const from=idx(x,y),material=cells[from];if(!material)return false;
+ const from=idx(x,y),material=cells[from];if(!material||![M.SAND,M.WATER,M.OIL,M.ACID,M.STEAM,M.SMOKE,M.FIRE,M.LAVA,M.SALT,M.CHARCOAL].includes(material))return false;
  // Material is pushed away from the prop surface into the first available neighboring cell.
  const dirs=[[-Math.sign(nx),-Math.sign(ny)],[0,-1],[-1,0],[1,0],[0,1]];
  const unique=new Set();
@@ -163,7 +163,7 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
  }
  return false;
 }
-const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,onPublish:op=>publishOperation(op)});
+const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
 function stepRopes(){
  // The host is the sole rope-physics authority in multiplayer. Other clients
