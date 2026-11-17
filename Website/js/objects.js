@@ -71,13 +71,13 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   return{depth,nx:axis[0],ny:axis[1],cx,cy};
  }
  function impulseAgainstWorld(b,c){
-  const rx=c.cx-b.x-c.nx*.5,ry=c.cy-b.y-c.ny*.5;
+  const rx=c.cx+c.nx*.5-b.x,ry=c.cy+c.ny*.5-b.y;
   const pvx=b.vx-b.spin*ry,pvy=b.vy+b.spin*rx,vn=pvx*c.nx+pvy*c.ny;
   if(vn>=0)return;
   const rn=rx*c.ny-ry*c.nx,den=invMass(b)+rn*rn/inertia(b),j=-(1+b.restitution)*vn/den;
   b.vx+=c.nx*j*invMass(b);b.vy+=c.ny*j*invMass(b);b.spin+=(rx*c.ny-ry*c.nx)*j/inertia(b);
   const tx=-c.ny,ty=c.nx,vt=pvx*tx+pvy*ty,jt=clamp(-vt/(invMass(b)+(rx*ty-ry*tx)**2/inertia(b)),-j*b.friction,j*b.friction);
-  b.vx+=tx*jt*invMass(b);b.vy+=ty*jt*invMass(b);
+  b.vx+=tx*jt*invMass(b);b.vy+=ty*jt*invMass(b);b.spin=clamp(b.spin,-.38,.38);
  }
  function resolveTerrain(b){
   const w=getWidth(),h=getHeight();let contacts=0;
@@ -199,7 +199,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    if(vn>=0)continue;
    const ran=rax*ny-ray*nx,rbn=rbx*ny-rby*nx,den=sum+ran*ran/inertia(a)+rbn*rbn/inertia(b),e=Math.min(a.restitution,b.restitution),impulse=-(1+e)*vn/den,ix=impulse*nx,iy=impulse*ny;
    a.vx-=ix*ia;a.vy-=iy*ia;b.vx+=ix*ib;b.vy+=iy*ib;
-   a.spin-=(rax*iy-ray*ix)/inertia(a);b.spin+=(rbx*iy-rby*ix)/inertia(b);
+   a.spin=clamp(a.spin-(rax*iy-ray*ix)/inertia(a),-.45,.45);b.spin=clamp(b.spin+(rbx*iy-rby*ix)/inertia(b),-.45,.45);
    const tx=-ny,ty=nx,jt=clamp(-(rvx*tx+rvy*ty)/den,-impulse*.25,impulse*.25);
    a.vx-=tx*jt*ia;a.vy-=ty*jt*ia;b.vx+=tx*jt*ib;b.vy+=ty*jt*ib;
    if(Math.abs(vn)>3){a.damage=Math.min(1,a.damage+Math.abs(vn)*.004);b.damage=Math.min(1,b.damage+Math.abs(vn)*.004)}
@@ -214,7 +214,8 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
     applyGrab(b,dt);
     b.vy=clamp(b.vy+.16*gravity*dt,-26,26);
     b.vx*=.9995;b.spin*=.997;
-    b.x+=b.vx*dt;b.y+=b.vy*dt;b.angle+=b.spin*dt;
+    b.spin=clamp(b.spin,-.38,.38);b.vx=clamp(b.vx,-22,22);b.vy=clamp(b.vy,-22,22);
+   b.x+=b.vx*dt;b.y+=b.vy*dt;b.angle+=b.spin*dt;
     solveSuspension(b,dt);resolveTerrain(b);collideAirborne(b);
     if(b.y>h+35||b.x<-35||b.x>w+35)remove(b.id);
     if(Math.hypot(b.vx,b.vy)<.1&&Math.abs(b.spin)<.01&&(!drag||drag.body!==b))b.sleep++;
