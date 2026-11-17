@@ -194,7 +194,21 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   ctx.restore();
  }
  function serialize(){return bodies.map(b=>[b.id,b.type,+b.x.toFixed(2),+b.y.toFixed(2),+b.vx.toFixed(2),+b.vy.toFixed(2),+b.angle.toFixed(3),+b.spin.toFixed(3),+b.damage.toFixed(2),...(b.type==='car'?[...b.wheelY,...b.wheelV,...b.wheelSpin]:[])])}
- function restore(items){if(!Array.isArray(items))return;bodies.length=0;for(const p of items.slice(0,60)){if(!Array.isArray(p)||p.length<9||typeof p[0]!=='string'||!defs[p[1]]||!p.slice(2,9).every(Number.isFinite))continue;const b=spawn(p[1],p[2],p[3],p[0]);if(!b)continue;[b.vx,b.vy,b.angle,b.spin,b.damage]=p.slice(4,9);if(b.type==='car'&&p.length>=15)[b.wheelY[0],b.wheelY[1],b.wheelV[0],b.wheelV[1],b.wheelSpin[0],b.wheelSpin[1]]=p.slice(9,15)}}
+ function restore(items){
+  if(!Array.isArray(items))return;
+  const previous=new Map(bodies.map(b=>[b.id,b])),next=[];
+  for(const p of items.slice(0,60)){
+   if(!Array.isArray(p)||p.length<9||typeof p[0]!=='string'||!defs[p[1]]||!p.slice(2,9).every(Number.isFinite))continue;
+   let b=previous.get(p[0]);
+   if(b&&b.type!==p[1])b=null;
+   if(!b){const d=defs[p[1]];b={id:p[0],type:p[1],x:p[2],y:p[3],vx:0,vy:0,angle:0,spin:0,w:d.w,h:d.h,mass:d.mass,restitution:d.restitution,friction:d.friction,damage:0,sleep:0,wheelY:[0,0],wheelV:[0,0],wheelSpin:[0,0],suspension:p[1]==='car'?{rest:5,stiffness:.24,damping:.68,max:8}:null}}
+   b.x=p[2];b.y=p[3];[b.vx,b.vy,b.angle,b.spin,b.damage]=p.slice(4,9);
+   if(b.type==='car'&&p.length>=15)[b.wheelY[0],b.wheelY[1],b.wheelV[0],b.wheelV[1],b.wheelSpin[0],b.wheelSpin[1]]=p.slice(9,15);
+   next.push(b);
+  }
+  bodies.splice(0,bodies.length,...next);
+  if(drag&&!bodies.includes(drag.body))drag=null;
+ }
  function apply(op){if(!op)return;if(op.type==='propAdd')spawn(op.kind,op.x,op.y,op.id);else if(op.type==='propDelete')remove(op.id);else if(op.type==='props')restore(op.items)}
  function clear(){bodies.length=0;drag=null}
  return{spawn,step,draw,grabAt,moveGrab,releaseGrab,apply,serialize,restore,clear,get count(){return bodies.length},get dragging(){return !!drag}};
