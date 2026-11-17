@@ -16,7 +16,7 @@ const stripExports = source => source.replace(/\bexport\s+(?=(?:const|function)\
 const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
 const renderer = stripExports(rendererSource);
-const objects = stripExports(objectsSource.replace(/^import \\{drawObjectBodies\\} from '\\.\\/object-renderer\\.js';\\s*/, ''));
+const objects = stripExports(objectsSource.replace("import {drawObjectBodies} from './object-renderer.js';", ''));
 if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) || /\bexport\s/.test(objects)) {
   throw new Error('Unsupported export syntax in physics modules.');
 }
