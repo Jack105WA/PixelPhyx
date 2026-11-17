@@ -767,24 +767,21 @@ export function createMultiplayer(callbacks = {}) {
 
   function watchLobbies(callback) {
     if (!db) throw new Error('Firebase is not connected');
-    let directoryData = null;
-    // Check immediately from the initial directory event, then every 60
-    // seconds while Online is open. LAN entries are cleanup-only.
+    let cleanupChecked = false;
+    // Run one cleanup pass from the initial directory snapshot only.
+    // Later directory updates refresh the gallery but never start another scan.
     const stopDirectory = onValue(ref(db, 'lobbyDirectory'), snapshot => {
-      directoryData = snapshot.val() || {};
-      cleanupEmptyLobbies(directoryData);
+      const directoryData = snapshot.val() || {};
+      if (!cleanupChecked) {
+        cleanupChecked = true;
+        cleanupEmptyLobbies(directoryData);
+      }
       const active = Object.values(directoryData)
         .filter(lobby => lobby && typeof lobby.room === 'string' && lobby.transport !== 'webrtc')
         .slice(0, 20);
       callback(active.sort((a, b) => String(a.room).localeCompare(String(b.room))));
     }, error => log('Lobby gallery error: ' + error.message));
-    const cleanupTimer = setInterval(() => {
-      if (directoryData) cleanupEmptyLobbies(directoryData);
-    }, 60000);
-    return () => {
-      clearInterval(cleanupTimer);
-      stopDirectory();
-    };
+    return stopDirectory;
   }
 
   async function requestJoin(code, identity = {}) {
