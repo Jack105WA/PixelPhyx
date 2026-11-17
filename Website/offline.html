@@ -1033,18 +1033,19 @@ function renderJoinRequests(){
 }
 function getConnectionConfig(){
  const config={...firebaseConfig};
- const customEnabled=document.querySelector('#customServerMode')?.checked;
- if(!customEnabled)return config;
- const type=document.querySelector('#customServerType')?.value||'firebase';
- if(type!=='firebase')throw new Error('PixelPhyx Server connections are not supported by the current multiplayer client yet.');
- const address=String(document.querySelector('#customServerAddress')?.value||'').trim();
- if(!address)throw new Error('Enter your custom Firebase Realtime Database URL.');
- let parsed;
- try{parsed=new URL(address)}catch{throw new Error('Enter a valid Firebase Realtime Database URL.')}
- if(parsed.protocol!=='https:'&&parsed.protocol!=='http:')throw new Error('The Firebase database URL must use HTTPS or HTTP.');
- if(!/(firebaseio\.com|firebasedatabase\.app)$/i.test(parsed.hostname))throw new Error('That does not look like a Firebase Realtime Database URL.');
- config.databaseURL=parsed.href.replace(/\/$/,'');
- return config;
+ if(!document.querySelector('#customServerMode')?.checked)return config;
+ if((document.querySelector('#customServerType')?.value||'firebase')!=='firebase')throw new Error('PixelPhyx Server connections are not supported by the current multiplayer client yet.');
+ const raw=String(document.querySelector('#customServerAddress')?.value||'').trim();
+ if(!raw)throw new Error('Paste your Firebase web app config JSON.');
+ let custom;
+ try{custom=JSON.parse(raw)}catch{throw new Error('Firebase config must be valid JSON. Copy the config object from Firebase Project settings.')}
+ if(!custom||typeof custom!=='object'||Array.isArray(custom))throw new Error('Firebase config must be a JSON object.');
+ for(const key of ['apiKey','authDomain','databaseURL','projectId','appId'])if(typeof custom[key]!=='string'||!custom[key].trim())throw new Error('Firebase config is missing the required "'+key+'" field.');
+ let database;
+ try{database=new URL(custom.databaseURL)}catch{throw new Error('The databaseURL in your Firebase config is not a valid URL.')}
+ if(database.protocol!=='https:'||!(database.hostname==='firebaseio.com'||database.hostname.endsWith('.firebaseio.com')||database.hostname==='firebasedatabase.app'||database.hostname.endsWith('.firebasedatabase.app')))throw new Error('databaseURL must be an HTTPS Firebase Realtime Database URL.');
+ custom.databaseURL=database.href.replace(/\/$/,'');
+ return custom;
 }
 async function connectFirebase(config){
  config=getConnectionConfig();
@@ -1098,10 +1099,8 @@ function updateCustomServerUI(){
  customServerSettings.hidden=!enabled;
  const firebaseMode=customServerType.value==='firebase';
  customServerAddress.disabled=!firebaseMode;
- customServerAddress.placeholder=firebaseMode?'https://your-project-default-rtdb.firebaseio.com':'192.168.1.100:8080';
- customServerAddress.closest('.control').querySelector('label').textContent=firebaseMode?'Database address':'Server address';
  customServerHint.textContent=firebaseMode
-  ?'Enter a Realtime Database URL from the same Firebase project. Authentication and database rules must be configured for that project.'
+  ?'Paste the complete Firebase web app config JSON from Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.'
   :'The IP server connection protocol is not available in this client yet. Selecting this type will show an explanatory error when connecting.';
 }
 customServerToggle.addEventListener('change',updateCustomServerUI);
