@@ -13,6 +13,14 @@ export function createPhotonSync(state) {
   let snapshotBusy = false, pendingSnapshot = null;
   // One authoritative sequence orders reliable edits against slower full snapshots.
   let operationRevision = 0, lastAppliedOperationRevision = 0;
+  const seenOperations = new Set();
+  function rememberOperation(id) {
+    if (typeof id !== 'string' || !id) return true;
+    if (seenOperations.has(id)) return false;
+    seenOperations.add(id);
+    if (seenOperations.size > 4096) seenOperations.delete(seenOperations.values().next().value);
+    return true;
+  }
 
   const room = () => state.client?.room || null;
   const send = (code, data, options = {}) => {
@@ -106,7 +114,7 @@ export function createPhotonSync(state) {
   }
 
   function handleOperation(senderNumber, operation) {
-    if (!operation || typeof operation.type !== 'string') return;
+    if (!operation || typeof operation.type !== 'string' || !rememberOperation(operation.operationId)) return;
     const masterNumber = room()?.masterClientNumber;
     if (state.isHost() && senderNumber !== masterNumber) {
       if (!state.isApproved(senderNumber)) return;
@@ -152,7 +160,7 @@ export function createPhotonSync(state) {
 
   function publishOperation(operation) {
     if (!room() || !operation) return;
-    const payload = packOperation({ ...operation, by: state.playerId, createdAt: Date.now() });
+    const payload = packOperation({ ...operation, operationId: crypto.randomUUID(), by: state.playerId, createdAt: Date.now() });
     if (state.isHost()) {
       payload.revision = ++operationRevision;
       const recipients = state.targets();
