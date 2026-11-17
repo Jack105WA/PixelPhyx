@@ -138,7 +138,10 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    const t=i/steps,x=x1+dx*t,y=y1+dy*t,p=localPoint(b,x,y);
    if(b.type==='bucket'){if(!bucketAllowsMove(b,{x:x1+dx*(i-1)/steps,y:y1+dy*(i-1)/steps},{x,y}))return true;continue}
    if(b.type==='ball'){if(Math.hypot(p.x,p.y)<b.w*.49)return true}
-   else if(Math.abs(p.x)<b.w/2&&Math.abs(p.y)<b.h/2)return true;
+   else if(b.type==='car'){
+    if(Math.abs(p.x)<b.w/2&&Math.abs(p.y)<b.h/2)return true;
+    for(let wheel=0;wheel<2;wheel++){const wx=wheel===0?-10.5:10.5,wy=7.5+b.wheelY[wheel];if(Math.hypot(p.x-wx,p.y-wy)<3.15)return true}
+   }else if(Math.abs(p.x)<b.w/2&&Math.abs(p.y)<b.h/2)return true;
   }
   return false;
  }
@@ -196,6 +199,20 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    if(p.x<box.minX-1||p.x>box.maxX+1||p.y<box.minY-1||p.y>box.maxY+1)continue;
    const q=localPoint(b,p.x,p.y),hx=b.w/2,hy=b.h/2;
    if(b.type==='bucket'&&Math.abs(q.x)<5.65&&q.y<7.2)continue;
+   if(b.type==='car'){
+    let wheelHit=false;
+    for(let wheel=0;wheel<2;wheel++){
+     const wx=wheel===0?-10.5:10.5,wy=7.5+b.wheelY[wheel],dx=q.x-wx,dy=q.y-wy,distance=Math.hypot(dx,dy);
+     if(distance>=3.65)continue;
+     const nx=distance>1e-7?dx/distance:0,ny=distance>1e-7?dy/distance:-1;
+     const normal=rotate(nx,ny,b.angle),surface=pointVelocity(b,wx,wy);
+     const corrected=worldPoint(b,wx+nx*3.66,wy+ny*3.66);p.x=corrected.x;p.y=corrected.y;
+     const rvx=p.vx-surface.x,rvy=p.vy-surface.y,vn=rvx*normal.x+rvy*normal.y;
+     if(vn<0){const impulse=-1.12*vn;p.vx+=normal.x*impulse;p.vy+=normal.y*impulse;b.vx-=normal.x*impulse*.012;b.vy-=normal.y*impulse*.012}
+     wheelHit=true;break;
+    }
+    if(wheelHit)continue;
+   }
    if(Math.abs(q.x)>hx+.5||Math.abs(q.y)>hy+.5)continue;
    let nx=0,ny=0,depth;
    const ox=hx+.5-Math.abs(q.x),oy=hy+.5-Math.abs(q.y);
