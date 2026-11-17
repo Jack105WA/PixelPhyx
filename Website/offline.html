@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta name="pixelphyx-offline-build" content="a1673fefba61bdedf51f47272c346dd4f4d5f122-1edc10885e98037d48027a62d13d13390dc4734d-41b4559823b272002c884107c0f23f651c3e94eb-b45ef22f2bfe277e314fd252b3bac9afb0ad852b">
+<meta name="pixelphyx-offline-build" content="a1673fefba61bdedf51f47272c346dd4f4d5f122-1edc10885e98037d48027a62d13d13390dc4734d-41b4559823b272002c884107c0f23f651c3e94eb-2377c80167c51c5dd43a456edc31d2e4ab5f5750">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#10151e">
@@ -1558,7 +1558,7 @@ canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
 const canvasShell=document.querySelector('#canvasShell');
-const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];
+const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];
 function fitCanvasToShell(){
  const shellWidth=canvasShell.clientWidth,shellHeight=canvasShell.clientHeight;
  const scale=Math.min(shellWidth/16,shellHeight/9);
