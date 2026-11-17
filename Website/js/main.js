@@ -143,11 +143,12 @@ function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.ran
 const physicsEngine=createPhysicsEngine();
 function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
  if(!inside(x,y))return false;
- const from=idx(x,y),material=cells[from];if(!material||![M.SAND,M.WATER,M.OIL,M.ACID,M.STEAM,M.SMOKE,M.FIRE,M.LAVA,M.SALT,M.CHARCOAL].includes(material))return false;
- // Material is pushed away from the prop surface into the first available neighboring cell.
- const dirs=[[-Math.sign(nx),-Math.sign(ny)],[0,-1],[-1,0],[1,0],[0,1]];
+ const from=idx(x,y),material=cells[from];
+ if(!material||![M.SAND,M.WATER,M.FIRE,M.OIL,M.ACID,M.STEAM,M.SMOKE,M.LAVA,M.SALT,M.CHARCOAL].includes(material))return false;
+ // nx/ny point from the body into the particle; move it farther along that normal.
+ const primary=[Math.abs(nx)>=Math.abs(ny)?[Math.sign(nx),0]:[0,Math.sign(ny)],[0,-1],[-1,0],[1,0],[0,1]];
  const unique=new Set();
- for(const [dx,dy] of dirs){
+ for(const [dx,dy] of primary){
   if(!dx&&!dy)continue;
   const tx=x+dx,ty=y+dy;if(!inside(tx,ty))continue;
   const to=idx(tx,ty);if(unique.has(to))continue;unique.add(to);
@@ -156,8 +157,8 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
   for(const key of ['wetness','heat','fuel','burn','age','corrosion']){
    const state=materialState[key];if(state){state[to]=state[from];state[from]=0}
   }
-  particleVelocityX[to]=Math.max(-12,Math.min(12,(bodyVx||0)*.28+dx*.42));
-  particleVelocityY[to]=Math.max(-12,Math.min(12,(bodyVy||0)*.28+dy*.42));
+  particleVelocityX[to]=Math.max(-12,Math.min(12,(bodyVx||0)*.32+dx*.65));
+  particleVelocityY[to]=Math.max(-12,Math.min(12,(bodyVy||0)*.32+dy*.65));
   particleVelocityX[from]=particleVelocityY[from]=0;
   recordParticleMove(from,to,material);return true;
  }
