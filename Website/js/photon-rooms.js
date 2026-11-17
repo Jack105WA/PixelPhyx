@@ -124,6 +124,8 @@ export function createPhotonRooms(state, sync) {
   }
 
   async function requestJoin(code, identity = {}) {
+    const requestedRoom = String(code || '').trim().toUpperCase();
+    if (room()?.name === requestedRoom && state.isApproved(client().localPlayer.number)) return true;
     await joinRoom(code, identity, false);
     if (!room()) throw new Error('Could not enter the server request channel.');
     if (pendingApproval) throw new Error('A join request is already pending.');
@@ -154,9 +156,14 @@ export function createPhotonRooms(state, sync) {
     if (!request) throw new Error('That join request is no longer active.');
     pendingRequests.delete(String(key));
     if (isApproved) state.approvedPlayers.add(request.senderNumber);
-    client().sendEvent(EVENTS.JOIN_REPLY, { approved: !!isApproved }, {
+    const sent = client().sendEvent(EVENTS.JOIN_REPLY, { approved: !!isApproved }, {
       reliable: true, targetPlayers: [request.senderNumber]
     });
+    if (!sent) {
+      if (isApproved) state.approvedPlayers.delete(request.senderNumber);
+      pendingRequests.set(String(key), request);
+      throw new Error('Photon could not deliver the approval response.');
+    }
     state.roster();
     state.log((isApproved ? 'Approved' : 'Declined') + ' player #' + request.senderNumber + '.');
   }
