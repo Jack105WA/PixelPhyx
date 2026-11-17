@@ -164,6 +164,10 @@ export function createPhotonSync(state) {
   function publishOperation(operation) {
     if (!room() || !operation) return;
     const payload = packOperation({ ...operation, operationId: crypto.randomUUID(), by: state.playerId, createdAt: Date.now() });
+    // Register the operation before sending it. The originating client has
+    // already applied its edit locally, so any host echo must be discarded
+    // by operation ID rather than relying on the sender identity.
+    rememberOperation(payload.operationId);
     if (state.isHost()) {
       payload.revision = ++operationRevision;
       const recipients = state.targets();
