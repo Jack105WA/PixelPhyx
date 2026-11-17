@@ -9,7 +9,7 @@ export const EVENTS = {
 
 export function createPhotonSync(state) {
   const transfers = new Map();
-  let lastRopesAt = 0, lastPropsSignature = '';
+  let lastRopesAt = 0, lastPropsSignature = '', lastWorldSignature = '';
   let snapshotBusy = false, pendingSnapshot = null;
 
   const room = () => state.client?.room || null;
@@ -153,6 +153,15 @@ export function createPhotonSync(state) {
 
   function publishWorld(world) {
     if (!state.isHost() || !world) return;
+    const signature = [
+      world.canvasSize, world.gravity, world.ambient, world.cells,
+      JSON.stringify(world.materialState || {}),
+      JSON.stringify(world.moves || []),
+      JSON.stringify(world.airborne || []),
+      JSON.stringify(world.props || [])
+    ].join('|');
+    if (signature === lastWorldSignature) return;
+    lastWorldSignature = signature;
     state.callbacks.getWorld = () => world;
     queueSnapshot(state.targets());
   }
