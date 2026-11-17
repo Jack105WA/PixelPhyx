@@ -590,17 +590,24 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
  }
  function projectRadius(b,axis){const a=axes(b),x=axis.x??axis[0],y=axis.y??axis[1];return Math.abs(x*a[0][0]+y*a[0][1])*b.w/2+Math.abs(x*a[1][0]+y*a[1][1])*b.h/2}
  function collisionForCell(b,x,y){
-  const cx=x+.5,cy=y+.5,dx=b.x-cx,dy=b.y-cy,ax=axes(b),tests=[[1,0],[0,1],ax[0],ax[1]];
-  // Pixel terrain contacts should resolve against the dominant world direction.
-  // Choosing the shallowest SAT axis for every edge pixel causes sideways jitter on floors.
-  const local=localPoint(b,cx,cy);
-  let axis;
-  if(Math.abs(local.y)>b.h/2&&Math.abs(local.x)<=b.w/2+1)axis=rotate(0,-Math.sign(local.y),b.angle);
-  else if(Math.abs(local.x)>b.w/2&&Math.abs(local.y)<=b.h/2+1)axis=rotate(-Math.sign(local.x),0,b.angle);
-  else axis=Math.abs(dx)>Math.abs(dy)?{x:Math.sign(dx)||1,y:0}:{x:0,y:Math.sign(dy)||1};
-  const depth=projectRadius(b,axis)+.5-Math.abs(dx*axis.x+dy*axis.y);
-  if(depth<=0)return null;
-  return{depth,nx:axis.x,ny:axis.y,cx,cy};
+  const cx=x+.5,cy=y+.5,dx=b.x-cx,dy=b.y-cy,bodyAxes=axes(b);
+  // Full OBB-vs-grid-cell SAT. A grid cell is a square, so its projected
+  // radius changes with the axis; using a fixed .5 misses rotated contacts.
+  const tests=[[0,1],[1,0],bodyAxes[0],bodyAxes[1]];
+  let depth=Infinity,nx=0,ny=0;
+  for(const axis of tests){
+   const ax=axis[0],ay=axis[1];
+   const cellRadius=.5*(Math.abs(ax)+Math.abs(ay));
+   const overlap=projectRadius(b,axis)+cellRadius-Math.abs(dx*ax+dy*ay);
+   if(overlap<=0)return null;
+   if(overlap<depth){
+    depth=overlap;
+    const projection=dx*ax+dy*ay;
+    const sign=projection>1e-8?1:projection< -1e-8?-1:(Math.abs(ay)>.5?-1:1);
+    nx=ax*sign;ny=ay*sign;
+   }
+  }
+  return{depth,nx,ny,cx,cy};
  }
  function impulseAgainstWorld(b,c){
   // Grid contacts aggregate many tiny pixel supports; applying torque from one selected pixel
@@ -625,7 +632,7 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
     // The car's underside is open so the independently simulated wheels carry it.
     if(b.type==='car'&&local.y>2.7&&Math.abs(local.x)<14.5)continue;
     const c=collisionForCell(b,x,y);if(!c)continue;
-    if(movable.has(material)&&displaceCell?.(x,y,-c.nx,-c.ny,b.vx,b.vy))continue;
+    if(movable.has(material)&&displaceCell?.(x,y,c.nx,c.ny,b.vx,b.vy))continue;
     if(!deepest||c.depth>deepest.depth)deepest=c;
    }
    if(!deepest)break;
@@ -662,44 +669,50 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   return false;
  }
  function wheelGround(b,index){
-  const lx=index===0?-10.5:10.5,anchor=worldPoint(b,lx,7.5),r=3.15;
-  const base=worldPoint(b,lx,7.5+b.wheelY[index]),cx=base.x,cy=base.y;
-  let groundY=Infinity,materialAt=null,bestDistance=Infinity;
-  // Sweep around the wheel instead of checking one row; fast falls cannot tunnel through a one-cell floor.
-  for(let k=-3;k<=3;k++){
-   const x=Math.floor(cx+k*.82);if(x<0||x>=getWidth())continue;
-   for(let oy=-8;oy<=8;oy++){
-    const y=Math.floor(cy+oy);if(y<0||y>=getHeight())continue;
-    const m=getCell(x,y);if(!m)continue;
-    if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
-    const distance=Math.abs((y+.5)-(cy+r));if(distance<bestDistance){bestDistance=distance;groundY=y;materialAt={x,y,m}}
-   }
+  const lx=index===0?-10.5:10.5,r=3.15;
+  const anchor=worldPoint(b,lx,7.5),wheel=worldPoint(b,lx,7.5+b.wheelY[index]);
+  const cx=wheel.x,cy=wheel.y;
+  let groundY=Infinity,material=null;
+  const minX=Math.max(0,Math.floor(cx-r)),maxX=Math.min(getWidth()-1,Math.floor(cx+r));
+  const minY=Math.max(0,Math.floor(cy-r-1)),maxY=Math.min(getHeight()-1,Math.ceil(cy+r));
+  for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+   const m=getCell(x,y);if(!m)continue;
+   const nearestX=clamp(cx,x,x+1),horizontal=cx-nearestX;
+   // Only the lower half of the wheel supports the chassis. Side walls and
+   // overhead pixels must never be mistaken for a road surface.
+   const vertical=cy-y;
+   if(vertical<.25||vertical>r+.5||Math.abs(horizontal)>=r)continue;
+   if(horizontal*horizontal+vertical*vertical>r*r+.35)continue;
+   if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
+   if(y<groundY){groundY=y;material=m}
   }
-  if(!materialAt)return null;
-  const rawTarget=groundY+.5-r-anchor.y;
-  // If the suspension reaches its travel limit, move the chassis back above the wheel contact.
-  if(rawTarget< -3.8){b.y+=rawTarget+3.8;if(b.vy>0)b.vy=0}
-  const target=clamp(rawTarget,-3.8,2.2);
-  return{target,groundY,material:materialAt.m,r};
+  if(!material)return null;
+  const rawTarget=groundY-r-anchor.y;
+  return{rawTarget,target:clamp(rawTarget,-3.8,2.2),groundY,material,r};
  }
  function solveSuspension(b,dt){
   if(b.type!=='car')return;
+  const hits=[wheelGround(b,0),wheelGround(b,1)];
+  let correction=0;
+  for(const hit of hits)if(hit)correction=Math.min(correction,hit.rawTarget+3.8);
+  if(correction<0){
+   b.y+=correction;
+   if(b.vy>0)b.vy=0;
+  }
   for(let i=0;i<2;i++){
-   const hit=wheelGround(b,i),old=b.wheelY[i];
-   const wheelAccel=hit?clamp((hit.target-old)*.3-b.wheelV[i]*.62,-1.2,1.4):clamp(-old*.18-b.wheelV[i]*.38,-.7,.7);
+   const hit=hits[i],old=b.wheelY[i];
+   const target=hit?clamp(hit.rawTarget-correction,-3.8,2.2):0;
+   const wheelAccel=hit?clamp((target-old)*.3-b.wheelV[i]*.62,-1.2,1.4):clamp(-old*.18-b.wheelV[i]*.38,-.7,.7);
    b.wheelV[i]=clamp(b.wheelV[i]+wheelAccel*dt,-5,5);
    b.wheelY[i]=clamp(old+b.wheelV[i]*dt,-4,2.5);
-   if(hit&&b.wheelY[i]>hit.target){b.wheelY[i]=hit.target;if(b.wheelV[i]>0)b.wheelV[i]=0}
+   if(hit&&b.wheelY[i]>target){b.wheelY[i]=target;if(b.wheelV[i]>0)b.wheelV[i]=0}
    const springForce=clamp(-b.wheelY[i]*.18-b.wheelV[i]*.24,-.8,.8);
-   b.vy-=springForce*.12*dt;
-   // Wheel travel is independent; chassis rotation is reserved for actual collisions.
+   // Match chassis support to the world's per-frame gravity, avoiding the
+   // weak spring force that previously let the car sink through flat ground.
+   b.vy-=springForce*.4*dt;
    b.wheelGround[i]=!!hit;
    if(hit&&b.wheelV[i]>0)b.wheelV[i]*=-.08;
-   if(hit){
-    const wheelSpeed=b.vx+(i===0?-1:1)*b.spin*10;
-    b.wheelSpin[i]+=wheelSpeed*.12;
-    b.vx*=.999;
-   }else b.wheelSpin[i]+=(b.vx+(i===0?-1:1)*b.spin*10)*.12;
+   b.wheelSpin[i]+=(b.vx+(i===0?-1:1)*b.spin*10)*.12;
   }
  }
  function collideAirborne(b){
@@ -731,15 +744,20 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
    if(separated)continue;
    const ia=invMass(a),ib=invMass(b),sum=ia+ib,correction=Math.min(2,Math.max(0,depth-.01)*.72/sum);
    a.x-=nx*correction*ia;a.y-=ny*correction*ia;b.x+=nx*correction*ib;b.y+=ny*correction*ib;
-   const px=(a.x+b.x)/2,py=(a.y+b.y)/2,rax=px-a.x,ray=py-a.y,rbx=px-b.x,rby=py-b.y;
+   const ra=projectRadius(a,[nx,ny]),rb=projectRadius(b,[nx,ny]);
+   const px=(a.x+nx*ra+b.x-nx*rb)/2,py=(a.y+ny*ra+b.y-ny*rb)/2;
+   const rax=px-a.x,ray=py-a.y,rbx=px-b.x,rby=py-b.y;
    const avx=a.vx-a.spin*ray,avy=a.vy+a.spin*rax,bvx=b.vx-b.spin*rby,bvy=b.vy+b.spin*rbx,rvx=bvx-avx,rvy=bvy-avy,vn=rvx*nx+rvy*ny;
    a.sleep=b.sleep=0;
    if(vn>=0)continue;
    const ran=rax*ny-ray*nx,rbn=rbx*ny-rby*nx,den=sum+ran*ran/inertia(a)+rbn*rbn/inertia(b),e=Math.min(a.restitution,b.restitution),impulse=-(1+e)*vn/den,ix=impulse*nx,iy=impulse*ny;
    a.vx-=ix*ia;a.vy-=iy*ia;b.vx+=ix*ib;b.vy+=iy*ib;
    a.spin=clamp(a.spin-(rax*iy-ray*ix)/inertia(a),-.45,.45);b.spin=clamp(b.spin+(rbx*iy-rby*ix)/inertia(b),-.45,.45);
-   const tx=-ny,ty=nx,jt=clamp(-(rvx*tx+rvy*ty)/den,-impulse*.25,impulse*.25);
+   const tx=-ny,ty=nx,rat=rax*ty-ray*tx,rbt=rbx*ty-rby*tx;
+   const tangentDen=sum+rat*rat/inertia(a)+rbt*rbt/inertia(b);
+   const jt=clamp(-(rvx*tx+rvy*ty)/tangentDen,-impulse*.25,impulse*.25);
    a.vx-=tx*jt*ia;a.vy-=ty*jt*ia;b.vx+=tx*jt*ib;b.vy+=ty*jt*ib;
+   a.spin=clamp(a.spin-rat*jt/inertia(a),-.45,.45);b.spin=clamp(b.spin+rbt*jt/inertia(b),-.45,.45);
    if(Math.abs(vn)>3){a.damage=Math.min(1,a.damage+Math.abs(vn)*.004);b.damage=Math.min(1,b.damage+Math.abs(vn)*.004)}
    a.sleep=b.sleep=0;
   }
@@ -1540,7 +1558,7 @@ canvas.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
 const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cursorNamesCanvas.getContext('2d');
 const canvasShell=document.querySelector('#canvasShell');
-const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];
+const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];
 function fitCanvasToShell(){
  const shellWidth=canvasShell.clientWidth,shellHeight=canvasShell.clientHeight;
  const scale=Math.min(shellWidth/16,shellHeight/9);
