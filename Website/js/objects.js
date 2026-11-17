@@ -59,8 +59,10 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  }
  function axes(b){const c=Math.cos(b.angle),s=Math.sin(b.angle);return[[c,s],[-s,c]]}
  function bounds(b){
-  const ax=axes(b),ex=Math.abs(ax[0][0])*b.w/2+Math.abs(ax[1][0])*b.h/2,ey=Math.abs(ax[0][1])*b.w/2+Math.abs(ax[1][1])*b.h/2;
-  return{minX:Math.floor(b.x-ex-1),maxX:Math.ceil(b.x+ex+1),minY:Math.floor(b.y-ey-1),maxY:Math.ceil(b.y+ey+1)};
+  const ax=axes(b),minY=b.type==='car'?-b.h/2:-b.h/2,maxY=b.type==='car'?Math.max(b.h/2,7.5+Math.max(...b.wheelY)+3.15):b.h/2;
+  const centerY=(minY+maxY)/2,halfY=(maxY-minY)/2,c=worldPoint(b,0,centerY);
+  const ex=Math.abs(ax[0][0])*b.w/2+Math.abs(ax[1][0])*halfY,ey=Math.abs(ax[0][1])*b.w/2+Math.abs(ax[1][1])*halfY;
+  return{minX:Math.floor(c.x-ex-1),maxX:Math.ceil(c.x+ex+1),minY:Math.floor(c.y-ey-1),maxY:Math.ceil(c.y+ey+1)};
  }
  function projectRadius(b,axis){const a=axes(b),x=axis.x??axis[0],y=axis.y??axis[1];return Math.abs(x*a[0][0]+y*a[0][1])*b.w/2+Math.abs(x*a[1][0]+y*a[1][1])*b.h/2}
  function collisionForCell(b,x,y){
