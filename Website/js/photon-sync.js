@@ -116,6 +116,9 @@ export function createPhotonSync(state) {
   function handleOperation(senderNumber, operation) {
     if (!operation || typeof operation.type !== 'string' || !rememberOperation(operation.operationId)) return;
     const masterNumber = room()?.masterClientNumber;
+    // The drawing client already applied its own stroke locally. Never replay an
+    // echoed copy from the room host, even if Photon delivers it to the sender.
+    if (!state.isHost() && operation.by === state.playerId) return;
     if (state.isHost() && senderNumber !== masterNumber) {
       if (!state.isApproved(senderNumber)) return;
       const decoded = unpackOperation(operation);
