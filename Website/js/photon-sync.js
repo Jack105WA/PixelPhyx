@@ -154,7 +154,7 @@ export function createPhotonSync(state) {
   function publishWorld(world) {
     if (!state.isHost() || !world) return;
     const signature = [
-      world.canvasSize, world.gravity, world.ambient, world.cells,
+      world.canvasSize, world.gravity, world.ambient, world.running, world.cells,
       JSON.stringify(world.materialState || {}),
       JSON.stringify(world.moves || []),
       JSON.stringify(world.airborne || []),
