@@ -8,15 +8,14 @@ permissions:
   pages: write
   id-token: write
 
-# Both branches deploy one combined Pages artifact: production at / and the
-# Supabase migration preview at /server-migrate/.
+# Publish production plus isolated development previews.
 concurrency:
   group: github-pages
   cancel-in-progress: true
 
 jobs:
   deploy-live:
-    name: Deploy production and migration preview
+    name: Deploy production and previews
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -34,13 +33,20 @@ jobs:
           ref: server-migrate
           path: migration
 
+      - name: Check out Photon test branch
+        uses: actions/checkout@v4
+        with:
+          ref: photon-test
+          path: photon-test
+
       - uses: actions/configure-pages@v5
 
       - name: Assemble combined Pages site
         run: |
-          mkdir -p _site/server-migrate
+          mkdir -p _site/server-migrate _site/photon-test
           cp -a production/Website/. _site/
           cp -a migration/Website/. _site/server-migrate/
+          cp -a photon-test/Website/. _site/photon-test/
 
       - uses: actions/upload-pages-artifact@v3
         with:
