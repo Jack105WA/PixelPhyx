@@ -125,7 +125,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
    <span><strong>Connect to a custom server</strong><span style="display:block;color:var(--muted);font-size:10px;margin-top:3px">Use a custom multiplayer backend instead of the default server.</span></span>
   </label>
   <div id="customServerSettings" hidden style="margin-top:10px">
-   <div class="control"><label for="customServerType">Server type</label><select id="customServerType" class="btn" style="width:100%;text-align:left"><option value="firebase">Firebase Realtime Database</option><option value="pixelphyx" disabled>PixelPhyx Server (not available yet)</option></select></div>
+   <div class="control"><label for="customServerType">Server type</label><select id="customServerType" class="btn" style="width:100%;text-align:left"><option value="firebase">Firebase Realtime Database</option><option value="pixelphyx">PixelPhyx Server</option></select></div>
    <div class="control"><label for="customServerAddress">Database address</label><input id="customServerAddress" type="text" autocomplete="url" spellcheck="false" placeholder="https://your-project-default-rtdb.firebaseio.com"></div>
    <p id="customServerHint" class="usage-message">Enter a Realtime Database URL from the same Firebase project. Authentication and database rules must be configured for that project.</p>
   </div>
