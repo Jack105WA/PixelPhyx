@@ -1,36 +1,57 @@
 name: PixelPhyx workflows
 on:
   push:
-    branches: [main]
+    branches: [main, server-migrate]
 
 permissions:
   contents: write
   pages: write
   id-token: write
 
-# Keep each push's deployment and offline build together.
+# Both branches deploy one combined Pages artifact: production at / and the
+# Supabase migration preview at /server-migrate/.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: github-pages
   cancel-in-progress: true
 
 jobs:
   deploy-live:
-    name: Deploy live website
+    name: Deploy production and migration preview
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out production
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: production
+
+      - name: Check out migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: server-migrate
+          path: migration
+
       - uses: actions/configure-pages@v5
+
+      - name: Assemble combined Pages site
+        run: |
+          mkdir -p _site/server-migrate
+          cp -a production/Website/. _site/
+          cp -a migration/Website/. _site/server-migrate/
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: Website
+          path: _site
+
       - id: deployment
         uses: actions/deploy-pages@v4
 
   build-offline:
     name: Build offline edition
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
