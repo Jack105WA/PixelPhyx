@@ -1,6 +1,9 @@
 import { createRealtimeClient } from 'https://esm.sh/@photonengine/realtime-core@6.0.2';
-import { createPhotonSync } from './photon-sync.js';
-import { createPhotonRooms } from './photon-rooms.js';
+const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
+const [{ createPhotonSync }, { createPhotonRooms }] = await Promise.all([
+  import('./photon-sync.js?v=' + encodeURIComponent(cacheVersion)),
+  import('./photon-rooms.js?v=' + encodeURIComponent(cacheVersion))
+]);
 
 const APP_ID = 'a974c6dd-9d62-4359-bd08-90650e551d09';
 const APP_VERSION = 'pixelphyx-1';
@@ -102,7 +105,7 @@ export function createMultiplayer(callbacks = {}) {
     } catch (reconnectError) {
       state.log('Session resume failed: ' + reconnectError.message);
       try {
-        await state.client.connect();
+        await state.client.connect({ auth: { userId: state.playerId } });
         if (lastRoom) await state.client.joinRoom(lastRoom, { rejoin: true });
         state.report('online', 'PHOTON RECONNECTED');
         state.roster();
