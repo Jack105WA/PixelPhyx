@@ -14,7 +14,7 @@ const stripExports = source => source.replace(/\bexport\s+(?=(?:const|function)\
 const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
 const objects = stripExports(objectsSource);
-if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine)) {
+if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) || /\bexport\s/.test(objects)) {
   throw new Error('Unsupported export syntax in physics modules.');
 }
 
