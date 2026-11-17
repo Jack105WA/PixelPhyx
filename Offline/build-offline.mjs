@@ -56,19 +56,6 @@ const offlineGameScript = gameScript
   .replaceAll("canvas.addEventListener('pointercancel',", "canvas.parentElement.addEventListener('pointercancel',")
   .replaceAll("canvas.addEventListener('wheel',", "canvas.parentElement.addEventListener('wheel',")
   .replaceAll("canvas.setPointerCapture(", "canvas.parentElement.setPointerCapture(");
-  '/* Generated from main.js and the physics modules. */',
-  'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
-  'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
-  'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
-  'const PixelPhyxRenderer=(()=>{', renderer, 'return {drawObjectBodies};', '})();',
-  'const PixelPhyxObjects=(()=>{const {drawObjectBodies}=PixelPhyxRenderer;', objects, 'return {createObjectSystem};', '})();',
-  '(()=>{const firebaseConfig={};',
-  'const {stepMaterialPhysics,materialState,resetMaterialState}=PixelPhyxMaterial;',
-  'const {createPhysicsEngine}=PixelPhyxEngine;',
-  'const {createObjectSystem}=PixelPhyxObjects;',
-  offlineMain,
-  '})();'
-].join('\n');
 new vm.Script(offlineGameScript, { filename: 'offline-game.js' });
 
 const scriptTag = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
