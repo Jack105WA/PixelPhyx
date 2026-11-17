@@ -129,18 +129,21 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   return false;
  }
  function wheelGround(b,index){
-  const lx=index===0?-10.5:10.5,anchor=worldPoint(b,lx,3.2),r=3.15;
-  const base=worldPoint(b,lx,3.2+b.wheelY[index]),cx=base.x,cy=base.y;
-  let groundY=Infinity,materialAt=null;
+  const lx=index===0?-10.5:10.5,anchor=worldPoint(b,lx,6.4),r=3.15;
+  const base=worldPoint(b,lx,6.4+b.wheelY[index]),cx=base.x,cy=base.y;
+  let groundY=Infinity,materialAt=null,bestDistance=Infinity;
+  // Sweep around the wheel instead of checking one row; fast falls cannot tunnel through a one-cell floor.
   for(let k=-3;k<=3;k++){
-   const x=Math.floor(cx+k*.82),y=Math.floor(cy+r*.98);
-   if(x<0||x>=getWidth()||y<0||y>=getHeight())continue;
-   const m=getCell(x,y);if(!m)continue;
-   if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
-   if(y<groundY){groundY=y;materialAt={x,y,m}}
+   const x=Math.floor(cx+k*.82);if(x<0||x>=getWidth())continue;
+   for(let oy=-8;oy<=8;oy++){
+    const y=Math.floor(cy+oy);if(y<0||y>=getHeight())continue;
+    const m=getCell(x,y);if(!m)continue;
+    if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
+    const distance=Math.abs((y+.5)-(cy+r));if(distance<bestDistance){bestDistance=distance;groundY=y;materialAt={x,y,m}}
+   }
   }
   if(!materialAt)return null;
-  const target=clamp(groundY+.0-r-anchor.y-3.2,-3.8,2.2);
+  const target=clamp(groundY+.5-r-anchor.y,-3.8,2.2);
   return{target,groundY,material:materialAt.m,r};
  }
  function solveSuspension(b,dt){
@@ -237,7 +240,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    }else if(b.type==='car'){
     ctx.fillStyle='#111923';roundRect(ctx,-16,-2.5,32,8,3);ctx.fillStyle='#e65355';roundRect(ctx,-15,-6.5,30,7,3);ctx.fillStyle='#f5b4a6';roundRect(ctx,-7.5,-11.5,15,6.5,2);ctx.fillStyle='#8ed7e8';roundRect(ctx,-5.8,-10.7,11.6,4.5,1);
     for(let i=0;i<2;i++){
-     const x=i===0?-10.5:10.5,y=3.2+b.wheelY[i];ctx.save();ctx.translate(x,y);ctx.rotate(b.wheelSpin[i]);ctx.fillStyle='#20252d';ctx.beginPath();ctx.arc(0,0,3.15,0,Math.PI*2);ctx.fill();ctx.fillStyle='#aeb9c7';ctx.beginPath();ctx.arc(0,0,1.35,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c8d1da';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-2.2,0);ctx.lineTo(2.2,0);ctx.stroke();ctx.restore();
+     const x=i===0?-10.5:10.5,y=6.4+b.wheelY[i];ctx.save();ctx.translate(x,y);ctx.rotate(b.wheelSpin[i]);ctx.fillStyle='#20252d';ctx.beginPath();ctx.arc(0,0,3.15,0,Math.PI*2);ctx.fill();ctx.fillStyle='#aeb9c7';ctx.beginPath();ctx.arc(0,0,1.35,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c8d1da';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-2.2,0);ctx.lineTo(2.2,0);ctx.stroke();ctx.restore();
      ctx.strokeStyle=b.wheelGround[i]?'#c5d3df':'#687786';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,1);ctx.lineTo(x,2.2+b.wheelY[i]);ctx.stroke();
     }
     if(b.damage>.08){ctx.strokeStyle='#702f35';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-4,-5.5);ctx.lineTo(-1,-2);ctx.lineTo(2,-5);ctx.stroke()}
