@@ -63,13 +63,12 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  function projectRadius(b,axis){const a=axes(b);return Math.abs(axis[0]*a[0][0]+axis[1]*a[0][1])*b.w/2+Math.abs(axis[0]*a[1][0]+axis[1]*a[1][1])*b.h/2}
  function collisionForCell(b,x,y){
   const cx=x+.5,cy=y+.5,dx=b.x-cx,dy=b.y-cy,ax=axes(b),tests=[[1,0],[0,1],ax[0],ax[1]];
-  let depth=Infinity,nx=0,ny=0;
-  for(const axis of tests){
-   const r=projectRadius(b,axis),overlap=r+.5-Math.abs(dx*axis[0]+dy*axis[1]);
-   if(overlap<=0)return null;
-   if(overlap<depth){depth=overlap;const sign=dx*axis[0]+dy*axis[1]>=0?1:-1;nx=axis[0]*sign;ny=axis[1]*sign}
-  }
-  return{depth,nx,ny,cx,cy};
+  // Pixel terrain contacts should resolve against the dominant world direction.
+  // Choosing the shallowest SAT axis for every edge pixel causes sideways jitter on floors.
+  const axis=Math.abs(dx)>Math.abs(dy)+1.25?[Math.sign(dx)||1,0]:[0,Math.sign(dy)||1];
+  const depth=projectRadius(b,axis)+.5-Math.abs(dx*axis[0]+dy*axis[1]);
+  if(depth<=0)return null;
+  return{depth,nx:axis[0],ny:axis[1],cx,cy};
  }
  function impulseAgainstWorld(b,c){
   const rx=c.cx-b.x-c.nx*.5,ry=c.cy-b.y-c.ny*.5;
@@ -132,7 +131,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   const base=worldPoint(b,lx,3.2+b.wheelY[index]),cx=base.x,cy=base.y;
   let groundY=Infinity,materialAt=null;
   for(let k=-3;k<=3;k++){
-   const x=Math.floor(cx+k*.82),y=Math.floor(cy+r*.78);
+   const x=Math.floor(cx+k*.82),y=Math.floor(cy+r*.98);
    if(x<0||x>=getWidth()||y<0||y>=getHeight())continue;
    const m=getCell(x,y);if(!m)continue;
    if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
