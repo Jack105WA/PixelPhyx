@@ -164,7 +164,8 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    a.x-=nx*correction*invA;b.x+=nx*correction*invB;
    a.y-=ny*correction*invA;b.y+=ny*correction*invB;
    const ia=Math.max(.5,a.mass*(a.w*a.w+a.h*a.h)/12),ib=Math.max(.5,b.mass*(b.w*b.w+b.h*b.h)/12);
-   const raX=nx*minOverlap*.5,raY=ny*minOverlap*.5,rbX=-raX,rbY=-raY;
+   const supportA=worldPoint(a,{x:Math.sign(nx*ac+ny*as||1)*a.w/2,y:Math.sign(-nx*as+ny*ac||1)*a.h/2}),supportB=worldPoint(b,{x:-Math.sign(nx*bc+ny*bs||1)*b.w/2,y:-Math.sign(-nx*bs+ny*bc||1)*b.h/2});
+   const contactX=(supportA.x+supportB.x)/2,contactY=(supportA.y+supportB.y)/2,raX=contactX-a.x,raY=contactY-a.y,rbX=contactX-b.x,rbY=contactY-b.y;
    const avx=a.vx-a.spin*raY,avy=a.vy+a.spin*raX,bvx=b.vx-b.spin*rbY,bvy=b.vy+b.spin*rbX;
    const rvx=bvx-avx,rvy=bvy-avy,vn=rvx*nx+rvy*ny;
    if(vn>=0)continue;
