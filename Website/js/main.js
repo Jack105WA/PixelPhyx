@@ -519,8 +519,8 @@ function getConnectionConfig(){
  if(!raw)throw new Error('Paste your Firebase config declaration.');
  let custom,source=raw;
  // Accept Firebase's copied JavaScript format as well as plain JSON.
- source=source.replace(/^\\s*(?:const|let|var)\\s+firebaseConfig\\s*=\\s*/,'').replace(/;\\s*$/,'');
- source=source.replace(/([{,]\\s*)([A-Za-z_$][\\w$]*)\\s*:/g,'$1"$2":').replace(/,\\s*([}\\]])/g,'$1');
+ source=source.replace(/^\s*(?:const|let|var)\s+firebaseConfig\s*=\s*/,'').replace(/;\s*$/,'');
+ source=source.replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g,'$1"$2":').replace(/,\s*([}\]])/g,'$1');
  try{custom=JSON.parse(source)}catch{throw new Error('Invalid Firebase config. Paste the complete const firebaseConfig = { ... }; block from Firebase Project settings.')}
  if(!custom||typeof custom!=='object'||Array.isArray(custom))throw new Error('Firebase config must be an object.');
  for(const key of ['apiKey','authDomain','databaseURL','projectId','appId'])if(typeof custom[key]!=='string'||!custom[key].trim())throw new Error('Firebase config is missing the required "'+key+'" field.');
@@ -583,7 +583,7 @@ function updateCustomServerUI(){
  const firebaseMode=customServerType.value==='firebase';
  customServerAddress.disabled=!firebaseMode;
  customServerHint.textContent=firebaseMode
-  ?'Paste the complete Firebase web app config JSON from Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.'
+  ?'Paste the complete const firebaseConfig = { ... }; block copied from Firebase Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.'
   :'The IP server connection protocol is not available in this client yet. Selecting this type will show an explanatory error when connecting.';
 }
 customServerToggle.addEventListener('change',updateCustomServerUI);
