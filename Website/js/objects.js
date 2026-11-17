@@ -75,7 +75,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  }
  function solveTerrain(b){
   const pts=corners(b),cx=b.x,cy=b.y;
-  const edges=b.type==='car'?[[pts[0],pts[1]],[pts[1],pts[2]],[pts[3],pts[0]]]:[[pts[0],pts[1]],[pts[1],pts[2]],[pts[2],pts[3]],[pts[3],pts[0]]];
+  const edges=b.type==='car'?[[pts[0],pts[1]],[pts[1],pts[2]],[pts[3],pts[0]]]:b.type==='bucket'?[[pts[1],pts[2]],[pts[2],pts[3]],[pts[3],pts[0]]]:[[pts[0],pts[1]],[pts[1],pts[2]],[pts[2],pts[3]],[pts[3],pts[0]]];
   let contacts=0,nxSum=0,nySum=0;
   for(const [a,z] of edges){
    const length=Math.hypot(z.x-a.x,z.y-a.y),steps=Math.max(2,Math.ceil(length/1.5));
@@ -126,6 +126,24 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
     b.wheelSpin[i]+=(b.vx+(i===0?1:-1)*b.spin*11)*.055;
    }
   }
+ }
+ function blocksParticleMove(x1,y1,x2,y2){
+  for(const b of bodies){
+   const a=localPoint(b,x1,y1),z=localPoint(b,x2,y2);
+   if(b.type==='bucket'){
+    const insideCavity=p=>Math.abs(p.x)<5.8&&p.y>-7.2&&p.y<7.5;
+    const aInside=insideCavity(a),zInside=insideCavity(z);
+    if(aInside&&!zInside)return true;
+    if(!aInside&&zInside&&z.y< -6.5)return false;
+    if(!aInside&&zInside&&z.y>=-6.5)return true;
+    if(!aInside&&!zInside&&Math.abs(z.x)<7.2&&z.y> -8.5&&z.y<9)return true;
+    continue;
+   }
+   if(b.type==='ball'){
+    if(Math.hypot(z.x,z.y)<b.w*.52)return true;
+   }else if(Math.abs(z.x)<b.w/2&&Math.abs(z.y)<b.h/2)return true;
+  }
+  return false;
  }
  function collideAirborne(b){
   const particles=getAirborne();if(!Array.isArray(particles)||!particles.length)return;
@@ -230,5 +248,5 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  }
  function apply(op){if(!op)return;if(op.type==='propAdd')spawn(op.kind,op.x,op.y,op.id);else if(op.type==='propDelete')remove(op.id);else if(op.type==='props')restore(op.items)}
  function clear(){bodies.length=0;drag=null}
- return{spawn,step,draw,grabAt,moveGrab,releaseGrab,apply,serialize,restore,clear,get count(){return bodies.length},get dragging(){return !!drag}};
+ return{spawn,step,draw,grabAt,moveGrab,releaseGrab,blocksParticleMove,apply,serialize,restore,clear,get count(){return bodies.length},get dragging(){return !!drag}};
 }
