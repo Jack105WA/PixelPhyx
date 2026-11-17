@@ -152,7 +152,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    // Compression and damping transfer force back into the chassis.
    const springForce=clamp(-b.wheelY[i]*.24-b.wheelV[i]*.48,-1.4,1.8);
    b.vy-=springForce*.9*dt;
-   b.spin+=(i===0?1:-1)*spring*.0009*dt;
+   b.spin+=(i===0?1:-1)*springForce*.0009*dt;
    const contact=!!hit&&b.wheelY[i]>=hit.target-.12;
    b.wheelGround[i]=contact;
    if(contact){
