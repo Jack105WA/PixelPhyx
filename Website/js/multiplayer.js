@@ -139,11 +139,6 @@ export function createMultiplayer(callbacks = {}) {
     watchLobbies: rooms.watchLobbies,
     leaveRoom: rooms.leaveRoom,
     disconnect,
-    getUsageStatus: async () => ({
-      daily: { percent: 0, limitBytes: 0, estimatedBytes: 0, blocked: false },
-      monthly: { percent: 0, limitBytes: 0, estimatedBytes: 0, blocked: false },
-      blocked: false, source: 'Photon Cloud'
-    }),
     publishOperation: sync.publishOperation,
     publishWorld: sync.publishWorld,
     publishRopes: sync.publishRopes,
@@ -154,7 +149,6 @@ export function createMultiplayer(callbacks = {}) {
       if (state.client?.room) state.setLocalIdentity({ name, color },
         state.isApproved(state.client.localPlayer.number));
     },
-    get lanMode() { return false; },
     get joined() { return !!state.client?.room; },
     get isHost() { return state.isHost(); },
     get playerId() { return state.playerId; },
