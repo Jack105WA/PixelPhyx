@@ -201,20 +201,8 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   for(const p of particles){
    if(p.x<box.minX-1||p.x>box.maxX+1||p.y<box.minY-1||p.y>box.maxY+1)continue;
    const q=localPoint(b,p.x,p.y),hx=b.w/2,hy=b.h/2;
-   if(b.type==='bucket'){
-    const wallX=7-(q.y+8)*2/17,inside=q.y> -7.5&&Math.abs(q.x)<wallX;
-    if(q.y> -7.5&&q.y<8.5&&Math.abs(q.x)>wallX-.55){
-     const side=Math.sign(q.x)||1,limit=wallX+(inside?-.56:.56);
-     q.x=side*limit;
-     const normal=rotate(side*(inside?-1:1),0,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;
-     if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}
-     const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue;
-    }
-    if(inside&&q.y>8){
-     q.y=8;const normal=rotate(0,-1,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;
-     if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}
-     const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue;
-    }
+   if(b.type==='bucket'){const wallX=7-(q.y+8)*2/17,inside=q.y> -7.5&&Math.abs(q.x)<wallX;if(q.y> -7.5&&q.y<8.5&&Math.abs(q.x)>wallX-.55){const side=Math.sign(q.x)||1,limit=wallX+(inside?-.56:.56);q.x=side*limit;const normal=rotate(side*(inside?-1:1),0,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue}
+    if(inside&&q.y>8){q.y=8;const normal=rotate(0,-1,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue}
     if(inside)continue;
    }
    if(b.type==='car'){
