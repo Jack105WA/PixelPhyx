@@ -1,7 +1,7 @@
 name: PixelPhyx workflows
 on:
   push:
-    branches: [main, server-migrate]
+    branches: [main, server-migrate, photon-test]
 
 permissions:
   contents: write
@@ -38,6 +38,12 @@ jobs:
         with:
           ref: photon-test
           path: photon-test
+
+      - name: Validate Photon JavaScript modules
+        run: |
+          for file in photon-test/Website/js/*.js; do
+            node --input-type=module --check < "$file"
+          done
 
       - uses: actions/configure-pages@v5
 
