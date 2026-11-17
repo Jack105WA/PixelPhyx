@@ -448,7 +448,7 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.joined&&multiplayer.isHost){
-  if(now-lastWorldPublish>=5000){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
+  if(now-lastWorldPublish>=(multiplayer.lanMode?1000:5000)){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
   if(now-lastRopePublish>=100){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
  if(multiplayer?.joined&&multiplayer.isHost&&objectSystem.count&&now-lastPropPublish>=100){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
