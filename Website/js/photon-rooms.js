@@ -84,7 +84,7 @@ export function createPhotonRooms(state, sync) {
     const code = 'PX-' + crypto.randomUUID().replaceAll('-', '').slice(0, 7).toUpperCase();
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
     const created = await client().createRoom(code, {
-      maxPlayers: 20, isVisible: true, isOpen: true, playerTtlMs: 30000, emptyRoomTtlMs: 60000,
+      maxPlayers: 8, isVisible: true, isOpen: true, playerTtlMs: 30000, emptyRoomTtlMs: 60000,
       customProperties: { game: 'pixelphyx', hostName: safeName, protocol: 1 },
       lobbyProperties: ['game', 'hostName']
     });
