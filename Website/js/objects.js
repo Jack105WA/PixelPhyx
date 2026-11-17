@@ -148,7 +148,10 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    }
   }
   if(!materialAt)return null;
-  const target=clamp(groundY+.5-r-anchor.y,-3.8,2.2);
+  const rawTarget=groundY+.5-r-anchor.y;
+  // If the suspension reaches its travel limit, move the chassis back above the wheel contact.
+  if(rawTarget< -3.8){b.y+=rawTarget+3.8;if(b.vy>0)b.vy=0}
+  const target=clamp(rawTarget,-3.8,2.2);
   return{target,groundY,material:materialAt.m,r};
  }
  function solveSuspension(b,dt){
