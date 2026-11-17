@@ -546,6 +546,18 @@ document.querySelector('#copyRoomCode').onclick=async()=>{
   setTimeout(()=>{button.title='Copy room code';button.setAttribute('aria-label','Copy room code')},1200);
  }catch(error){log('Could not copy room code: '+error.message)}
 };
+document.querySelector('#leaveRoom').onclick=async()=>{
+ const button=document.querySelector('#leaveRoom');button.disabled=true;
+ try{
+  await multiplayer?.leaveRoom();
+  room='';
+  pendingJoinRequests.clear();renderJoinRequests();updateCurrentRoomUI();
+  document.querySelector('#roomLabel').textContent='ROOM · LOCAL';
+  document.querySelector('#playerCount').textContent='0 online';
+  log('Left the server. Your local experiment is still open.');
+ }catch(error){log('Could not leave server: '+error.message)}
+ finally{button.disabled=false}
+};
 document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
@@ -584,7 +596,7 @@ function renderLobbyGallery(lobbies){
   const number=document.createElement('span');number.className='lobby-number';number.textContent=lobby.room;
   const count=document.createElement('span');count.className='lobby-count';count.textContent=(lobby.players||0)+' online';
   top.append(number,count);
-  const host=document.createElement('div');host.className='lobby-host';host.textContent=(lobby.transport==='webrtc'?'LAN DIRECT · HOST · ':'HOST · ');
+  const host=document.createElement('div');host.className='lobby-host';host.textContent='HOST · ';
   const hostName=document.createElement('strong');hostName.textContent=lobby.hostName||'Unknown';host.append(hostName);
   const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=false;
   join.onclick=async()=>{
