@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10151e">
+<title>PixelPhyx — Loading Offline</title>
+<style>
+*{box-sizing:border-box}
+body{min-height:100vh;margin:0;display:grid;place-items:center;background:#0d1118;color:#edf3fb;font:14px system-ui,sans-serif}
+main{width:min(420px,calc(100% - 32px));padding:28px;background:#151c27;border:1px solid #2b394d;border-radius:12px;text-align:center}
+h1{margin:0 0 12px;color:#a5f0d0;font-size:18px}
+p{color:#91a1b7;line-height:1.6}
+button{padding:9px 14px;border:1px solid #3da987;border-radius:8px;background:#276c56;color:white;font-weight:700;cursor:pointer}
+button[hidden]{display:none}
+</style>
+</head>
+<body>
+<main>
+<h1>PixelPhyx Offline</h1>
+<p id="status" role="status">Getting the latest offline build from GitHub…</p>
+<button id="retry" type="button" hidden>Try again</button>
+</main>
+<script>
+(async()=>{
+ const status=document.getElementById('status');
+ const retry=document.getElementById('retry');
+ const load=async()=>{
+  retry.hidden=true;
+  status.textContent='Getting the latest offline build from GitHub…';
+  try{
+   const url='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Offline/offline.html';
+   const response=await fetch(url+'?v='+Date.now(),{cache:'no-store',mode:'cors'});
+   if(!response.ok)throw new Error('GitHub returned HTTP '+response.status);
+   const html=await response.text();
+   if(!/^\s*<!doctype html>/i.test(html)||!/<meta\s+name=["']pixelphyx-offline-build["']/i.test(html)){
+    throw new Error('The offline build is missing or invalid.');
+   }
+   document.open();
+   document.write(html);
+   document.close();
+  }catch(error){
+   console.error('Offline build loading failed:',error);
+   status.textContent='Could not get the latest offline build. Check your internet connection and try again.';
+   retry.hidden=false;
+  }
+ };
+ retry.addEventListener('click',load);
+ await load();
+})();
+</script>
+</body>
+</html>
