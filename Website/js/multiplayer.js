@@ -674,6 +674,13 @@ export function createMultiplayer(callbacks = {}) {
         rtcRoomPath = roomPath + '/rtc';
         reconcileRtcPeers(rtcPeople);
       }
+      // Seed every room immediately so late joiners never start from an empty world.
+      if (hostId === playerId) {
+        const initialWorld = callbacks.getWorld?.();
+        if (initialWorld) publishWorld(initialWorld, true);
+        const initialRopes = callbacks.getRopes?.();
+        if (Array.isArray(initialRopes?.ropes)) publishRopes(initialRopes.ropes);
+      }
       report('online', rtcMode ? 'LAN P2P' : 'ROOM ONLINE');
       log('Connected to room ' + room + (hostId === playerId ? ' as host' : ''));
     } catch (error) {
@@ -898,14 +905,13 @@ export function createMultiplayer(callbacks = {}) {
     update(presenceRef, { name: safeName, color: safeColor }).catch(error => log('Profile update failed: ' + error.message));
   }
 
-  function publishWorld(world) {
+  function publishWorld(world, force = false) {
     if (!db || !joined || !room || hostId !== playerId || !world || typeof world.cells !== 'string') return;
     const now = Date.now();
-    // Every peer predicts locally. A compact authoritative checkpoint is only
-    // needed occasionally to correct drift, not ten full-world downloads/sec.
-    if (now - lastWorldWrite < 30000) return;
+    // Full snapshots are recovery checkpoints, not per-frame traffic.
+    if (!force && now - lastWorldWrite < 5000) return;
     const signature = [world.canvasSize, world.width, world.height, world.gravity, world.ambient, world.cells].join('|');
-    if (signature === lastWorldSignature && !rtcMode) return;
+    if (!force && signature === lastWorldSignature && !rtcMode) return;
 
     // Run-length encode the cell grid. Empty space and broad material regions
     // compress dramatically, keeping authoritative checkpoints inexpensive.
