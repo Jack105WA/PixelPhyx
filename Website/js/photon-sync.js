@@ -30,7 +30,7 @@ export function createPhotonSync(state) {
   async function sendSnapshot(targetPlayers) {
     if (!state.isHost() || !targetPlayers.length) return;
     const payload = {
-      world: (() => { const world = state.callbacks.getWorld?.(); return world ? { ...world, operationRevision } : null; })(),
+      world: state.callbacks.getWorld?.(),
       ropes: state.callbacks.getRopes?.(),
       sentAt: Date.now()
     };
