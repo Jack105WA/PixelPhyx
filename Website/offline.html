@@ -1034,7 +1034,6 @@ function renderJoinRequests(){
 function getConnectionConfig(){
  const config={...firebaseConfig};
  if(!document.querySelector('#customServerMode')?.checked)return config;
- if((document.querySelector('#customServerType')?.value||'firebase')!=='firebase')throw new Error('PixelPhyx Server connections are not supported by the current multiplayer client yet.');
  const raw=String(document.querySelector('#customServerAddress')?.value||'').trim();
  if(!raw)throw new Error('Paste your Firebase config declaration.');
  let custom,source=raw;
@@ -1094,21 +1093,12 @@ document.querySelector('#copyRoomCode').onclick=async()=>{
 };
 const customServerToggle=document.querySelector('#customServerMode');
 const customServerSettings=document.querySelector('#customServerSettings');
-const customServerType=document.querySelector('#customServerType');
-const customServerAddress=document.querySelector('#customServerAddress');
-const customServerHint=document.querySelector('#customServerHint');
 function updateCustomServerUI(){
- const enabled=customServerToggle.checked;
- customServerSettings.hidden=!enabled;
- const firebaseMode=customServerType.value==='firebase';
- customServerAddress.disabled=!firebaseMode;
- customServerHint.textContent=firebaseMode
-  ?'Paste the complete const firebaseConfig = { ... }; block copied from Firebase Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.'
-  :'The IP server connection protocol is not available in this client yet. Selecting this type will show an explanatory error when connecting.';
+ customServerSettings.hidden=!customServerToggle.checked;
 }
 customServerToggle.addEventListener('change',updateCustomServerUI);
-customServerType.addEventListener('change',updateCustomServerUI);
 updateCustomServerUI();
+document.querySelector('#customServerHint').textContent='Paste the complete const firebaseConfig = { ... }; block copied from Firebase Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.';
 document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
