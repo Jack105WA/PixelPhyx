@@ -492,6 +492,8 @@ export function createMultiplayer(callbacks = {}) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a room code');
+    const cleanupSnapshot = await get(ref(db, 'rooms/' + nextRoom + '/cleanup'));
+    if (cleanupSnapshot.exists()) throw new Error('That server is currently being cleaned up. Create or join another server.');
     const transportRef = ref(db, 'rooms/' + nextRoom + '/transport');
     if (isHost) await set(transportRef, options.lan ? 'webrtc' : 'firebase');
     const transportSnapshot = await get(transportRef);
@@ -539,6 +541,8 @@ export function createMultiplayer(callbacks = {}) {
       const hostResult = await runTransaction(hostRef, current => current || playerId);
       hostId = hostResult.snapshot.val() || playerId;
 
+      const cleanupCheck = await get(ref(db, roomPath + '/cleanup'));
+      if (cleanupCheck.exists()) throw new Error('That server is being deleted because it is empty. Please try again.');
       await onDisconnect(presenceRef).remove();
       await onDisconnect(cursorRef).remove();
       await onDisconnect(worldStateRef).remove();
@@ -606,7 +610,7 @@ export function createMultiplayer(callbacks = {}) {
         rtcPeople = people;
         callbacks.onPlayers?.(people);
         if (rtcMode) reconcileRtcPeers(people);
-        if (hostId === playerId && !rtcMode) update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
+        if (hostId === playerId) update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
         const ids = Object.keys(people).sort();
         if (hostId && people[hostId]) {
           syncJoinRequestListener();
@@ -623,7 +627,7 @@ export function createMultiplayer(callbacks = {}) {
           hostId = result.snapshot.val() || null;
           syncJoinRequestListener();
           if (rtcMode) reconcileRtcPeers(people);
-          if (hostId && !rtcMode) {
+          if (hostId) {
             const electedPlayer = people[hostId];
             const directoryRef = ref(db, 'lobbyDirectory/' + room);
             update(directoryRef, {
@@ -659,13 +663,16 @@ export function createMultiplayer(callbacks = {}) {
     await assertUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
-    // LAN sessions are hidden from the public lobby directory and do not
-    // consume shared lobby slots. Firebase is retained only for rendezvous,
-    // presence and WebRTC signaling; gameplay itself is peer-to-peer.
+    // LAN rooms are registered for cleanup but remain hidden from the public
+    // gallery and never reserve one of the 20 standard lobby slots.
     if (options.lan) {
       if (typeof RTCPeerConnection === 'undefined') throw new Error('LAN Multiplayer requires WebRTC support.');
       const code = 'LAN-' + secureRandomString(8).toUpperCase();
       await joinRoom(code, identity, true, true, options);
+      await set(ref(db, 'lobbyDirectory/' + code), {
+        room: code, hostId: playerId, hostName: safeName,
+        players: 1, transport: 'webrtc', createdAt: Date.now()
+      });
       return code;
     }
 
@@ -698,16 +705,82 @@ export function createMultiplayer(callbacks = {}) {
     }
   }
 
+  async function cleanupEmptyLobbies() {
+    if (!db || !auth?.currentUser) return;
+    let directorySnapshot;
+    try {
+      directorySnapshot = await get(ref(db, 'lobbyDirectory'));
+    } catch (error) {
+      log('Empty-server check failed: ' + error.message);
+      return;
+    }
+
+    const entries = Object.values(directorySnapshot.val() || {})
+      .filter(entry => entry && typeof entry.room === 'string')
+      .slice(0, 100);
+
+    for (const entry of entries) {
+      const roomId = entry.room;
+      if (!/^(PX-|LAN-)[A-Z0-9-]{4,22}$/.test(roomId)) continue;
+      const roomRef = ref(db, 'rooms/' + roomId);
+      const playersRef = ref(db, 'rooms/' + roomId + '/players');
+      const cleanupRef = ref(db, 'rooms/' + roomId + '/cleanup');
+
+      try {
+        const firstCheck = await get(playersRef);
+        if (firstCheck.exists() && Object.keys(firstCheck.val() || {}).length) continue;
+
+        // Mark the room as closing so new joiners cannot race the deletion.
+        const cleanupToken = playerId + '-' + Date.now() + '-' + secureRandomString(6);
+        await set(cleanupRef, cleanupToken);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        const [playersCheck, tokenCheck] = await Promise.all([
+          get(playersRef),
+          get(cleanupRef)
+        ]);
+        if (tokenCheck.val() !== cleanupToken) continue;
+        if (playersCheck.exists() && Object.keys(playersCheck.val() || {}).length) {
+          await remove(cleanupRef).catch(() => {});
+          continue;
+        }
+
+        // Only this online-tab cleanup path removes room data. A join attempt
+        // sees the cleanup marker and is rejected before writing presence.
+        await remove(roomRef);
+        await remove(ref(db, 'lobbyDirectory/' + roomId)).catch(() => {});
+
+        if (!roomId.startsWith('LAN-')) {
+          const slotsSnapshot = await get(ref(db, 'lobbySlots'));
+          const slots = slotsSnapshot.val() || {};
+          const matching = Object.entries(slots).filter(([, value]) => value?.room === roomId);
+          await Promise.all(matching.map(([slot]) =>
+            remove(ref(db, 'lobbySlots/' + slot)).catch(() => {})
+          ));
+        }
+        log('Removed empty server ' + roomId);
+      } catch (error) {
+        log('Could not clean empty server ' + roomId + ': ' + error.message);
+      }
+    }
+  }
+
   function watchLobbies(callback) {
     if (!db) throw new Error('Firebase is not connected');
-    // The directory already contains its player count. Avoid one extra read per
-    // lobby every time the directory changes.
-    return onValue(ref(db, 'lobbyDirectory'), snapshot => {
+    // Check immediately, then every 15 seconds only while the Online window
+    // is being watched. LAN entries are cleanup-only and never shown publicly.
+    cleanupEmptyLobbies();
+    const cleanupTimer = setInterval(cleanupEmptyLobbies, 15000);
+    const stopDirectory = onValue(ref(db, 'lobbyDirectory'), snapshot => {
       const active = Object.values(snapshot.val() || {})
-        .filter(lobby => lobby && typeof lobby.room === 'string')
+        .filter(lobby => lobby && typeof lobby.room === 'string' && lobby.transport !== 'webrtc')
         .slice(0, 20);
       callback(active.sort((a, b) => String(a.room).localeCompare(String(b.room))));
     }, error => log('Lobby gallery error: ' + error.message));
+    return () => {
+      clearInterval(cleanupTimer);
+      stopDirectory();
+    };
   }
 
   async function requestJoin(code, identity = {}) {
