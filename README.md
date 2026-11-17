@@ -1,58 +1,61 @@
 # PixelPhyx
 
-PixelPhyx is an online pixel-art physics and chemistry sandbox. Build worlds with falling particles, liquids, gases, reactions, explosions, and ropes with live Verlet-physics simulation. Invite friends to the same multiplayer room and experiment together.
+PixelPhyx is a browser-based pixel physics and chemistry sandbox. Build worlds with falling particles, liquids, gases, reactions, explosions, ropes, and rigid-body props.
 
-## Play online
+## Play
 
-After GitHub Pages finishes deploying, open:
+Production: https://jack105wa.github.io/PixelPhyx/
 
-**https://jack105wa.github.io/PixelPhyx/**
+Photon test preview: https://jack105wa.github.io/PixelPhyx/photon-test/
 
-## OFFLINE
+The Photon preview is isolated from production and uses Photon Realtime for multiplayer.
 
-https://github.com/Jack105WA/PixelPhyx/latest /Download the Html File
+## Photon multiplayer
 
-The site is published from the contents of `Website/` at the Pages site root, so public URLs do not include `/Website/`. The game also runs locally from a web server. Firebase's browser SDK is loaded from Google's CDN, so an internet connection is required for online play.
+- Photon Realtime Core 6 handles browser connections, room discovery, room membership, and reliable gameplay events.
+- The room's Photon master client is the physics authority. Other clients render interpolated world snapshots instead of simulating a separate copy of the particle world.
+- Drawing, erasing, material placement, ropes, props, settings, pause/resume, and single-step requests are relayed through the room host.
+- Room hosts approve join requests. Photon automatically transfers master-client ownership if the host leaves.
+- World snapshots are compressed and chunked. Ropes use small, frequent state updates; prop state is sent only when it changes.
+- The browser SDK uses secure WebSockets and Photon Cloud relay. It does not provide direct LAN peer-to-peer transport.
 
-## Multiplayer
-
-1. Click **Multiplayer** or enter a room code in the Multiplayer panel.
-2. Click **Join room**.
-3. Send the exact same room code to your friends.
-4. They open the deployed game and join that room. The game connects automatically.
-
-Everyone in a room shares the same particle world and rope structures. Player presence is removed automatically when a connection closes.
+The App ID in the browser code is a public Photon application identifier, not a secret. Photon usage, CCU limits, and billing are controlled in the [Photon Dashboard](https://dashboard.photonengine.com/).
 
 ## Controls
 
 - **Draw:** place the selected material.
-- **Line:** drag to draw a straight material line.
-- **Rope:** click and drag from one anchor point to another. The rope sags and reacts to gravity using a Verlet constraint solver.
-- **Props:** spawn cars, buckets, balls, crates, and barrels from the Props panel. They have rigid-body gravity, collisions, rotation, bouncing, and crash deformation.
-- **Grab:** select Grab and drag a prop from the exact point you click. The prop hangs from that point and can swing or rotate as you move it.
-- **Erase:** remove particles.
-- **Box:** place a block of the selected material.
-- **Blast:** place TNT; ignite it with fire to detonate.
-- **Heat / Cool:** place fire or ice.
+- **Rope:** drag to create a rope; right-click to delete.
+- **Grab:** drag rope points or props.
+- **Props:** spawn cars, buckets, balls, crates, and barrels.
 - **Brush size:** use the slider or mouse wheel.
-- **Gravity:** adjust gravity strength, including zero gravity.
-- **Simulation speed:** change the simulation rate multiplier. Physics uses a fixed 60-step-per-second clock independent of display frame rate.
-- **Ambient temperature:** set the world temperature from -100°C to 1200°C. Heat and cold affect water and ice.
-- **Space:** pause or resume.
+- **Gravity:** adjust gravity strength.
+- **Simulation speed:** change the local simulation rate multiplier.
+- **Ambient temperature:** set the world temperature.
+- **Space:** pause or resume the shared simulation.
+- **Step:** advance one simulation step while paused (host-authoritative).
 - **Right click:** erase.
 - **Export PNG:** save an image of the current experiment.
 
+## Offline edition
+
+The standalone offline edition is generated from the source in Website/ by Offline/build-offline.mjs.
+
 ## GitHub Pages deployment
 
-The repository deploys from `main` using the workflow in `.github/workflows/pages.yml`. In GitHub, open **Settings → Pages** and make sure the source is **GitHub Actions**. The workflow rebuilds the standalone offline edition and publishes only the contents of `Website/` as the site root. Repository files and Firebase administration files remain outside the deployed website.
+The workflow in .github/workflows/pages.yml publishes:
+- main as the production site root.
+- server-migrate under /server-migrate/.
+- photon-test under /photon-test/.
+
+The Photon branch is syntax-checked before deployment. GitHub Pages must use **GitHub Actions** as its source in repository Settings → Pages.
 
 ## Repository layout
 
-- `Website/` contains the complete live website published by GitHub Pages.
-  - `Website/index.html` is the website entry point.
-  - `Website/js/` contains the browser-side game, physics, multiplayer, and Firebase configuration modules.
-  - `Website/offline.html` is the generated single-file offline edition.
-- `.github/workflows/` contains GitHub Actions automation.
-- `Server/functions/` contains the Firebase Cloud Function for empty-room cleanup.
-- `Server/firebase.json`, `Server/.firebaserc`, and `Server/database.rules.json` are Firebase project files.
-- `build-offline.mjs` builds the offline edition from the website source.
+- Website/ contains the browser game and published site.
+- Website/js/main.js contains the existing sandbox and rendering integration.
+- Website/js/multiplayer.js connects the UI to Photon.
+- Website/js/photon-sync.js handles gameplay events and authoritative snapshots.
+- Website/js/photon-rooms.js handles Photon rooms, lobbies, and join approvals.
+- Website/js/photon-codec.js compresses and chunks world snapshots.
+- Server/ contains the retired Firebase backend files retained for reference; the Photon branch does not load them.
+- .github/workflows/ contains deployment automation.
