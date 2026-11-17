@@ -104,7 +104,7 @@ export function createMultiplayer(callbacks = {}) {
   let app = null, db = null, auth = null, room = '';
   let playerId = 'guest-' + secureRandomString(16);
   let joined = false, hostId = null, presenceRef = null;
-  let stopOperations = null, stopWorld = null, stopRopes = null, stopPlayers = null, stopCursors = null, stopLeafblowers = null, stopHost = null;
+  let stopOperations = null, stopWorld = null, stopRopes = null, stopProps = null, stopPlayers = null, stopCursors = null, stopLeafblowers = null, stopHost = null;
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
   let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0, lastWorldSignature = null;
   let lastRopeWrite = 0, ropeWriteInFlight = false, pendingRopes = null, lastRopeSignature = null;
@@ -189,6 +189,7 @@ export function createMultiplayer(callbacks = {}) {
     stopOperations?.(); stopOperations = null;
     stopWorld?.(); stopWorld = null;
     stopRopes?.(); stopRopes = null;
+    stopProps?.(); stopProps = null;
     stopPlayers?.(); stopPlayers = null;
     stopHost?.(); stopHost = null;
     stopCursors?.(); stopCursors = null;
@@ -296,7 +297,9 @@ export function createMultiplayer(callbacks = {}) {
       return;
     }
     if (!message || typeof message.type !== 'string') return;
-    if (message.type === 'ready' && hostId === playerId) {
+    if (message.type === 'props' && hostId !== playerId) {
+      if (message.data?.by === hostId && Array.isArray(message.data.items)) callbacks.onOperation?.({ type: 'props', items: message.data.items, by: hostId });
+    } else if (message.type === 'ready' && hostId === playerId) {
       const peer = rtcRoomPeers.get(remoteId);
       if (peer) { peer.ready = true; flushRtcMessages(remoteId, peer); }
     } else if (message.type === 'operation') {
@@ -331,6 +334,8 @@ export function createMultiplayer(callbacks = {}) {
           lastLanRopes = ropes;
           rtcSendTo(remoteId, 'ropes', ropes);
         }
+        const props = callbacks.getProps?.();
+        if (Array.isArray(props)) rtcSendTo(remoteId, 'props', { by: playerId, items: props });
       } else {
         peer.pendingMessages = peer.pendingMessages.filter(message => message.type === 'operation');
       }
@@ -555,6 +560,7 @@ export function createMultiplayer(callbacks = {}) {
     cursorRef = ref(db, roomPath + '/cursors/' + playerId);
     const leafblowerRef = ref(db, roomPath + '/leafblowers/' + playerId + '/leafblower');
     const worldStateRef = ref(db, roomPath + '/worldStates/' + playerId);
+    const propStateRef = ref(db, roomPath + '/propStates/' + playerId);
     lastWorldRevision = 0;
     lastWorldWrite = 0;
     lastWorldSignature = null;
@@ -572,6 +578,7 @@ export function createMultiplayer(callbacks = {}) {
       await onDisconnect(presenceRef).remove();
       await onDisconnect(cursorRef).remove();
       await onDisconnect(worldStateRef).remove();
+      await onDisconnect(propStateRef).remove();
       await onDisconnect(leafblowerRef).remove();
       await set(presenceRef, {
         name: String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest',
@@ -595,6 +602,12 @@ export function createMultiplayer(callbacks = {}) {
         if (!state || state.by !== hostId || !Array.isArray(state.ropes)) return;
         callbacks.onRopes?.(state);
       }, error => log('Rope sync error: ' + error.message));
+
+      if (!rtcMode) stopProps = onValue(ref(db, roomPath + '/propStates'), snapshot => {
+        const state = snapshot.child(hostId || '__no_host__').val();
+        if (!state || state.by !== hostId || !Array.isArray(state.items)) return;
+        callbacks.onOperation?.({ type: 'props', items: state.items, by: hostId });
+      }, error => log('Prop sync error: ' + error.message));
 
       if (!rtcMode) {
         const operationsRef = ref(db, roomPath + '/operations');
@@ -680,6 +693,8 @@ export function createMultiplayer(callbacks = {}) {
         if (initialWorld) publishWorld(initialWorld, true);
         const initialRopes = callbacks.getRopes?.();
         if (Array.isArray(initialRopes?.ropes)) publishRopes(initialRopes.ropes);
+        const initialProps = callbacks.getProps?.();
+        if (Array.isArray(initialProps)) publishProps(initialProps);
       }
       report('online', rtcMode ? 'LAN P2P' : 'ROOM ONLINE');
       log('Connected to room ' + room + (hostId === playerId ? ' as host' : ''));
@@ -979,6 +994,17 @@ export function createMultiplayer(callbacks = {}) {
     })();
   }
 
+  function publishProps(items) {
+    if (!db || !joined || !room || hostId !== playerId || !Array.isArray(items)) return;
+    const payload = { by: playerId, updatedAt: Date.now(), items };
+    if (rtcMode) {
+      rtcBroadcast('props', payload);
+      return;
+    }
+    set(ref(db, 'rooms/' + room + '/propStates/' + playerId), payload)
+      .catch(error => log('Prop sync failed: ' + error.message));
+  }
+
   function publishRopes(ropes) {
     if (!db || !joined || !room || hostId !== playerId) return;
     const signature = JSON.stringify(ropes);
@@ -1026,7 +1052,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   return {
-    connect, joinRoom, createLobby, watchLobbies, requestJoin, getUsageStatus, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, updateCursor, updateIdentity,
+    connect, joinRoom, createLobby, watchLobbies, requestJoin, getUsageStatus, respondToJoinRequest, publishOperation, publishLeafblower, publishWorld, publishRopes, publishProps, updateCursor, updateIdentity,
     get lanMode() { return rtcMode; },
     get joined() { return joined; },
     get isHost() { return joined && hostId === playerId; },
