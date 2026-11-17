@@ -48,7 +48,7 @@ new vm.Script(gameScript, { filename: 'offline-game.js' });
 const scriptTag = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
 if (!scriptTag.test(offlineHtml)) throw new Error('Offline game script not found.');
 await writeFile(
-  offlineDir + 'offline.html',
+  websiteDir + 'offline.html',
   offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>'),
   'utf8'
 );
