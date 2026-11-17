@@ -597,7 +597,7 @@ document.querySelector('#createLobby').onclick=async()=>{
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
-  document.querySelector('#roomModal').classList.remove('open');
+  closeOnlineModal(document.querySelector('#roomModal'));
   log('Created server '+room+' — you are the host'+(multiplayer.lanMode?' using direct LAN multiplayer':''));
  }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
  finally{button.disabled=false;button.textContent='+ Create server'}
@@ -630,7 +630,7 @@ function renderLobbyGallery(lobbies){
   const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=!!usageStatus?.blocked;
   join.onclick=async()=>{
    join.disabled=true;join.textContent='Request sent…';
-   try{await requestAndJoinRoom(lobby.room);document.querySelector('#roomModal').classList.remove('open')}
+   try{await requestAndJoinRoom(lobby.room);closeOnlineModal(document.querySelector('#roomModal'))}
    catch(error){alert(error.message);join.disabled=false;join.textContent='Request to join'}
   };
   card.append(top,host,join);gallery.append(card);
