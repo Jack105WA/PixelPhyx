@@ -586,15 +586,19 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   const ax=axes(b),ex=Math.abs(ax[0][0])*b.w/2+Math.abs(ax[1][0])*b.h/2,ey=Math.abs(ax[0][1])*b.w/2+Math.abs(ax[1][1])*b.h/2;
   return{minX:Math.floor(b.x-ex-1),maxX:Math.ceil(b.x+ex+1),minY:Math.floor(b.y-ey-1),maxY:Math.ceil(b.y+ey+1)};
  }
- function projectRadius(b,axis){const a=axes(b);return Math.abs(axis[0]*a[0][0]+axis[1]*a[0][1])*b.w/2+Math.abs(axis[0]*a[1][0]+axis[1]*a[1][1])*b.h/2}
+ function projectRadius(b,axis){const a=axes(b),x=axis.x??axis[0],y=axis.y??axis[1];return Math.abs(x*a[0][0]+y*a[0][1])*b.w/2+Math.abs(x*a[1][0]+y*a[1][1])*b.h/2}
  function collisionForCell(b,x,y){
   const cx=x+.5,cy=y+.5,dx=b.x-cx,dy=b.y-cy,ax=axes(b),tests=[[1,0],[0,1],ax[0],ax[1]];
   // Pixel terrain contacts should resolve against the dominant world direction.
   // Choosing the shallowest SAT axis for every edge pixel causes sideways jitter on floors.
-  const axis=Math.abs(dx)>Math.abs(dy)+1.25?[Math.sign(dx)||1,0]:[0,Math.sign(dy)||1];
-  const depth=projectRadius(b,axis)+.5-Math.abs(dx*axis[0]+dy*axis[1]);
+  const local=localPoint(b,cx,cy);
+  let axis;
+  if(Math.abs(local.y)>b.h/2&&Math.abs(local.x)<=b.w/2+1)axis=rotate(0,-Math.sign(local.y),b.angle);
+  else if(Math.abs(local.x)>b.w/2&&Math.abs(local.y)<=b.h/2+1)axis=rotate(-Math.sign(local.x),0,b.angle);
+  else axis=Math.abs(dx)>Math.abs(dy)?{x:Math.sign(dx)||1,y:0}:{x:0,y:Math.sign(dy)||1};
+  const depth=projectRadius(b,axis)+.5-Math.abs(dx*axis.x+dy*axis.y);
   if(depth<=0)return null;
-  return{depth,nx:axis[0],ny:axis[1],cx,cy};
+  return{depth,nx:axis.x,ny:axis.y,cx,cy};
  }
  function impulseAgainstWorld(b,c){
   // Grid contacts aggregate many tiny pixel supports; applying torque from one selected pixel
