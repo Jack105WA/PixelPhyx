@@ -175,7 +175,8 @@ export function createPhotonSync(state) {
     ].join('|');
     if (signature === lastWorldSignature) return;
     lastWorldSignature = signature;
-    state.callbacks.getWorld = () => world;
+    const snapshotRevision = operationRevision;
+    state.callbacks.getWorld = () => ({ ...world, operationRevision: snapshotRevision });
     queueSnapshot(state.targets());
   }
 
