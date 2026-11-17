@@ -36,7 +36,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  function moveGrab(x,y){
   if(!drag||!Number.isFinite(x)||!Number.isFinite(y))return;
   const now=Date.now(),dt=clamp((now-drag.lastAt)/1000,1/240,.08);
-  drag.targetV={x:clamp((x-drag.last.x)/dt,-45,45),y:clamp((y-drag.last.y)/dt,-45,45)};
+  drag.targetV={x:clamp((x-drag.last.x)/dt/60,-20,20),y:clamp((y-drag.last.y)/dt/60,-20,20)};
   drag.last={x,y};drag.lastAt=now;drag.target={x:clamp(x,0,getWidth()),y:clamp(y,0,getHeight())};
  }
  function releaseGrab(){
@@ -48,9 +48,9 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   if(!drag||drag.body!==b)return;
   const p=worldPoint(b,drag.point.x,drag.point.y),v=pointVelocity(b,drag.point.x,drag.point.y);
   const dx=drag.target.x-p.x,dy=drag.target.y-p.y;
-  const stiffness=clamp(b.mass*.42,1.1,2.2),damping=clamp(b.mass*.7,1.8,3.5);
-  const fx=clamp(dx*stiffness+(drag.targetV.x-v.x)*damping,-b.mass*18,b.mass*18);
-  const fy=clamp(dy*stiffness+(drag.targetV.y-v.y)*damping,-b.mass*18,b.mass*18);
+  const stiffness=.14,damping=.58;
+  const fx=clamp(dx*stiffness+(drag.targetV.x-v.x)*damping,-b.mass*4,b.mass*4);
+  const fy=clamp(dy*stiffness+(drag.targetV.y-v.y)*damping,-b.mass*4,b.mass*4);
   b.vx=clamp(b.vx+fx/b.mass*dt,-32,32);b.vy=clamp(b.vy+fy/b.mass*dt,-32,32);
   b.spin=clamp(b.spin+(drag.point.x*fy-drag.point.y*fx)/inertia(b)*dt,-1.2,1.2);
   b.sleep=0;
