@@ -60,7 +60,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   const ax=axes(b),ex=Math.abs(ax[0][0])*b.w/2+Math.abs(ax[1][0])*b.h/2,ey=Math.abs(ax[0][1])*b.w/2+Math.abs(ax[1][1])*b.h/2;
   return{minX:Math.floor(b.x-ex-1),maxX:Math.ceil(b.x+ex+1),minY:Math.floor(b.y-ey-1),maxY:Math.ceil(b.y+ey+1)};
  }
- function projectRadius(b,axis){const a=axes(b);return Math.abs(axis[0]*a[0][0]+axis[1]*a[0][1])*b.w/2+Math.abs(axis[0]*a[1][0]+axis[1]*a[1][1])*b.h/2}
+ function projectRadius(b,axis){const a=axes(b),x=axis.x??axis[0],y=axis.y??axis[1];return Math.abs(x*a[0][0]+y*a[0][1])*b.w/2+Math.abs(x*a[1][0]+y*a[1][1])*b.h/2}
  function collisionForCell(b,x,y){
   const cx=x+.5,cy=y+.5,dx=b.x-cx,dy=b.y-cy,ax=axes(b),tests=[[1,0],[0,1],ax[0],ax[1]];
   // Pixel terrain contacts should resolve against the dominant world direction.
