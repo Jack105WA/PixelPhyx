@@ -518,8 +518,8 @@ function getConnectionConfig(){
  let parsed;
  try{parsed=new URL(address)}catch{throw new Error('Enter a valid Firebase Realtime Database URL.')}
  if(parsed.protocol!=='https:'&&parsed.protocol!=='http:')throw new Error('The Firebase database URL must use HTTPS or HTTP.');
- if(!/(firebaseio\\.com|firebasedatabase\\.app)$/i.test(parsed.hostname))throw new Error('That does not look like a Firebase Realtime Database URL.');
- config.databaseURL=parsed.href.replace(/\\/$/,'');
+ if(!/(firebaseio\.com|firebasedatabase\.app)$/i.test(parsed.hostname))throw new Error('That does not look like a Firebase Realtime Database URL.');
+ config.databaseURL=parsed.href.replace(/\/$/,'');
  return config;
 }
 async function connectFirebase(config){
