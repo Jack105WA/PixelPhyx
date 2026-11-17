@@ -1560,12 +1560,12 @@ const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cu
 const canvasShell=document.querySelector('#canvasShell');
 const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];
 function fitCanvasToShell(){
- const bounds=canvasShell.getBoundingClientRect();
- const scale=Math.min(bounds.width/W,bounds.height/H);
- const width=Math.max(1,Math.floor(scale*W)),height=Math.max(1,Math.floor(scale*H));
  for(const layer of canvasLayers){
-  layer.style.width=width+'px';
-  layer.style.height=height+'px';
+  layer.style.left='0';
+  layer.style.top='0';
+  layer.style.transform='none';
+  layer.style.width='100%';
+  layer.style.height='100%';
  }
 }
 fitCanvasToShell();
