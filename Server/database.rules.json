@@ -25,6 +25,13 @@
       }
     },
 
+    "usageReports": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
     "serviceStatus": {
       ".read": "auth != null",
       ".write": false
