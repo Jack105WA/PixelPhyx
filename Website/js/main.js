@@ -516,10 +516,13 @@ function getConnectionConfig(){
  if(!document.querySelector('#customServerMode')?.checked)return config;
  if((document.querySelector('#customServerType')?.value||'firebase')!=='firebase')throw new Error('PixelPhyx Server connections are not supported by the current multiplayer client yet.');
  const raw=String(document.querySelector('#customServerAddress')?.value||'').trim();
- if(!raw)throw new Error('Paste your Firebase web app config JSON.');
- let custom;
- try{custom=JSON.parse(raw)}catch{throw new Error('Firebase config must be valid JSON. Copy the config object from Firebase Project settings.')}
- if(!custom||typeof custom!=='object'||Array.isArray(custom))throw new Error('Firebase config must be a JSON object.');
+ if(!raw)throw new Error('Paste your Firebase config declaration.');
+ let custom,source=raw;
+ // Accept Firebase's copied JavaScript format as well as plain JSON.
+ source=source.replace(/^\\s*(?:const|let|var)\\s+firebaseConfig\\s*=\\s*/,'').replace(/;\\s*$/,'');
+ source=source.replace(/([{,]\\s*)([A-Za-z_$][\\w$]*)\\s*:/g,'$1"$2":').replace(/,\\s*([}\\]])/g,'$1');
+ try{custom=JSON.parse(source)}catch{throw new Error('Invalid Firebase config. Paste the complete const firebaseConfig = { ... }; block from Firebase Project settings.')}
+ if(!custom||typeof custom!=='object'||Array.isArray(custom))throw new Error('Firebase config must be an object.');
  for(const key of ['apiKey','authDomain','databaseURL','projectId','appId'])if(typeof custom[key]!=='string'||!custom[key].trim())throw new Error('Firebase config is missing the required "'+key+'" field.');
  let database;
  try{database=new URL(custom.databaseURL)}catch{throw new Error('The databaseURL in your Firebase config is not a valid URL.')}
