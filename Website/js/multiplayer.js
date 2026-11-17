@@ -108,6 +108,7 @@ export function createMultiplayer(callbacks = {}) {
   let cursorRef = null, lobbySlot = null, stopJoinRequests = null;
   let lastWorldWrite = 0, worldWriteInFlight = false, pendingWorld = null, lastWorldRevision = 0, lastWorldSignature = null;
   let lastRopeWrite = 0, ropeWriteInFlight = false, pendingRopes = null, lastRopeSignature = null;
+  let lastPropsSignature = null;
   let lastCursorWriteAt = 0, lastCursorSignature = '', lastLeafblowerWriteAt = 0;
   let cachedUsageStatus = null, cachedUsageAt = 0;
   const USAGE_LIMIT_PERCENT = 90;
@@ -566,6 +567,7 @@ export function createMultiplayer(callbacks = {}) {
     lastWorldSignature = null;
     lastRopeWrite = 0;
     lastRopeSignature = null;
+    lastPropsSignature = null;
     lastCursorWriteAt = 0;
     lastCursorSignature = '';
 
@@ -996,6 +998,9 @@ export function createMultiplayer(callbacks = {}) {
 
   function publishProps(items) {
     if (!db || !joined || !room || hostId !== playerId || !Array.isArray(items)) return;
+    const signature = JSON.stringify(items);
+    if (signature === lastPropsSignature) return;
+    lastPropsSignature = signature;
     const payload = { by: playerId, updatedAt: Date.now(), items };
     if (rtcMode) {
       rtcBroadcast('props', payload);
