@@ -58,32 +58,56 @@ export function createMultiplayer(callbacks = {}) {
 
   const sync = createPhotonSync(state);
   const rooms = createPhotonRooms(state, sync);
+  let connecting = null, recovery = null;
 
   async function connect() {
     if (state.client?.isConnected) return state.playerId;
-    state.report('connecting', 'CONNECTING TO PHOTON');
-    state.client = await createRealtimeClient({
-      appId: APP_ID, appVersion: APP_VERSION, protocol: 'wss'
-    });
-    state.playerId = crypto.randomUUID();
-    sync.setup();
-    rooms.setup();
-    state.client.on('error', error => {
-      state.log('Photon error: ' + (error?.message || error?.code || 'Unknown error'));
-    });
-    state.client.on('warning', warning => state.log('Photon warning: ' + warning.message));
-    state.client.on('roomLeft', () => { state.roomName = ''; state.approvedPlayers.clear(); state.roster(); });
-    state.client.on('disconnected', ({ cause }) => { if (cause !== 'none') recover(cause); });
-    try {
-      await state.client.connect({ auth: { userId: state.playerId } });
+    if (recovery) {
+      await recovery;
+      if (state.client?.isConnected) return state.playerId;
+    }
+    if (connecting) return connecting;
+    connecting = (async () => {
+      if (state.client) {
+        state.client.dispose();
+        state.client = null;
+      }
+      state.report('connecting', 'CONNECTING TO PHOTON');
+      state.client = await createRealtimeClient({
+        appId: APP_ID, appVersion: APP_VERSION, protocol: 'wss'
+      });
+      state.playerId = crypto.randomUUID();
+      try {
+        await state.client.connect({ auth: { userId: state.playerId } });
+      } catch (error) {
+        state.client.dispose();
+        state.client = null;
+        state.report('', 'CONNECTION FAILED');
+        throw error;
+      }
+      sync.setup();
+      rooms.setup();
+      state.client.on('error', error => {
+        state.log('Photon error: ' + (error?.message || error?.code || 'Unknown error'));
+      });
+      state.client.on('warning', warning => state.log('Photon warning: ' + warning.message));
+      state.client.on('roomLeft', () => {
+        state.roomName = '';
+        state.approvedPlayers.clear();
+        state.roster();
+      });
+      state.client.on('disconnected', ({ cause }) => {
+        if (cause === 'none' || recovery) return;
+        recovery = recover(cause).finally(() => { recovery = null; });
+      });
       state.report('online', 'PHOTON ONLINE');
       state.log('Connected to Photon Cloud.');
       return state.playerId;
-    } catch (error) {
-      state.report('', 'CONNECTION FAILED');
-      state.client.dispose();
-      state.client = null;
-      throw error;
+    })();
+    try {
+      return await connecting;
+    } finally {
+      connecting = null;
     }
   }
 
