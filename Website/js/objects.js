@@ -71,13 +71,15 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   return{depth,nx:axis[0],ny:axis[1],cx,cy};
  }
  function impulseAgainstWorld(b,c){
-  const rx=c.cx+c.nx*.5-b.x,ry=c.cy+c.ny*.5-b.y;
+  // Grid contacts aggregate many tiny pixel supports; applying torque from one selected pixel
+  // makes a resting box spin continuously. Keep terrain impulses through the body centre.
+  const rx=0,ry=0;
   const pvx=b.vx-b.spin*ry,pvy=b.vy+b.spin*rx,vn=pvx*c.nx+pvy*c.ny;
   if(vn>=0)return;
   const rn=rx*c.ny-ry*c.nx,den=invMass(b)+rn*rn/inertia(b),j=-(1+b.restitution)*vn/den;
   b.vx+=c.nx*j*invMass(b);b.vy+=c.ny*j*invMass(b);b.spin+=(rx*c.ny-ry*c.nx)*j/inertia(b);
   const tx=-c.ny,ty=c.nx,vt=pvx*tx+pvy*ty,jt=clamp(-vt/(invMass(b)+(rx*ty-ry*tx)**2/inertia(b)),-j*b.friction,j*b.friction);
-  b.vx+=tx*jt*invMass(b);b.vy+=ty*jt*invMass(b);b.spin=clamp(b.spin,-.38,.38);
+  b.vx+=tx*jt*invMass(b);b.vy+=ty*jt*invMass(b);b.vx*=.985;b.spin=clamp(b.spin,-.38,.38);
  }
  function resolveTerrain(b){
   const w=getWidth(),h=getHeight();let contacts=0;
@@ -213,7 +215,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
     if(b.sleep>12&&(!drag||drag.body!==b)){b.vx=0;b.vy=0;b.spin=0;collideAirborne(b);continue;}
     applyGrab(b,dt);
     b.vy=clamp(b.vy+.16*gravity*dt,-26,26);
-    b.vx*=.9995;b.spin*=.997;
+    b.vx*=.9995;b.spin*=.96;
     b.spin=clamp(b.spin,-.38,.38);b.vx=clamp(b.vx,-22,22);b.vy=clamp(b.vy,-22,22);
    b.x+=b.vx*dt;b.y+=b.vy*dt;b.angle+=b.spin*dt;
     solveSuspension(b,dt);resolveTerrain(b);collideAirborne(b);
