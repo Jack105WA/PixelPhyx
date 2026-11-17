@@ -1,4 +1,5 @@
-import { EVENTS } from './photon-sync.js';
+const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
+const { EVENTS } = await import('./photon-sync.js?v=' + encodeURIComponent(cacheVersion));
 
 export function createPhotonRooms(state, sync) {
   let pendingApproval = null, roomListOff = null;
