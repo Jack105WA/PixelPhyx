@@ -127,13 +127,14 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  }
  function bucketAllowsMove(b,from,to){
   const a=localPoint(b,from.x,from.y),z=localPoint(b,to.x,to.y);
-  const inside=p=>Math.abs(p.x)<5.65&&p.y> -7.15&&p.y<7.2;
+  const wallX=y=>7-(y+8)*2/17;
+  const inside=p=>p.y> -7.5&&p.y<8.5&&Math.abs(p.x)<wallX(p.y)-.35;
   const ai=inside(a),zi=inside(z);
   if(ai&&zi)return true;
   if(ai&&!zi)return false;
-  if(!ai&&z.y<= -7.15&&Math.abs(z.x)<5.65)return true;
-  if(!ai&&zi)return a.y< -7.15&&z.y>a.y&&Math.abs(z.x)<5.65;
-  return !(Math.abs(z.x)<7.05&&z.y> -8.15&&z.y<8.8);
+  if(!ai&&z.y<= -7.5&&Math.abs(z.x)<6.5)return true;
+  if(!ai&&zi)return a.y< -7.5&&z.y>a.y&&Math.abs(z.x)<wallX(z.y)-.35;
+  return !(Math.abs(z.x)<8&&z.y> -8&&z.y<9.2);
  }
  function blocksParticleMove(x1,y1,x2,y2){
   const dx=x2-x1,dy=y2-y1,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.3));
@@ -200,7 +201,22 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   for(const p of particles){
    if(p.x<box.minX-1||p.x>box.maxX+1||p.y<box.minY-1||p.y>box.maxY+1)continue;
    const q=localPoint(b,p.x,p.y),hx=b.w/2,hy=b.h/2;
-   if(b.type==='bucket'&&Math.abs(q.x)<5.65&&q.y<7.2)continue;
+   if(b.type==='bucket'){
+    const wallX=7-(q.y+8)*2/17,inside=q.y> -7.5&&Math.abs(q.x)<wallX;
+    if(q.y> -7.5&&q.y<8.5&&Math.abs(q.x)>wallX-.55){
+     const side=Math.sign(q.x)||1,limit=wallX+(inside?-.56:.56);
+     q.x=side*limit;
+     const normal=rotate(side*(inside?-1:1),0,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;
+     if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}
+     const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue;
+    }
+    if(inside&&q.y>8){
+     q.y=8;const normal=rotate(0,-1,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;
+     if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}
+     const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue;
+    }
+    if(inside)continue;
+   }
    if(b.type==='car'){
     let wheelHit=false;
     for(let wheel=0;wheel<2;wheel++){
