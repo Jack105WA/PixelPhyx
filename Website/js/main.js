@@ -164,7 +164,7 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
  return false;
 }
 const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
-function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
+function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)||objectSystem.blocksParticleMove(x1,y1,x2,y2)}
 function stepRopes(){
  // The host is the sole rope-physics authority in multiplayer. Other clients
  // render the host's snapshots and only apply local pointer previews.
