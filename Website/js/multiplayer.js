@@ -706,19 +706,13 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   let cleanupInProgress = false;
-  async function cleanupEmptyLobbies() {
-    if (!db || !auth?.currentUser || cleanupInProgress) return;
+  async function cleanupEmptyLobbies(directoryData) {
+    if (!db || !auth?.currentUser || cleanupInProgress || !directoryData) return;
     cleanupInProgress = true;
     try {
-      let directorySnapshot;
-      try {
-        directorySnapshot = await get(ref(db, 'lobbyDirectory'));
-      } catch (error) {
-        log('Empty-server check failed: ' + error.message);
-        return;
-      }
-
-      const entries = Object.values(directorySnapshot.val() || {})
+      // Reuse the Online tab's existing directory snapshot. Do not download
+      // the whole lobby directory again during each periodic cleanup scan.
+      const entries = Object.values(directoryData)
         .filter(entry => entry && typeof entry.room === 'string')
         .slice(0, 100);
 
@@ -773,16 +767,20 @@ export function createMultiplayer(callbacks = {}) {
 
   function watchLobbies(callback) {
     if (!db) throw new Error('Firebase is not connected');
-    // Check immediately, then every 15 seconds only while the Online window
-    // is being watched. LAN entries are cleanup-only and never shown publicly.
-    cleanupEmptyLobbies();
-    const cleanupTimer = setInterval(cleanupEmptyLobbies, 15000);
+    let directoryData = null;
+    // Check immediately from the initial directory event, then every 60
+    // seconds while Online is open. LAN entries are cleanup-only.
     const stopDirectory = onValue(ref(db, 'lobbyDirectory'), snapshot => {
-      const active = Object.values(snapshot.val() || {})
+      directoryData = snapshot.val() || {};
+      cleanupEmptyLobbies(directoryData);
+      const active = Object.values(directoryData)
         .filter(lobby => lobby && typeof lobby.room === 'string' && lobby.transport !== 'webrtc')
         .slice(0, 20);
       callback(active.sort((a, b) => String(a.room).localeCompare(String(b.room))));
     }, error => log('Lobby gallery error: ' + error.message));
+    const cleanupTimer = setInterval(() => {
+      if (directoryData) cleanupEmptyLobbies(directoryData);
+    }, 60000);
     return () => {
       clearInterval(cleanupTimer);
       stopDirectory();
