@@ -47,7 +47,14 @@ new vm.Script(gameScript, { filename: 'offline-game.js' });
 
 const scriptTag = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
 if (!scriptTag.test(offlineHtml)) throw new Error('Offline game script not found.');
-const builtHtml = offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>');
+let builtHtml = offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>');
+builtHtml = builtHtml
+  .replace('<span class="status-dot"></span>', '')
+  .replace('<button class="btn" id="downloadOffline" type="button">Download offline copy</button>', '')
+  .replace('<span class="room-pill">OFFLINE · SINGLE FILE</span>', '')
+  .replace('cursor:none', 'cursor:crosshair')
+  .replace('const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];', 'const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];')
+  .replace(/<script>\\s*\\(\\(\\s*\\)\\s*=>\\s*\\{[\\s\\S]*?<\\/script>\\s*/, '');
 await Promise.all([
   writeFile(offlineDir + 'offline.html', builtHtml, 'utf8'),
   writeFile(websiteDir + 'offline.html', builtHtml, 'utf8')
