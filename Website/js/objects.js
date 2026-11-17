@@ -109,7 +109,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
     // The car's underside is open so the independently simulated wheels carry it.
     if(b.type==='car'&&local.y>2.7&&Math.abs(local.x)<14.5)continue;
     const c=collisionForCell(b,x,y);if(!c)continue;
-    if(movable.has(material)&&displaceCell?.(x,y,c.nx,c.ny,b.vx,b.vy))continue;
+    if(movable.has(material)&&displaceCell?.(x,y,-c.nx,-c.ny,b.vx,b.vy))continue;
     if(!deepest||c.depth>deepest.depth)deepest=c;
    }
    if(!deepest)break;
@@ -162,7 +162,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    // that penetration only while descending so the suspension can recover it.
    if(vertical<0){if(b.vy<=0)continue}
    else if(vertical<.25||horizontal*horizontal+vertical*vertical>r*r+.35)continue;
-   if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
+   if(movable.has(m)&&displaceCell?.(x,y,0,1,b.vx,b.vy))continue;
    if(y<groundY){groundY=y;material=m}
   }
   if(!material)return null;
