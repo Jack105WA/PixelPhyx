@@ -9,7 +9,7 @@ export const EVENTS = {
 
 export function createPhotonSync(state) {
   const transfers = new Map();
-  let lastRopesAt = 0, lastPropsSignature = '', lastWorldSignature = '';
+  let lastRopesAt = 0, lastRopesSignature = '', lastPropsSignature = '', lastWorldSignature = '';
   let snapshotBusy = false, pendingSnapshot = null;
 
   const room = () => state.client?.room || null;
@@ -169,8 +169,11 @@ export function createPhotonSync(state) {
   function publishRopes(ropes) {
     if (!state.isHost() || !Array.isArray(ropes)) return;
     const now = performance.now();
-    if (now - lastRopesAt < 90) return;
+    if (now - lastRopesAt < 180) return;
+    const signature = JSON.stringify(ropes);
+    if (signature === lastRopesSignature) return;
     lastRopesAt = now;
+    lastRopesSignature = signature;
     const recipients = state.targets();
     if (recipients.length) send(EVENTS.ROPES, {
       by: state.playerId, updatedAt: Date.now(), ropes
