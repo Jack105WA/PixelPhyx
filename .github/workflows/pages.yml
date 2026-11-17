@@ -1,46 +1,53 @@
-name: Deploy PixelPhyx to GitHub Pages
+name: Deploy PixelPhyx and build offline edition
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: write
   pages: write
   id-token: write
+
 concurrency:
   group: pages
   cancel-in-progress: true
+
 jobs:
-  build:
+  deploy-live:
+    name: Deploy live website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: Website
+      - id: deployment
+        uses: actions/deploy-pages@v4
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+  build-offline:
+    name: Build offline edition
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Rebuild standalone offline edition
-        run: node build-offline.mjs
-      - name: Commit updated offline edition
+      - name: Generate standalone offline edition
+        run: node Offline/build-offline.mjs
+      - name: Commit generated offline edition
         run: |
           if git diff --quiet -- Website/offline.html; then
             echo "Website/offline.html is already up to date."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Website/offline.html
-            git commit -m "Build updated offline edition"
-            git push
+            exit 0
           fi
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: Website
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Website/offline.html
+          git commit -m "[skip ci] Build offline edition"
+          git push
