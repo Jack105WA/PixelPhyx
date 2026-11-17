@@ -54,7 +54,7 @@ builtHtml = builtHtml
   .replace('<span class="room-pill">OFFLINE · SINGLE FILE</span>', '')
   .replace('cursor:none', 'cursor:crosshair')
   .replace('const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];', 'const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];')
-  .replace(/<script>\\s*\\(\\(\\s*\\)\\s*=>\\s*\\{[\\s\\S]*?<\\/script>\\s*/, '');
+  .replace(/<script>\s*\(\(\s*\)\s*=>\s*\{[\s\S]*?<\/script>\s*/, '');
 await Promise.all([
   writeFile(offlineDir + 'offline.html', builtHtml, 'utf8'),
   writeFile(websiteDir + 'offline.html', builtHtml, 'utf8')
