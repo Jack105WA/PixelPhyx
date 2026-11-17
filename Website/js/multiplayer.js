@@ -480,7 +480,19 @@ export function createMultiplayer(callbacks = {}) {
         db = getDatabase(app);
         auth = getAuth(app);
       }
-      if (!auth.currentUser) await signInAnonymously(auth);
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          if (error?.code === 'auth/configuration-not-found') {
+            throw new Error('This Firebase project has not finished setting up Firebase Authentication. Open Firebase Console → Authentication → Get started, then enable the Anonymous sign-in provider. Confirm the web app API key and project ID belong to this same project.');
+          }
+          if (error?.code === 'auth/operation-not-allowed') {
+            throw new Error('Anonymous sign-in is disabled for this Firebase project. Open Firebase Console → Authentication → Sign-in method and enable Anonymous.');
+          }
+          throw error;
+        }
+      }
       playerId = auth.currentUser.uid;
       usageEstimateUid = playerId;
       usageEstimateDay = currentUsageDay();
