@@ -695,34 +695,12 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
  function blocksParticleMove(x1,y1,x2,y2){
   const dx=x2-x1,dy=y2-y1,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.3));
   for(const b of bodies){
-   if(b.type==='bucket'){
-    let previous={x:x1,y:y1};
-    for(let i=1;i<=steps;i++){
-     const t=i/steps,next={x:x1+dx*t,y:y1+dy*t};
-     if(!bucketAllowsMove(b,previous,next))return true;
-     previous=next;
-    }
-    continue;
-   }
-   const insideShape=q=>{
-    if(b.type==='ball')return Math.hypot(q.x,q.y)<b.w*.49;
-    if(Math.abs(q.x)<b.w/2&&Math.abs(q.y)<b.h/2)return true;
-    if(b.type==='car')for(let wheel=0;wheel<2;wheel++){
-     const wx=wheel===0?-10.5:10.5,wy=7.5+b.wheelY[wheel];
-     if(Math.hypot(q.x-wx,q.y-wy)<3.15)return true;
-    }
-    return false;
-   };
-   const from=localPoint(b,x1,y1),to=localPoint(b,x2,y2);
-   const startsInside=insideShape(from),endsInside=insideShape(to);
-   // Let a particle escape if a prop has just moved over it; still block
-   // outside-to-inside motion and any path that crosses the solid.
-   if(startsInside&&!endsInside)continue;
-   if(!startsInside&&endsInside)return true;
-   for(let i=1;i<steps;i++){
-    const t=i/steps,p=localPoint(b,x1+dx*t,y1+dy*t);
-    if(insideShape(p))return true;
-   }
+   if(b.type==='bucket'){let prev={x:x1,y:y1};for(let i=1;i<=steps;i++){const t=i/steps,next={x:x1+dx*t,y:y1+dy*t};if(!bucketAllowsMove(b,prev,next))return true;prev=next}continue}
+   const solid=q=>{if(b.type==='ball')return Math.hypot(q.x,q.y)<b.w*.49;if(Math.abs(q.x)<b.w/2&&Math.abs(q.y)<b.h/2)return true;if(b.type==='car')for(let k=0;k<2;k++){const wx=k===0?-10.5:10.5,wy=7.5+b.wheelY[k];if(Math.hypot(q.x-wx,q.y-wy)<3.15)return true}return false};
+   const from=localPoint(b,x1,y1),to=localPoint(b,x2,y2),starts=solid(from),ends=solid(to);
+   if(starts&&!ends)continue;
+   if(!starts&&ends)return true;
+   for(let i=1;i<steps;i++){const t=i/steps;if(solid(localPoint(b,x1+dx*t,y1+dy*t)))return true}
   }
   return false;
  }
