@@ -1,6 +1,6 @@
 # PixelPhyx
 
-PixelPhyx is an online pixel-art physics and chemistry sandbox. Build worlds with falling particles, liquids, gases, reactions, explosions, and ropes with live Verlet-physics simulation. Invite friends to the same multiplayer room and experiment together.
+Pixelphyx is a online 2D Physics Simulator featuring multiplayer, Simulated Reactions and more!
 
 ## Play online
 
@@ -8,7 +8,7 @@ After GitHub Pages finishes deploying, open:
 
 **https://jack105wa.github.io/PixelPhyx/**
 
-## OFFLINE
+## Play offline
 
 https://github.com/Jack105WA/PixelPhyx/latest /Download the Html File
 
