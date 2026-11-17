@@ -55,7 +55,9 @@ const offlineGameScript = gameScript
   .replaceAll("canvas.addEventListener('pointerup',", "canvas.parentElement.addEventListener('pointerup',")
   .replaceAll("canvas.addEventListener('pointercancel',", "canvas.parentElement.addEventListener('pointercancel',")
   .replaceAll("canvas.addEventListener('wheel',", "canvas.parentElement.addEventListener('wheel',")
-  .replaceAll("canvas.setPointerCapture(", "canvas.parentElement.setPointerCapture(");
+  .replaceAll("canvas.setPointerCapture(", "canvas.parentElement.setPointerCapture(")
+  .replace("function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}", "function canvasPoint(e){const r=canvasShell.getBoundingClientRect();if(!r.width||!r.height)return{x:-1,y:-1};return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}")
+  .replace("const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];", "const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];");
 new vm.Script(offlineGameScript, { filename: 'offline-game.js' });
 
 const scriptTag = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
