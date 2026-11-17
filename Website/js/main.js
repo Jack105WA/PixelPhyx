@@ -442,9 +442,8 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
  // Clients predict locally for responsive motion; host snapshots reconcile drift.
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  if(multiplayer?.joined&&!multiplayer.isHost){
-  // Predicted clients render their own per-frame movement; replaying the host's
-  // previous movement paths makes particles visibly trail behind prediction.
-  cellRenderAlpha=1;
+  // Interpolate the client's own predicted moves, not the host's stale move list.
+  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  }else cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.joined&&multiplayer.isHost){
   const syncInterval=N>100000?1000:N>30000?750:500;
