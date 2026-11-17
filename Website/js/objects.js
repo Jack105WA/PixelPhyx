@@ -29,13 +29,13 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   let chosen=null,best=-Infinity;
   for(let i=bodies.length-1;i>=0;i--){const b=bodies[i];if(!hit(b,x,y))continue;const score=b.type==='ball'?b.w*.56-Math.hypot(x-b.x,y-b.y):Math.min(b.w/2-Math.abs(localPoint(b,x,y).x),b.h/2-Math.abs(localPoint(b,x,y).y));if(score>best){best=score;chosen=b}}
   if(!chosen)return false;
-  const p=localPoint(chosen,x,y),now=performance.now();
+  const p=localPoint(chosen,x,y),now=Date.now();
   drag={body:chosen,point:p,target:{x,y},targetV:{x:0,y:0},last:{x,y},lastAt:now};
   chosen.sleep=0;return true;
  }
  function moveGrab(x,y){
   if(!drag||!Number.isFinite(x)||!Number.isFinite(y))return;
-  const now=performance.now(),dt=clamp((now-drag.lastAt)/1000,1/240,.08);
+  const now=Date.now(),dt=clamp((now-drag.lastAt)/1000,1/240,.08);
   drag.targetV={x:clamp((x-drag.last.x)/dt,-45,45),y:clamp((y-drag.last.y)/dt,-45,45)};
   drag.last={x,y};drag.lastAt=now;drag.target={x:clamp(x,0,getWidth()),y:clamp(y,0,getHeight())};
  }
