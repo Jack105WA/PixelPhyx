@@ -115,12 +115,13 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  }
  function bucketAllowsMove(b,from,to){
   const a=localPoint(b,from.x,from.y),z=localPoint(b,to.x,to.y);
-  const inside=p=>Math.abs(p.x)<5.65&&p.y>-7.15&&p.y<7.2;
+  const inside=p=>Math.abs(p.x)<5.65&&p.y> -7.15&&p.y<7.2;
   const ai=inside(a),zi=inside(z);
   if(ai&&zi)return true;
   if(ai&&!zi)return false;
+  if(!ai&&z.y<= -7.15&&Math.abs(z.x)<5.65)return true;
   if(!ai&&zi)return a.y< -7.15&&z.y>a.y&&Math.abs(z.x)<5.65;
-  return !(Math.abs(z.x)<7.05&&z.y>-8.15&&z.y<8.8);
+  return !(Math.abs(z.x)<7.05&&z.y> -8.15&&z.y<8.8);
  }
  function blocksParticleMove(x1,y1,x2,y2){
   const dx=x2-x1,dy=y2-y1,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.3));
@@ -154,21 +155,18 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   if(b.type!=='car')return;
   for(let i=0;i<2;i++){
    const hit=wheelGround(b,i),old=b.wheelY[i];
-   const wheelAccel=hit?clamp((hit.target-old)*.24-b.wheelV[i]*.48,-1.4,1.8):clamp(-old*.16-b.wheelV[i]*.32,-.7,.7);
-   b.wheelV[i]=clamp(b.wheelV[i]+wheelAccel*dt,-8,8);
+   const wheelAccel=hit?clamp((hit.target-old)*.3-b.wheelV[i]*.62,-1.2,1.4):clamp(-old*.18-b.wheelV[i]*.38,-.7,.7);
+   b.wheelV[i]=clamp(b.wheelV[i]+wheelAccel*dt,-5,5);
    b.wheelY[i]=clamp(old+b.wheelV[i]*dt,-4,2.5);
-   // Compression and damping transfer force back into the chassis.
-   const springForce=clamp(-b.wheelY[i]*.24-b.wheelV[i]*.48,-1.4,1.8);
-   b.vy-=springForce*.9*dt;
-   b.spin+=(i===0?1:-1)*springForce*.0009*dt;
-   const contact=!!hit&&b.wheelY[i]>=hit.target-.12;
-   b.wheelGround[i]=contact;
-   if(contact){
-    b.wheelY[i]=Math.min(b.wheelY[i],hit.target);
-    if(b.wheelV[i]>0)b.wheelV[i]*=-.12;
-    const wheelV=b.vx+(i===0?-1:1)*b.spin*10;
-    b.wheelSpin[i]+=wheelV*.12;
-    // Rolling resistance and a little grounded traction.
+   if(hit&&b.wheelY[i]>hit.target){b.wheelY[i]=hit.target;if(b.wheelV[i]>0)b.wheelV[i]=0}
+   const springForce=clamp(-b.wheelY[i]*.18-b.wheelV[i]*.24,-.8,.8);
+   b.vy-=springForce*.12*dt;
+   // Wheel travel is independent; chassis rotation is reserved for actual collisions.
+   b.wheelGround[i]=!!hit;
+   if(hit&&b.wheelV[i]>0)b.wheelV[i]*=-.08;
+   if(hit){
+    const wheelSpeed=b.vx+(i===0?-1:1)*b.spin*10;
+    b.wheelSpin[i]+=wheelSpeed*.12;
     b.vx*=.999;
    }else b.wheelSpin[i]+=(b.vx+(i===0?-1:1)*b.spin*10)*.12;
   }
