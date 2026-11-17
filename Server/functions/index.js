@@ -1,3 +1,14 @@
+const { initializeApp } = require("firebase-admin/app");
+const { getDatabase } = require("firebase-admin/database");
+const { onValueWritten } = require("firebase-functions/v2/database");
+const logger = require("firebase-functions/logger");
+
+const DATABASE_URL = "https://pixelphyx-backendv2-default-rtdb.firebaseio.com";
+const CLEANUP_GRACE_MS = 3000;
+
+const app = initializeApp({ databaseURL: DATABASE_URL });
+const database = getDatabase(app);
+
 // Aggregate cumulative per-player estimates into compact date-keyed totals.
 async function addBandwidthDelta(period, key, delta) {
   if (!key || !Number.isFinite(delta) || delta === 0) return;
@@ -46,37 +57,29 @@ exports.aggregateBandwidthReport = onValueWritten(
   }
 );
 
-const { initializeApp } = require("firebase-admin/app");
-const { getDatabase } = require("firebase-admin/database");
-const { onValueWritten } = require("firebase-functions/v2/database");
-const logger = require("firebase-functions/logger");
-
-const DATABASE_URL = "https://pixelphyx-backendv2-default-rtdb.firebaseio.com";
-const CLEANUP_GRACE_MS = 3000;
-
-const app = initializeApp({ databaseURL: DATABASE_URL });
-const database = getDatabase(app);
-
+// Trigger on an individual player's removal. This catches onDisconnect()
+// removals for both standard and LAN rooms, without relying on a parent
+// collection trigger to detect child changes.
 exports.clearEmptyRoom = onValueWritten(
   {
-    ref: "/rooms/{roomId}/players",
+    ref: "/rooms/{roomId}/players/{playerId}",
     instance: "pixelphyx-backendv2-default-rtdb",
     region: "us-central1"
   },
   async (event) => {
     const { roomId } = event.params;
-    const playersAfterWrite = event.data.after.val();
 
-    // This parent-level trigger runs for both child deletion and whole-list deletion.
-    if (playersAfterWrite && Object.keys(playersAfterWrite).length > 0) return;
+    // Player updates and joins must never start room cleanup.
+    if (event.data.after.exists()) return;
 
     await new Promise((resolve) => setTimeout(resolve, CLEANUP_GRACE_MS));
 
-    // Recheck atomically so a player who rejoins during the grace period is safe.
+    // Recheck the entire room transactionally. If anyone rejoined, preserve it.
     const roomRef = database.ref(`rooms/${roomId}`);
     const result = await roomRef.transaction((room) => {
       if (!room) return;
-      if (room.players && Object.keys(room.players).length > 0) return;
+      const players = room.players;
+      if (players && Object.keys(players).length > 0) return;
       return null;
     });
 
@@ -85,30 +88,34 @@ exports.clearEmptyRoom = onValueWritten(
       return;
     }
 
-    // Remove the gallery entry only if it still points to this room.
+    // Remove a public gallery entry only when it still belongs to this room.
     await database.ref(`lobbyDirectory/${roomId}`).transaction((current) => {
       if (!current || current.room !== roomId) return;
       return null;
     });
 
-    // Search the small, fixed 20-slot reservation list. This also cleans up
-    // reservations when a lobby directory entry was missing or stale.
-    const slotsSnapshot = await database.ref("lobbySlots").get();
-    const slots = slotsSnapshot.val() || {};
-    const matchingSlots = Object.entries(slots)
-      .filter(([, value]) => value?.room === roomId)
-      .map(([slot]) => slot);
+    // LAN rooms never reserve public slots. For standard rooms, inspect only
+    // the fixed 20-slot list and remove reservations that still point here.
+    if (!roomId.startsWith("LAN-")) {
+      const slotsSnapshot = await database.ref("lobbySlots").get();
+      const slots = slotsSnapshot.val() || {};
+      const matchingSlots = Object.entries(slots)
+        .filter(([, value]) => value?.room === roomId)
+        .map(([slot]) => slot);
 
-    await Promise.all(matchingSlots.map((slot) =>
-      database.ref(`lobbySlots/${slot}`).transaction((current) => {
-        if (!current || current.room !== roomId) return;
-        return null;
-      })
-    ));
+      await Promise.all(matchingSlots.map((slot) =>
+        database.ref(`lobbySlots/${slot}`).transaction((current) => {
+          if (!current || current.room !== roomId) return;
+          return null;
+        })
+      ));
 
-    logger.info("Removed empty room, gallery entry, and slot reservations", {
-      roomId,
-      removedSlots: matchingSlots
-    });
+      logger.info("Removed empty room and standard lobby reservations", {
+        roomId,
+        removedSlots: matchingSlots
+      });
+    } else {
+      logger.info("Removed empty LAN room", { roomId });
+    }
   }
 );
