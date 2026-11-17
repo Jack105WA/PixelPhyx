@@ -459,12 +459,11 @@ const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,lastPropPublish=0;
  function loop(now){
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
- // Clients predict locally for responsive motion; host snapshots reconcile drift.
- if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
- if(multiplayer?.joined&&!multiplayer.isHost){
-  // Interpolate the client's own predicted moves, not the host's stale move list.
-  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
- }else cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
+ // Only the room host simulates. Clients interpolate authoritative host movement.
+ const isRemoteClient=!!(multiplayer?.joined&&!multiplayer.isHost);
+ if(!isRemoteClient&&running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
+ if(isRemoteClient){cellRenderAlpha=remoteSnapshotReceivedAt?Math.max(0,Math.min(1,(now-remoteSnapshotReceivedAt)/remoteSnapshotInterval)):1;}
+ else cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.joined&&multiplayer.isHost){
   const syncInterval=N>100000?1000:N>30000?750:500;
   remoteSnapshotInterval=syncInterval;
