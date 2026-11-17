@@ -122,10 +122,9 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
  <div class="online-section" style="margin-top:9px;padding-top:9px">
   <label style="display:flex;align-items:center;gap:8px;color:#cbd7e5;font-size:11px;cursor:pointer">
    <input id="customServerMode" type="checkbox" style="accent-color:#83e4bd;margin:0">
-   <span><strong>Connect to a custom server</strong><span style="display:block;color:var(--muted);font-size:10px;margin-top:3px">Use a custom multiplayer backend instead of the default server.</span></span>
+   <span><strong>Custom Firebase server</strong><span style="display:block;color:var(--muted);font-size:10px;margin-top:3px">Connect using your own Firebase Realtime Database.</span></span>
   </label>
   <div id="customServerSettings" hidden style="margin-top:10px">
-   <div class="control"><label for="customServerType">Server type</label><select id="customServerType" class="btn" style="width:100%;text-align:left"><option value="firebase">Firebase Realtime Database</option><option value="pixelphyx">PixelPhyx Server</option></select></div>
    <div class="control"><label for="customServerAddress">Firebase web app config (JavaScript)</label><textarea id="customServerAddress" rows="7" spellcheck="false" autocomplete="off" placeholder='const firebaseConfig = {&#10;  apiKey: "...",&#10;  authDomain: "your-project.firebaseapp.com",&#10;  databaseURL: "https://your-project-default-rtdb.firebaseio.com",&#10;  projectId: "your-project",&#10;  storageBucket: "your-project.firebasestorage.app",&#10;  messagingSenderId: "...",&#10;  appId: "1:...:web:..."&#10;};' style="width:100%;box-sizing:border-box;resize:vertical;padding:10px;background:#0e151f;border:1px solid var(--line);border-radius:7px;color:#fff;font:10px/1.5 'DM Mono',monospace"></textarea></div>
    <p id="customServerHint" class="usage-message">Paste the complete const firebaseConfig = { ... }; block from Project settings. Anonymous Authentication and the Realtime Database rules must be enabled in that project.</p>
   </div>
