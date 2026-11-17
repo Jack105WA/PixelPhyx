@@ -171,7 +171,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   for(const p of particles){
    if(p.x<box.minX-1||p.x>box.maxX+1||p.y<box.minY-1||p.y>box.maxY+1)continue;
    const q=localPoint(b,p.x,p.y),hx=b.w/2,hy=b.h/2;
-   if(b.type==='bucket'&&Math.abs(q.x)<5.65&&q.y> -7.15&&q.y<7.2)continue;
+   if(b.type==='bucket'&&Math.abs(q.x)<5.65&&q.y<7.2)continue;
    if(Math.abs(q.x)>hx+.5||Math.abs(q.y)>hy+.5)continue;
    let nx=0,ny=0,depth;
    const ox=hx+.5-Math.abs(q.x),oy=hy+.5-Math.abs(q.y);
@@ -196,6 +196,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    a.x-=nx*correction*ia;a.y-=ny*correction*ia;b.x+=nx*correction*ib;b.y+=ny*correction*ib;
    const px=(a.x+b.x)/2,py=(a.y+b.y)/2,rax=px-a.x,ray=py-a.y,rbx=px-b.x,rby=py-b.y;
    const avx=a.vx-a.spin*ray,avy=a.vy+a.spin*rax,bvx=b.vx-b.spin*rby,bvy=b.vy+b.spin*rbx,rvx=bvx-avx,rvy=bvy-avy,vn=rvx*nx+rvy*ny;
+   a.sleep=b.sleep=0;
    if(vn>=0)continue;
    const ran=rax*ny-ray*nx,rbn=rbx*ny-rby*nx,den=sum+ran*ran/inertia(a)+rbn*rbn/inertia(b),e=Math.min(a.restitution,b.restitution),j=-(1+e)*vn/den,ix=j*nx,iy=j*ny;
    a.vx-=ix*ia;a.vy-=iy*ia;b.vx+=ix*ib;b.vy+=iy*ib;
@@ -209,8 +210,8 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
  function step(){
   const gravity=clamp(getGravity(),0,3),w=getWidth(),h=getHeight(),dt=1/SUBSTEPS;
   for(let sub=0;sub<SUBSTEPS;sub++){
-   for(const b of bodies){
-    if(b.sleep>12&&(!drag||drag.body!==b))continue;
+   for(const b of [...bodies]){
+    if(b.sleep>12&&(!drag||drag.body!==b)){b.vx=0;b.vy=0;b.spin=0;collideAirborne(b);continue;}
     applyGrab(b,dt);
     b.vy=clamp(b.vy+.16*gravity*dt,-26,26);
     b.vx*=.9995;b.spin*=.997;
