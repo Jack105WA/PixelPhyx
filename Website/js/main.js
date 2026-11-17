@@ -507,7 +507,23 @@ function renderJoinRequests(){
   row.append(label,actions);list.append(row);
  }
 }
+function getConnectionConfig(){
+ const config={...firebaseConfig};
+ const customEnabled=document.querySelector('#customServerMode')?.checked;
+ if(!customEnabled)return config;
+ const type=document.querySelector('#customServerType')?.value||'firebase';
+ if(type!=='firebase')throw new Error('PixelPhyx Server connections are not supported by the current multiplayer client yet.');
+ const address=String(document.querySelector('#customServerAddress')?.value||'').trim();
+ if(!address)throw new Error('Enter your custom Firebase Realtime Database URL.');
+ let parsed;
+ try{parsed=new URL(address)}catch{throw new Error('Enter a valid Firebase Realtime Database URL.')}
+ if(parsed.protocol!=='https:'&&parsed.protocol!=='http:')throw new Error('The Firebase database URL must use HTTPS or HTTP.');
+ if(!/(firebaseio\\.com|firebasedatabase\\.app)$/i.test(parsed.hostname))throw new Error('That does not look like a Firebase Realtime Database URL.');
+ config.databaseURL=parsed.href.replace(/\\/$/,'');
+ return config;
+}
 async function connectFirebase(config){
+ config=getConnectionConfig();
  if(!multiplayer){
   if(!multiplayerLoading){
    multiplayerLoading=(async()=>{
@@ -548,6 +564,24 @@ document.querySelector('#copyRoomCode').onclick=async()=>{
   setTimeout(()=>{button.title='Copy room code';button.setAttribute('aria-label','Copy room code')},1200);
  }catch(error){log('Could not copy room code: '+error.message)}
 };
+const customServerToggle=document.querySelector('#customServerMode');
+const customServerSettings=document.querySelector('#customServerSettings');
+const customServerType=document.querySelector('#customServerType');
+const customServerAddress=document.querySelector('#customServerAddress');
+const customServerHint=document.querySelector('#customServerHint');
+function updateCustomServerUI(){
+ const enabled=customServerToggle.checked;
+ customServerSettings.hidden=!enabled;
+ const firebaseMode=customServerType.value==='firebase';
+ customServerAddress.disabled=!firebaseMode;
+ customServerAddress.placeholder=firebaseMode?'https://your-project-default-rtdb.firebaseio.com':'IP address and port';
+ customServerHint.textContent=firebaseMode
+  ?'Enter a Realtime Database URL from the same Firebase project. Authentication and database rules must be configured for that project.'
+  :'PixelPhyx Server support is not implemented in this client yet.';
+}
+customServerToggle.addEventListener('change',updateCustomServerUI);
+customServerType.addEventListener('change',updateCustomServerUI);
+updateCustomServerUI();
 document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
