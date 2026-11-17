@@ -17,7 +17,7 @@ const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
 const renderer = stripExports(rendererSource);
 const objects = stripExports(objectsSource.replace("import {drawObjectBodies} from './object-renderer.js';", ''));
-if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) || /\bexport\s/.test(objects)) {
+if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) || /\bexport\s/.test(objects) || /\bexport\s/.test(renderer)) {
   throw new Error('Unsupported export syntax in physics modules.');
 }
 
