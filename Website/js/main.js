@@ -1,7 +1,6 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ firebaseConfig }, { stepMaterialPhysics, materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem }] = await Promise.all([
-  import(`./firebase-config.js?v=${encodeURIComponent(cacheVersion)}`),
+const [{ stepMaterialPhysics, materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem }] = await Promise.all([
   import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./objects.js?v=${encodeURIComponent(cacheVersion)}`)
@@ -484,41 +483,6 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeOnlineMo
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeOnlineModal(m)}));
 
 let multiplayerLoading=null;
-let usageStatus=null;
-function renderUsage(status){
- usageStatus=status;
- const daily=status?.daily||{};
- const monthly=status?.monthly||{};
- const dailyValue=document.querySelector('#dailyUsageValue');
- const dailyBar=document.querySelector('#dailyUsageBar');
- const dailyMessage=document.querySelector('#dailyUsageMessage');
- const monthlyValue=document.querySelector('#monthlyUsageValue');
- const monthlyBar=document.querySelector('#monthlyUsageBar');
- const monthlyMessage=document.querySelector('#monthlyUsageMessage');
- if(!dailyValue||!dailyBar||!dailyMessage||!monthlyValue||!monthlyBar||!monthlyMessage)return;
- const dailyPercent=Math.max(0,Math.min(100,Number(daily.percent)||0));
- const monthlyPercent=Math.max(0,Math.min(100,Number(monthly.percent)||0));
- dailyValue.textContent=dailyPercent+'% / 90%';
- dailyBar.style.width=dailyPercent+'%';
- dailyBar.classList.toggle('warning',dailyPercent>=75&&!daily.blocked);
- dailyBar.classList.toggle('blocked',!!daily.blocked);
- dailyMessage.textContent=daily.blocked
-  ? 'Online is disabled because estimated daily downloads reached the 90% safety limit.'
-  : 'Daily allowance: 360 MB. Online locks at 324 MB estimated.';
- monthlyValue.textContent=monthlyPercent+'% / 90%';
- monthlyBar.style.width=monthlyPercent+'%';
- monthlyBar.classList.toggle('warning',monthlyPercent>=75&&!monthly.blocked);
- monthlyBar.classList.toggle('blocked',!!monthly.blocked);
- monthlyMessage.textContent=monthly.blocked
-  ? 'Online is disabled because estimated monthly downloads reached the 90% safety limit.'
-  : 'Monthly allowance: 10 GB. Online locks at 9 GB estimated.';
- const blocked=!!status?.blocked;
- document.querySelector('#createLobby').disabled=blocked;
- document.querySelector('#join').disabled=blocked;
- document.querySelector('#roomCode').disabled=blocked;
- document.querySelectorAll('#lobbyGallery .lobby-join').forEach(button=>button.disabled=blocked);
-}
-
 const pendingJoinRequests=new Map();
 function queueJoinRequest(request){
  if(!request?.key)return;
@@ -542,48 +506,27 @@ function renderJoinRequests(){
   row.append(label,actions);list.append(row);
  }
 }
-function getConnectionConfig(){
- const config={...firebaseConfig};
- if(!document.querySelector('#customServerMode')?.checked)return config;
- const raw=String(document.querySelector('#customServerAddress')?.value||'').trim();
- if(!raw)throw new Error('Paste your Firebase config declaration.');
- let custom,source=raw;
- // Accept Firebase's copied JavaScript format as well as plain JSON.
- source=source.replace(/^\s*(?:const|let|var)\s+firebaseConfig\s*=\s*/,'').replace(/;\s*$/,'');
- source=source.replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g,'$1"$2":').replace(/,\s*([}\]])/g,'$1');
- try{custom=JSON.parse(source)}catch{throw new Error('Invalid Firebase config. Paste the complete const firebaseConfig = { ... }; block from Firebase Project settings.')}
- if(!custom||typeof custom!=='object'||Array.isArray(custom))throw new Error('Firebase config must be an object.');
- for(const key of ['apiKey','authDomain','databaseURL','projectId','appId'])if(typeof custom[key]!=='string'||!custom[key].trim())throw new Error('Firebase config is missing the required "'+key+'" field.');
- let database;
- try{database=new URL(custom.databaseURL)}catch{throw new Error('The databaseURL in your Firebase config is not a valid URL.')}
- if(database.protocol!=='https:'||!(database.hostname==='firebaseio.com'||database.hostname.endsWith('.firebaseio.com')||database.hostname==='firebasedatabase.app'||database.hostname.endsWith('.firebasedatabase.app')))throw new Error('databaseURL must be an HTTPS Firebase Realtime Database URL.');
- custom.databaseURL=database.href.replace(/\/$/,'');
- return custom;
-}
-async function connectFirebase(config){
- config=getConnectionConfig();
- if(!multiplayer){
-  if(!multiplayerLoading){
-   multiplayerLoading=(async()=>{
-    const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
-    multiplayer=createMultiplayer({
-     onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
-     getWorld:()=>serialize(),
-     getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
-     getProps:()=>objectSystem.serialize(),
-     onLeafblowers:people=>{const now=performance.now();for(const [id,state] of Object.entries(people||{})){if(id===playerId)continue;const data=state?.leafblower;if(!data)continue;if(data.active&&[data.x,data.y,data.dx,data.dy].every(Number.isFinite)){const current=remoteLeafblowers[id];if(current){current.targetX=data.x;current.targetY=data.y;current.targetDx=data.dx;current.targetDy=data.dy;current.receivedAt=now;current.active=true}else remoteLeafblowers[id]={x:data.x,y:data.y,dx:data.dx,dy:data.dy,targetX:data.x,targetY:data.y,targetDx:data.dx,targetDy:data.dy,receivedAt:now,active:true}}else if(remoteLeafblowers[id])remoteLeafblowers[id].active=false}},
-     onPlayers:renderPlayers,
-     onJoinRequest:request=>queueJoinRequest(request),
-     onCursors:people=>{remoteCursorTargets={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&Number.isFinite(p.x)&&Number.isFinite(p.y))remoteCursorTargets[id]={x:p.x,y:p.y,color:p.color||'#ffffff',name:p.name||'Guest'}}}
-    });
-   })().catch(error=>{multiplayerLoading=null;throw error});
+async function connectPhoton(){
+  if(!multiplayer){
+   if(!multiplayerLoading){
+    multiplayerLoading=(async()=>{
+     const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
+     multiplayer=createMultiplayer({
+      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
+      getWorld:()=>serialize(),
+      getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
+      getProps:()=>objectSystem.serialize(),
+      onPlayers:renderPlayers,
+      onJoinRequest:request=>queueJoinRequest(request)
+     });
+    })().catch(error=>{multiplayerLoading=null;throw error});
+   }
+   await multiplayerLoading;
   }
-  await multiplayerLoading;
- }
- playerId=await multiplayer.connect(config);
- return playerId;
+  playerId=await multiplayer.connect();
+  return playerId;
 }
-// Firebase is initialized only after the user selects Online.
+// Photon connects only after the user selects Online.
 function updateCurrentRoomUI(){
  const section=document.querySelector('#currentRoomSection'),code=document.querySelector('#currentRoomCode');
  if(!section||!code)return;
@@ -603,26 +546,18 @@ document.querySelector('#copyRoomCode').onclick=async()=>{
   setTimeout(()=>{button.title='Copy room code';button.setAttribute('aria-label','Copy room code')},1200);
  }catch(error){log('Could not copy room code: '+error.message)}
 };
-const customServerToggle=document.querySelector('#customServerMode');
-const customServerSettings=document.querySelector('#customServerSettings');
-function updateCustomServerUI(){
- customServerSettings.hidden=!customServerToggle.checked;
-}
-customServerToggle.addEventListener('change',updateCustomServerUI);
-updateCustomServerUI();
-document.querySelector('#customServerHint').textContent='Paste the complete const firebaseConfig = { ... }; block copied from Firebase Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.';
 document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
  try{
-  await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error(usage.daily.blocked?'Online is disabled: daily bandwidth usage has reached 90%.':'Online is disabled: monthly bandwidth usage has reached 90%.');
-  room=await multiplayer.createLobby({name:playerName,color:playerColor},{lan:document.querySelector('#lanMode').checked});
+  await connectPhoton();
+  
+  room=await multiplayer.createLobby({name:playerName,color:playerColor});
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
   closeOnlineModal(document.querySelector('#roomModal'));
-  log('Created server '+room+' — you are the host'+(multiplayer.lanMode?' using direct LAN multiplayer':''));
+  log('Created server '+room+' — you are the host'+' using Photon relay');
  }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
  finally{button.disabled=false;button.textContent='+ Create server'}
 };
@@ -631,7 +566,7 @@ let stopLobbyGallery=null;
 async function openLobbyGallery(){
  try{
   await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);
+  
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
   updateCurrentRoomUI();
@@ -640,7 +575,7 @@ async function openLobbyGallery(){
 }
 function renderLobbyGallery(lobbies){
  const gallery=document.querySelector('#lobbyGallery');
- document.querySelector('#lobbyCapacity').textContent=lobbies.length+' / 20 active servers';
+ document.querySelector('#lobbyCapacity').textContent=lobbies.length+' servers listed';
  gallery.replaceChildren();
  if(!lobbies.length){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No active servers yet. Create one to become the host.';gallery.append(empty);return}
  for(const lobby of lobbies){
@@ -651,7 +586,7 @@ function renderLobbyGallery(lobbies){
   top.append(number,count);
   const host=document.createElement('div');host.className='lobby-host';host.textContent=(lobby.transport==='webrtc'?'LAN DIRECT · HOST · ':'HOST · ');
   const hostName=document.createElement('strong');hostName.textContent=lobby.hostName||'Unknown';host.append(hostName);
-  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=!!usageStatus?.blocked;
+  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=false;
   join.onclick=async()=>{
    join.disabled=true;join.textContent='Request sent…';
    try{await requestAndJoinRoom(lobby.room);closeOnlineModal(document.querySelector('#roomModal'))}
@@ -665,7 +600,7 @@ async function requestAndJoinRoom(code){
  if(!clean){alert('Choose a lobby first');return}
  try{
   await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
+  
   log('Sending join request to '+clean+'…');
   const approved=await multiplayer.requestJoin(clean,{name:playerName});
   if(!approved)throw new Error('The host declined your request');
@@ -712,7 +647,7 @@ async function joinRoom(code,approved=false){
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
-  log('Joined room '+room+(multiplayer.lanMode?' — direct LAN connection starting':' — shared world synchronization active'));
+  log('Joined room '+room+' — Photon world synchronization active');
  }catch(e){log('Could not join room: '+e.message);alert('Could not join room: '+e.message)}
 }
 function publishOperation(operation){lastOperationAppliedAt=performance.now();multiplayer?.publishOperation(operation)}
