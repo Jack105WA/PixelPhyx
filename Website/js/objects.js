@@ -52,7 +52,9 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   const fx=clamp(dx*stiffness+(drag.targetV.x-v.x)*damping,-b.mass*4,b.mass*4);
   const fy=clamp(dy*stiffness+(drag.targetV.y-v.y)*damping,-b.mass*4,b.mass*4);
   b.vx=clamp(b.vx+fx/b.mass*dt,-32,32);b.vy=clamp(b.vy+fy/b.mass*dt,-32,32);
-  b.spin=clamp(b.spin+(drag.point.x*fy-drag.point.y*fx)/inertia(b)*dt,-1.2,1.2);
+  b.spin=clamp(b.spin+(drag.point.x*fy-drag.point.y*fx)/inertia(b)*dt,-.8,.8);
+  // Pointer velocity is a short-lived target, not a force that persists after the mouse stops.
+  drag.targetV.x*=.72;drag.targetV.y*=.72;
   b.sleep=0;
  }
  function axes(b){const c=Math.cos(b.angle),s=Math.sin(b.angle);return[[c,s],[-s,c]]}
