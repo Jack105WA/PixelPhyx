@@ -45,7 +45,7 @@ const gameScript = [
   'const {createObjectSystem}=PixelPhyxObjects;',
   offlineMain,
   '})();'
-].join('\\n');
+].join('\n');
 
 // Route canvas input through its shell so every visual layer shares one reliable
 // pointer target. Pointer capture stays on the shell for the full drag.
