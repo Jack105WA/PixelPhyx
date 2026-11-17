@@ -601,7 +601,7 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,setCell,displ
  }
  function solveTerrain(b){
   const pts=corners(b),cx=b.x,cy=b.y;
-  const edges=[[pts[0],pts[1]],[pts[1],pts[2]],[pts[2],pts[3]],[pts[3],pts[0]]];
+  const edges=b.type==='car'?[[pts[0],pts[1]],[pts[1],pts[2]],[pts[3],pts[0]]]:[[pts[0],pts[1]],[pts[1],pts[2]],[pts[2],pts[3]],[pts[3],pts[0]]];
   let contacts=0,nxSum=0,nySum=0;
   for(const [a,z] of edges){
    const length=Math.hypot(z.x-a.x,z.y-a.y),steps=Math.max(2,Math.ceil(length/1.5));
@@ -621,31 +621,35 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,setCell,displ
  }
  function solveCarSuspension(b){
   if(b.type!=='car')return;
-  const s=b.suspension,c=Math.cos(b.angle),sn=Math.sin(b.angle);
+  const s=b.suspension;
   for(let i=0;i<2;i++){
    const lx=i===0?-11:11,base=worldPoint(b,{x:lx,y:4.5});
    const wheelX=base.x,wheelY=base.y+s.rest+b.wheelY[i],r=3.2;
-   let ground=0;
+   let ground=false;
    for(let k=-2;k<=2;k++){
-    const px=Math.floor(wheelX+k*1.1),py=Math.floor(wheelY+r);
-    if(px>=0&&px<getWidth()&&py>=0&&py<getHeight()&&getCell(px,py)!==0){
-     if(displaceCell?.(px,py,0,1,b.vx,b.vy))continue;
-     ground=1;break;
+    const px=Math.floor(wheelX+k*1.05),py=Math.floor(wheelY+r);
+    if(px<0||px>=getWidth()||py<0||py>=getHeight())continue;
+    if(getCell(px,py)!==0){
+     if(displaceCell?.(px,py,0,-1,b.vx,b.vy))continue;
+     ground=true;break;
     }
    }
    if(ground){
-    const penetration=clamp(s.rest-b.wheelY[i],-2,3);
-    const force=clamp(penetration*s.stiffness-b.wheelV[i]*s.damping,-1.8,2.4);
-    b.wheelV[i]+=force;b.wheelY[i]=clamp(b.wheelY[i]+b.wheelV[i],-2,3);
-    const wheelVelocity=b.vx+(i===0?1:-1)*b.spin*11;
-    b.vy-=force*.24;
-    b.spin+=(i===0?1:-1)*force*.006;
-    b.wheelSpin[i]+=wheelVelocity*.055;
-    // Tire friction transfers horizontal momentum to the chassis.
-    b.vx*=.998;
+    // Compress the wheel against the surface; the spring pushes the chassis upward.
+    b.wheelY[i]=Math.min(-.45,b.wheelY[i]-.32);
+    const springForce=clamp((-b.wheelY[i])*s.stiffness-b.wheelV[i]*s.damping,-.2,1.8);
+    b.wheelV[i]=clamp(b.wheelV[i]+springForce,-2.2,2.2);
+    b.wheelY[i]=clamp(b.wheelY[i]+b.wheelV[i],-4,1);
+    b.vy-=springForce*.7;
+    const wheelSpeed=b.vx+(i===0?1:-1)*b.spin*11;
+    b.wheelSpin[i]+=wheelSpeed*.055;
+    b.vx*=.999;
    }else{
-    b.wheelV[i]=clamp(b.wheelV[i]-.18,-2.5,2.5);
-    b.wheelY[i]=clamp(b.wheelY[i]+b.wheelV[i],-2,3);
+    // Unloaded wheels extend back toward their rest position.
+    const returnForce=clamp((-b.wheelY[i])*s.stiffness-b.wheelV[i]*s.damping,-.8,.8);
+    b.wheelV[i]=clamp(b.wheelV[i]+returnForce,-2,2);
+    b.wheelY[i]=clamp(b.wheelY[i]+b.wheelV[i],-4,2.5);
+    b.wheelSpin[i]+=(b.vx+(i===0?1:-1)*b.spin*11)*.055;
    }
   }
  }
@@ -685,8 +689,8 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,setCell,displ
    if(b.type==='ball'){const g=ctx.createRadialGradient(-3,-4,1,0,0,7);g.addColorStop(0,'#fff4d1');g.addColorStop(.28,'#ffbd59');g.addColorStop(1,'#b94b2b');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#612d27';ctx.lineWidth=1;ctx.stroke()}
    else if(b.type==='car'){
     ctx.fillStyle='#111923';roundRect(ctx,-17,-3,34,12,3);ctx.fillStyle='#e65355';roundRect(ctx,-16,-7,32,9,3);ctx.fillStyle='#f5b4a6';roundRect(ctx,-8,-12,16,7,2);ctx.fillStyle='#8ed7e8';roundRect(ctx,-6,-11,12,5,1);
-    for(let i=0;i<2;i++){const x=i===0?-11:11,y=5+b.wheelY[i];ctx.save();ctx.translate(x,y);ctx.rotate(b.wheelSpin[i]);ctx.fillStyle='#20252d';ctx.beginPath();ctx.arc(0,0,3.4,0,Math.PI*2);ctx.fill();ctx.fillStyle='#aeb9c7';ctx.beginPath();ctx.arc(0,0,1.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c8d1da';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-2.3,0);ctx.lineTo(2.3,0);ctx.stroke();ctx.restore()}
-    ctx.strokeStyle='#7c3339';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-11,3+b.wheelY[0]);ctx.lineTo(-11,5);ctx.moveTo(11,3+b.wheelY[1]);ctx.lineTo(11,5);ctx.stroke();
+    for(let i=0;i<2;i++){const x=i===0?-11:11,y=9.5+b.wheelY[i];ctx.save();ctx.translate(x,y);ctx.rotate(b.wheelSpin[i]);ctx.fillStyle='#20252d';ctx.beginPath();ctx.arc(0,0,3.4,0,Math.PI*2);ctx.fill();ctx.fillStyle='#aeb9c7';ctx.beginPath();ctx.arc(0,0,1.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c8d1da';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-2.3,0);ctx.lineTo(2.3,0);ctx.stroke();ctx.restore()}
+    ctx.strokeStyle='#7c3339';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-11,4);ctx.lineTo(-11,6.3+b.wheelY[0]);ctx.moveTo(11,4);ctx.lineTo(11,6.3+b.wheelY[1]);ctx.stroke();
     if(b.damage>.08){ctx.strokeStyle='#702f35';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-4,-6);ctx.lineTo(-1,-2);ctx.lineTo(2,-5);ctx.stroke()}
    }else if(b.type==='bucket'){
     ctx.fillStyle='#b5c3cf';ctx.beginPath();ctx.moveTo(-7,-8);ctx.lineTo(7,-8);ctx.lineTo(5,9);ctx.lineTo(-5,9);ctx.closePath();ctx.fill();ctx.strokeStyle='#526575';ctx.lineWidth=1.5;ctx.stroke();ctx.strokeStyle='#dbe6ed';ctx.beginPath();ctx.arc(0,-7,7,Math.PI,Math.PI*2);ctx.stroke()
