@@ -674,15 +674,15 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   const cx=wheel.x,cy=wheel.y;
   let groundY=Infinity,material=null;
   const minX=Math.max(0,Math.floor(cx-r)),maxX=Math.min(getWidth()-1,Math.floor(cx+r));
-  const minY=Math.max(0,Math.floor(cy-r-1)),maxY=Math.min(getHeight()-1,Math.ceil(cy+r));
+  const minY=Math.max(0,Math.floor(cy-r-8)),maxY=Math.min(getHeight()-1,Math.ceil(cy+r+8));
   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
    const m=getCell(x,y);if(!m)continue;
-   const nearestX=clamp(cx,x,x+1),horizontal=cx-nearestX;
-   // Only the lower half of the wheel supports the chassis. Side walls and
-   // overhead pixels must never be mistaken for a road surface.
-   const vertical=y-cy;
-   if(vertical<.25||vertical>r+.5||Math.abs(horizontal)>=r)continue;
-   if(horizontal*horizontal+vertical*vertical>r*r+.35)continue;
+   const nearestX=clamp(cx,x,x+1),horizontal=cx-nearestX,vertical=y-cy;
+   if(Math.abs(horizontal)>=r||vertical>r+.5)continue;
+   // A wheel may already have crossed the surface during a fast fall. Accept
+   // that penetration only while descending so the suspension can recover it.
+   if(vertical<0){if(b.vy<=0)continue}
+   else if(vertical<.25||horizontal*horizontal+vertical*vertical>r*r+.35)continue;
    if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
    if(y<groundY){groundY=y;material=m}
   }
