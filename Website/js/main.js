@@ -134,7 +134,7 @@ canvas.parentElement.addEventListener('pointermove',e=>{
  if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;const now=performance.now(),elapsed=Math.max(1,now-(ropeDrag.lastTime||now)),scale=Math.min(2,16.667/elapsed);ropeDrag.velocityX=Math.max(-8,Math.min(8,(p.x-ropeDrag.lastX)*scale));ropeDrag.velocityY=Math.max(-8,Math.min(8,(p.y-ropeDrag.lastY)*scale));ropeDrag.lastX=p.x;ropeDrag.lastY=p.y;ropeDrag.lastTime=now;if(!node.dragMoved){node.sx=node.x;node.sy=node.y;node.ox=node.x;node.oy=node.y;node.dragMoved=true}node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;return}
  if(tool==='leafblower'&&drawing){const dx=p.x-lastPoint.x,dy=p.y-lastPoint.y,distance=Math.hypot(dx,dy);if(distance>.35){leafblower.dx=dx/distance;leafblower.dy=dy/distance}leafblower.x=p.x;leafblower.y=p.y;lastPoint=p;const now=performance.now();if(now-leafblower.lastPublish>=33){leafblower.lastPublish=now;multiplayer?.publishLeafblower({active:true,x:p.x,y:p.y,dx:leafblower.dx,dy:leafblower.dy})}return}
  if(!drawing)return;
- if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);
+ const lastStrokePoint=strokePoints[strokePoints.length-1];const sampleDistance=Math.max(1,Math.min(3,brush*.35));if(!lastStrokePoint||Math.hypot(p.x-lastStrokePoint.x,p.y-lastStrokePoint.y)>=sampleDistance)strokePoints.push(p);
  if(tool==='rope'){lastPoint=p;return}act(p,e);protectStrokePoint(p);publishStrokeBatch(false)
 });
 canvas.parentElement.addEventListener('pointerup',e=>{
