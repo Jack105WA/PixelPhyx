@@ -881,8 +881,8 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
   for(const key of ['wetness','heat','fuel','burn','age','corrosion']){
    const state=materialState[key];if(state){state[to]=state[from];state[from]=0}
   }
-  particleVelocityX[to]=clamp((bodyVx||0)*.28+dx*.42,-12,12);
-  particleVelocityY[to]=clamp((bodyVy||0)*.28+dy*.42,-12,12);
+  particleVelocityX[to]=Math.max(-12,Math.min(12,(bodyVx||0)*.28+dx*.42));
+  particleVelocityY[to]=Math.max(-12,Math.min(12,(bodyVy||0)*.28+dy*.42));
   particleVelocityX[from]=particleVelocityY[from]=0;
   recordParticleMove(from,to,material);return true;
  }
