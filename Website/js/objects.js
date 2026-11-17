@@ -198,10 +198,10 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    const avx=a.vx-a.spin*ray,avy=a.vy+a.spin*rax,bvx=b.vx-b.spin*rby,bvy=b.vy+b.spin*rbx,rvx=bvx-avx,rvy=bvy-avy,vn=rvx*nx+rvy*ny;
    a.sleep=b.sleep=0;
    if(vn>=0)continue;
-   const ran=rax*ny-ray*nx,rbn=rbx*ny-rby*nx,den=sum+ran*ran/inertia(a)+rbn*rbn/inertia(b),e=Math.min(a.restitution,b.restitution),j=-(1+e)*vn/den,ix=j*nx,iy=j*ny;
+   const ran=rax*ny-ray*nx,rbn=rbx*ny-rby*nx,den=sum+ran*ran/inertia(a)+rbn*rbn/inertia(b),e=Math.min(a.restitution,b.restitution),impulse=-(1+e)*vn/den,ix=impulse*nx,iy=impulse*ny;
    a.vx-=ix*ia;a.vy-=iy*ia;b.vx+=ix*ib;b.vy+=iy*ib;
    a.spin-=(rax*iy-ray*ix)/inertia(a);b.spin+=(rbx*iy-rby*ix)/inertia(b);
-   const tx=-ny,ty=nx,jt=clamp(-(rvx*tx+rvy*ty)/den,-j*.25,j*.25);
+   const tx=-ny,ty=nx,jt=clamp(-(rvx*tx+rvy*ty)/den,-impulse*.25,impulse*.25);
    a.vx-=tx*jt*ia;a.vy-=ty*jt*ia;b.vx+=tx*jt*ib;b.vy+=ty*jt*ib;
    if(Math.abs(vn)>3){a.damage=Math.min(1,a.damage+Math.abs(vn)*.004);b.damage=Math.min(1,b.damage+Math.abs(vn)*.004)}
    a.sleep=b.sleep=0;
