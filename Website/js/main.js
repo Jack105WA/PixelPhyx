@@ -450,7 +450,7 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
   if(now-lastWorldPublish>=5000){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
   if(now-lastRopePublish>=100){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
- if(multiplayer?.joined&&multiplayer.isHost&&objectSystem.count&&now-lastPropPublish>=100){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
+ if(multiplayer?.joined&&multiplayer.isHost&&now-lastPropPublish>=100){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -614,7 +614,7 @@ async function requestAndJoinRoom(code){
   await connectPhoton();
   
   log('Sending join request to '+clean+'…');
-  const approved=await multiplayer.requestJoin(clean,{name:playerName});
+  const approved=await multiplayer.requestJoin(clean,{name:playerName,color:playerColor});
   if(!approved)throw new Error('The host declined your request');
   await joinRoom(clean,true);
  }catch(error){log('Could not join lobby: '+error.message);throw error}
