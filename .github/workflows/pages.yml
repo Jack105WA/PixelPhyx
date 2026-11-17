@@ -41,7 +41,7 @@ jobs:
         run: node Offline/build-offline.mjs
       - name: Commit generated offline edition
         run: |
-          if git diff --quiet -- Website/offline.html; then
+          if [ -z "$(git status --porcelain -- Website/offline.html)" ]; then
             echo "Website/offline.html is already up to date."
             exit 0
           fi
