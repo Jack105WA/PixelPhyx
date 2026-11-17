@@ -141,7 +141,29 @@ function createRope(a,b,ropeId=newRopeId()){
 }
 function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.random().toString(36).slice(2)+Date.now().toString(36))}
 const physicsEngine=createPhysicsEngine();
-const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,onPublish:op=>publishOperation(op)});
+function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
+ if(!inside(x,y))return false;
+ const from=idx(x,y),material=cells[from];if(!material)return false;
+ // Material is pushed away from the prop surface into the first available neighboring cell.
+ const dirs=[[-Math.sign(nx),-Math.sign(ny)],[0,-1],[-1,0],[1,0],[0,1]];
+ const unique=new Set();
+ for(const [dx,dy] of dirs){
+  if(!dx&&!dy)continue;
+  const tx=x+dx,ty=y+dy;if(!inside(tx,ty))continue;
+  const to=idx(tx,ty);if(unique.has(to))continue;unique.add(to);
+  if(cells[to]!==M.EMPTY)continue;
+  cells[to]=material;cells[from]=M.EMPTY;
+  for(const key of ['wetness','heat','fuel','burn','age','corrosion']){
+   const state=materialState[key];if(state){state[to]=state[from];state[from]=0}
+  }
+  particleVelocityX[to]=clamp((bodyVx||0)*.28+dx*.42,-12,12);
+  particleVelocityY[to]=clamp((bodyVy||0)*.28+dy*.42,-12,12);
+  particleVelocityX[from]=particleVelocityY[from]=0;
+  recordParticleMove(from,to,material);return true;
+ }
+ return false;
+}
+const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,onPublish:op=>publishOperation(op)});
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
 function stepRopes(){
  // The host is the sole rope-physics authority in multiplayer. Other clients
