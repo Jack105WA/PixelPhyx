@@ -1,22 +1,40 @@
 name: PixelPhyx workflows
 on:
   push:
-    branches: [main, server-migrate]
+    branches: [main, server-migrate, photon-test]
+  workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   pages: write
   id-token: write
 
-# Both branches deploy one combined Pages artifact: production at / and the
-# Supabase migration preview at /server-migrate/.
+# Publish production plus isolated development previews, including Photon.
 concurrency:
   group: github-pages
   cancel-in-progress: true
 
 jobs:
+  request-main-deploy:
+    name: Queue deployment from preview branch
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch the Pages deployment on main
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'pages.yml',
+              ref: 'main'
+            });
+
   deploy-live:
-    name: Deploy production and migration preview
+    if: github.ref == 'refs/heads/main'
+    name: Deploy production and previews
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -34,13 +52,30 @@ jobs:
           ref: server-migrate
           path: migration
 
+      - name: Check out Photon test branch
+        uses: actions/checkout@v4
+        with:
+          ref: photon-test
+          path: photon-test
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate Photon JavaScript modules
+        run: |
+          for file in photon-test/Website/js/*.js; do
+            node --input-type=module --check < "$file"
+          done
+
       - uses: actions/configure-pages@v5
 
       - name: Assemble combined Pages site
         run: |
-          mkdir -p _site/server-migrate
+          mkdir -p _site/server-migrate _site/photon-test
           cp -a production/Website/. _site/
           cp -a migration/Website/. _site/server-migrate/
+          cp -a photon-test/Website/. _site/photon-test/
 
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -68,7 +103,7 @@ jobs:
           fi
 
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+Jack105WA@users.noreply.github.com"
           git add Website/offline.html
           git commit -m "[skip ci] Build offline edition"
           git push
