@@ -47,9 +47,9 @@ new vm.Script(gameScript, { filename: 'offline-game.js' });
 
 const scriptTag = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
 if (!scriptTag.test(offlineHtml)) throw new Error('Offline game script not found.');
-await writeFile(
-  websiteDir + 'offline.html',
-  offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>'),
-  'utf8'
-);
+const builtHtml = offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>');
+await Promise.all([
+  writeFile(offlineDir + 'offline.html', builtHtml, 'utf8'),
+  writeFile(websiteDir + 'offline.html', builtHtml, 'utf8')
+]);
 console.log('Built offline.html with the unified physics engine.');
