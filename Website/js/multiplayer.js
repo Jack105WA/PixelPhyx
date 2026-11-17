@@ -145,18 +145,13 @@ export function createMultiplayer(callbacks = {}) {
       } catch { usageEstimateMonthlyBytes = 0; }
     }
     await reportUsageEstimate(db, auth);
-    const snapshot = await get(ref(db, 'usageReports'));
-    const reports = snapshot.val() || {};
-    let dailyBytes = 0;
-    let monthlyBytes = 0;
-    for (const item of Object.values(reports)) {
-      if (item?.day === day && Number.isFinite(Number(item.estimatedDailyBytes))) {
-        dailyBytes += Math.max(0, Number(item.estimatedDailyBytes));
-      }
-      if (item?.month === month && Number.isFinite(Number(item.estimatedMonthlyBytes))) {
-        monthlyBytes += Math.max(0, Number(item.estimatedMonthlyBytes));
-      }
-    }
+    // Read two compact aggregates instead of downloading every player's report.
+    const [dailySnapshot, monthlySnapshot] = await Promise.all([
+      get(ref(db, 'serviceStatus/bandwidth/daily/' + day)),
+      get(ref(db, 'serviceStatus/bandwidth/monthly/' + month))
+    ]);
+    const dailyBytes = Math.max(0, Number(dailySnapshot.val()?.estimatedBytes) || 0);
+    const monthlyBytes = Math.max(0, Number(monthlySnapshot.val()?.estimatedBytes) || 0);
     const dailyPercent = Math.min(100, Math.max(0, dailyBytes / usageDailyLimitBytes * 100));
     const monthlyPercent = Math.min(100, Math.max(0, monthlyBytes / usageMonthlyLimitBytes * 100));
     cachedUsageAt = now;
@@ -611,7 +606,7 @@ export function createMultiplayer(callbacks = {}) {
         rtcPeople = people;
         callbacks.onPlayers?.(people);
         if (rtcMode) reconcileRtcPeers(people);
-        if (hostId === playerId) update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
+        if (hostId === playerId && !rtcMode) update(ref(db, 'lobbyDirectory/' + room), { players: Object.keys(people).length }).catch(() => {});
         const ids = Object.keys(people).sort();
         if (hostId && people[hostId]) {
           syncJoinRequestListener();
@@ -628,14 +623,14 @@ export function createMultiplayer(callbacks = {}) {
           hostId = result.snapshot.val() || null;
           syncJoinRequestListener();
           if (rtcMode) reconcileRtcPeers(people);
-          if (hostId) {
+          if (hostId && !rtcMode) {
             const electedPlayer = people[hostId];
             const directoryRef = ref(db, 'lobbyDirectory/' + room);
             update(directoryRef, {
               hostId,
               ...(electedPlayer?.name ? { hostName: electedPlayer.name } : {})
             }).catch(() => {});
-            }
+          }
         } catch (error) {
           log('Host election failed: ' + error.message);
         }
@@ -664,6 +659,16 @@ export function createMultiplayer(callbacks = {}) {
     await assertUsageAllowed();
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
+    // LAN sessions are hidden from the public lobby directory and do not
+    // consume shared lobby slots. Firebase is retained only for rendezvous,
+    // presence and WebRTC signaling; gameplay itself is peer-to-peer.
+    if (options.lan) {
+      if (typeof RTCPeerConnection === 'undefined') throw new Error('LAN Multiplayer requires WebRTC support.');
+      const code = 'LAN-' + secureRandomString(8).toUpperCase();
+      await joinRoom(code, identity, true, true, options);
+      return code;
+    }
+
     let reserved = null;
     for (let i = 1; i <= 20; i++) {
       const slot = 'slot-' + String(i).padStart(2, '0');
@@ -710,7 +715,10 @@ export function createMultiplayer(callbacks = {}) {
     if (!db || !auth?.currentUser) throw new Error('Firebase authentication is not ready');
     const safeCode = String(code || '').trim().toUpperCase();
     const lobbySnap = await get(ref(db, 'lobbyDirectory/' + safeCode));
-    if (!lobbySnap.exists()) throw new Error('That lobby is no longer available');
+    const roomTransport = lobbySnap.exists()
+      ? lobbySnap.val()?.transport
+      : (await get(ref(db, 'rooms/' + safeCode + '/transport'))).val();
+    if (!lobbySnap.exists() && roomTransport !== 'webrtc') throw new Error('That lobby is no longer available');
     const requestRef = push(ref(db, 'rooms/' + safeCode + '/joinRequests'));
     await set(requestRef, {
       uid: playerId, name: String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest',
