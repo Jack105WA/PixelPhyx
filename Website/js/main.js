@@ -735,10 +735,13 @@ const cursorNamesCanvas=document.querySelector('#cursorNames'),cursorNamesCtx=cu
 const canvasShell=document.querySelector('#canvasShell');
 const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];
 function fitCanvasToShell(){
- const shellWidth=canvasShell.clientWidth,shellHeight=canvasShell.clientHeight;
- const scale=Math.min(shellWidth/16,shellHeight/9);
- const width=Math.max(1,Math.floor(scale*16)),height=Math.max(1,Math.floor(scale*9));
- for(const layer of canvasLayers){layer.style.width=width+'px';layer.style.height=height+'px'}
+ const bounds=canvasShell.getBoundingClientRect();
+ const scale=Math.min(bounds.width/W,bounds.height/H);
+ const width=Math.max(1,Math.floor(scale*W)),height=Math.max(1,Math.floor(scale*H));
+ for(const layer of canvasLayers){
+  layer.style.width=width+'px';
+  layer.style.height=height+'px';
+ }
 }
 fitCanvasToShell();
 if(typeof ResizeObserver!=='undefined')new ResizeObserver(fitCanvasToShell).observe(canvasShell);
