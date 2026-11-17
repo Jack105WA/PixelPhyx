@@ -1,4 +1,4 @@
-name: Deploy PixelPhyx and build offline edition
+name: PixelPhyx workflows
 on:
   push:
     branches: [main]
@@ -9,14 +9,19 @@ permissions:
   pages: write
   id-token: write
 
+# Keep manual offline builds from cancelling live deployments.
 concurrency:
-  group: pages
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   deploy-live:
     name: Deploy live website
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
@@ -25,12 +30,10 @@ jobs:
           path: Website
       - id: deployment
         uses: actions/deploy-pages@v4
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
   build-offline:
     name: Build offline edition
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
