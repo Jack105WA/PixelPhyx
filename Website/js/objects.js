@@ -31,6 +31,27 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,onPubl
   }
   if(hitCount){hitX/=hitCount;hitY/=hitCount;const penetration=Math.max(.15,minY-(Math.floor(hitY)+.5)+.7);b.y-=Math.min(2.5,penetration*.45);const impact=Math.abs(b.vy);b.vy=-Math.abs(b.vy)*b.restitution;b.vx*=b.friction;b.spin+=clamp((hitX-b.x)*.008,-.16,.16);if(impact>2.2){b.damage=Math.min(1,b.damage+impact*.012);b.vx+=clamp((b.x-hitX)*.025,-1.5,1.5)}if(impact<.35){b.vy=0;b.sleep++}else b.sleep=0}
  }
+ function solveBodyContacts(){
+  for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++){
+   const a=bodies[i],b=bodies[j],ra=Math.min(a.w,a.h)*.5,rb=Math.min(b.w,b.h)*.5;
+   let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),minimum=ra+rb;
+   if(d>=minimum)continue;
+   if(d<1e-5){dx=1;dy=0;d=1}
+   const nx=dx/d,ny=dy/d,overlap=minimum-d,total=1/a.mass+1/b.mass;
+   a.x-=nx*overlap*(1/a.mass)/total;b.x+=nx*overlap*(1/b.mass)/total;
+   a.y-=ny*overlap*(1/a.mass)/total;b.y+=ny*overlap*(1/b.mass)/total;
+   const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+   if(relative>=0)continue;
+   const impulse=-(1+Math.min(a.restitution,b.restitution))*relative/total;
+   const ix=impulse*nx,iy=impulse*ny;
+   a.vx-=ix/a.mass;a.vy-=iy/a.mass;b.vx+=ix/b.mass;b.vy+=iy/b.mass;
+   const crash=Math.abs(relative);
+   if(crash>2){a.damage=Math.min(1,a.damage+crash*.006);b.damage=Math.min(1,b.damage+crash*.006)}
+   const tangentImpulse=clamp((b.vx-a.vx)*(-ny)+(b.vy-a.vy)*nx,-impulse*.18,impulse*.18);
+   a.spin-=tangentImpulse*.006/a.mass;b.spin+=tangentImpulse*.006/b.mass;
+   a.sleep=b.sleep=0;
+  }
+ }
  function step(){
   const gravity=getGravity(),w=getWidth(),h=getHeight();
   for(const b of bodies){
@@ -46,6 +67,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,onPubl
    if(b.y>h+30||b.x<-30||b.x>w+30)remove(b.id);
    if(b.sleep>8&&Math.abs(b.vx)<.08&&Math.abs(b.vy)<.08&&Math.abs(b.spin)<.008){b.vx=0;b.vy=0;b.spin=0}
   }
+  solveBodyContacts();
   if(drag){const p=worldPoint(drag.body,drag.point),dx=drag.target.x-p.x,dy=drag.target.y-p.y;if(Math.hypot(dx,dy)>80){drag.body.x+=dx*.35;drag.body.y+=dy*.35}}
  }
  function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
