@@ -1,4 +1,4 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
+import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js';
 import {
   getDatabase, ref, onValue as firebaseOnValue, set as firebaseSet, onDisconnect, serverTimestamp,
   push, onChildAdded as firebaseOnChildAdded, runTransaction, update as firebaseUpdate, remove, get as firebaseGet, query, limitToLast
@@ -461,6 +461,20 @@ export function createMultiplayer(callbacks = {}) {
   async function connect(config) {
     report('connecting', 'CONNECTING');
     try {
+      const sameProject = app &&
+        app.options.apiKey === config.apiKey &&
+        app.options.projectId === config.projectId &&
+        app.options.databaseURL === config.databaseURL;
+      if (app && !sameProject) {
+        if (joined) throw new Error('Leave your current server before switching Firebase projects.');
+        stopListeners();
+        if (usageReportTimer) clearInterval(usageReportTimer);
+        usageReportTimer = null;
+        await deleteApp(app);
+        app = null; db = null; auth = null;
+        room = ''; hostId = null; presenceRef = null; lobbySlot = null;
+        rtcMode = false; cachedUsageStatus = null; cachedUsageAt = 0;
+      }
       if (!app) {
         app = initializeApp(config);
         db = getDatabase(app);
