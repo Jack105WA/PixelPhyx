@@ -523,7 +523,39 @@ function createPhysicsEngine(){
 
 return {createPhysicsEngine};
 })();
-const PixelPhyxObjects=(()=>{
+const PixelPhyxRenderer=(()=>{
+// Canvas rendering for PixelPhyx rigid bodies.
+function drawObjectBodies(ctx,bodies,drag,worldPoint){
+ function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+  ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
+  for(const b of bodies){
+   ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.angle);
+   if(b.type==='ball'){
+    const g=ctx.createRadialGradient(-3,-4,1,0,0,6.5);g.addColorStop(0,'#fff4d1');g.addColorStop(.28,'#ffbd59');g.addColorStop(1,'#b94b2b');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,5.7,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#612d27';ctx.lineWidth=1;ctx.stroke();
+   }else if(b.type==='car'){
+    ctx.fillStyle='#111923';roundRect(ctx,-16,-2.5,32,8,3);ctx.fillStyle='#e65355';roundRect(ctx,-15,-6.5,30,7,3);ctx.fillStyle='#f5b4a6';roundRect(ctx,-7.5,-11.5,15,6.5,2);ctx.fillStyle='#8ed7e8';roundRect(ctx,-5.8,-10.7,11.6,4.5,1);
+    for(let i=0;i<2;i++){
+     const x=i===0?-10.5:10.5,y=7.5+b.wheelY[i];ctx.save();ctx.translate(x,y);ctx.rotate(b.wheelSpin[i]);ctx.fillStyle='#20252d';ctx.beginPath();ctx.arc(0,0,3.15,0,Math.PI*2);ctx.fill();ctx.fillStyle='#aeb9c7';ctx.beginPath();ctx.arc(0,0,1.35,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c8d1da';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-2.2,0);ctx.lineTo(2.2,0);ctx.stroke();ctx.restore();
+     ctx.strokeStyle=b.wheelGround[i]?'#c5d3df':'#687786';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,1);ctx.lineTo(x,2.2+b.wheelY[i]);ctx.stroke();
+    }
+    if(b.damage>.08){ctx.strokeStyle='#702f35';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-4,-5.5);ctx.lineTo(-1,-2);ctx.lineTo(2,-5);ctx.stroke()}
+   }else if(b.type==='bucket'){
+    ctx.fillStyle='#b5c3cf';ctx.beginPath();ctx.moveTo(-7,-8);ctx.lineTo(7,-8);ctx.lineTo(5,9);ctx.lineTo(-5,9);ctx.closePath();ctx.fill();ctx.strokeStyle='#526575';ctx.lineWidth=1.5;ctx.stroke();ctx.strokeStyle='#dbe6ed';ctx.beginPath();ctx.arc(0,-7,7,Math.PI,Math.PI*2);ctx.stroke();
+   }else if(b.type==='crate'){
+    ctx.fillStyle='#a86b3e';roundRect(ctx,-7.5,-7.5,15,15,1);ctx.strokeStyle='#5e3827';ctx.lineWidth=1.5;ctx.strokeRect(-6,-6,12,12);ctx.beginPath();ctx.moveTo(-6,-6);ctx.lineTo(6,6);ctx.moveTo(6,-6);ctx.lineTo(-6,6);ctx.stroke();
+   }else{
+    ctx.fillStyle='#447d91';roundRect(ctx,-6.5,-8.5,13,17,3);ctx.fillStyle='#9dc4ca';ctx.fillRect(-5,-5,10,2);ctx.fillStyle='#2c5264';ctx.fillRect(-6,5,12,2);
+   }
+   ctx.restore();
+  }
+  if(drag){const p=worldPoint(drag.body,drag.point.x,drag.point.y);ctx.strokeStyle='rgba(131,228,189,.8)';ctx.lineWidth=.8;ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(drag.target.x,drag.target.y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#83e4bd';ctx.beginPath();ctx.arc(p.x,p.y,1.8,0,Math.PI*2);ctx.fill()}
+  ctx.restore();
+}
+
+return {drawObjectBodies};
+})();
+const PixelPhyxObjects=(()=>{const {drawObjectBodies}=PixelPhyxRenderer;
+
 // PixelPhyx rigid-body system. World units are material cells; simulation advances at 60 Hz.
 function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,getAirborne=()=>[],onPublish=()=>{}}){
  const bodies=[];
@@ -550,10 +582,10 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   bodies.push(b);return b;
  }
  function remove(id){const i=bodies.findIndex(b=>b.id===id);if(i>=0)bodies.splice(i,1);if(drag?.body.id===id)drag=null}
- function hit(b,x,y){const p=localPoint(b,x,y);if(b.type==='ball')return Math.hypot(p.x,p.y)<=b.w*.56;if(b.type==='bucket')return Math.abs(p.x)<=b.w/2&&Math.abs(p.y)<=b.h/2;return Math.abs(p.x)<=b.w/2&&Math.abs(p.y)<=b.h/2}
+ function hit(b,x,y){const p=localPoint(b,x,y);if(b.type==='ball')return Math.hypot(p.x,p.y)<=b.w*.56;if(Math.abs(p.x)<=b.w/2&&Math.abs(p.y)<=b.h/2)return true;if(b.type==='car')for(let i=0;i<2;i++){const wx=i===0?-10.5:10.5,wy=7.5+b.wheelY[i];if(Math.hypot(p.x-wx,p.y-wy)<=3.15)return true}return false}
  function grabAt(x,y){
   let chosen=null,best=-Infinity;
-  for(let i=bodies.length-1;i>=0;i--){const b=bodies[i];if(!hit(b,x,y))continue;const score=b.type==='ball'?b.w*.56-Math.hypot(x-b.x,y-b.y):Math.min(b.w/2-Math.abs(localPoint(b,x,y).x),b.h/2-Math.abs(localPoint(b,x,y).y));if(score>best){best=score;chosen=b}}
+  for(let i=bodies.length-1;i>=0;i--){const b=bodies[i],p=localPoint(b,x,y);if(!hit(b,x,y))continue;let score=b.type==='ball'?b.w*.56-Math.hypot(p.x,p.y):Math.min(b.w/2-Math.abs(p.x),b.h/2-Math.abs(p.y));if(b.type==='car')for(let k=0;k<2;k++){const wx=k===0?-10.5:10.5,wy=7.5+b.wheelY[k];score=Math.max(score,3.15-Math.hypot(p.x-wx,p.y-wy))}if(score>best){best=score;chosen=b}}
   if(!chosen)return false;
   const p=localPoint(chosen,x,y),now=Date.now();
   drag={body:chosen,point:p,target:{x,y},targetV:{x:0,y:0},last:{x,y},lastAt:now};
@@ -574,8 +606,8 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   if(!drag||drag.body!==b)return;
   const p=worldPoint(b,drag.point.x,drag.point.y),v=pointVelocity(b,drag.point.x,drag.point.y);
   const dx=drag.target.x-p.x,dy=drag.target.y-p.y;
-  const stiffness=.14,damping=.58;
-  const fx=clamp(dx*stiffness+(drag.targetV.x-v.x)*damping,-b.mass*4,b.mass*4);
+  const stiffness=.28,damping=.95;
+  const fx=clamp(dx*stiffness+(drag.targetV.x-v.x)*damping,-b.mass*5,b.mass*5);
   const fy=clamp(dy*stiffness+(drag.targetV.y-v.y)*damping,-b.mass*4,b.mass*4);
   b.vx=clamp(b.vx+fx/b.mass*dt,-32,32);b.vy=clamp(b.vy+fy/b.mass*dt,-32,32);
   b.spin=clamp(b.spin+(drag.point.x*fy-drag.point.y*fx)/inertia(b)*dt,-.8,.8);
@@ -585,8 +617,10 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
  }
  function axes(b){const c=Math.cos(b.angle),s=Math.sin(b.angle);return[[c,s],[-s,c]]}
  function bounds(b){
-  const ax=axes(b),ex=Math.abs(ax[0][0])*b.w/2+Math.abs(ax[1][0])*b.h/2,ey=Math.abs(ax[0][1])*b.w/2+Math.abs(ax[1][1])*b.h/2;
-  return{minX:Math.floor(b.x-ex-1),maxX:Math.ceil(b.x+ex+1),minY:Math.floor(b.y-ey-1),maxY:Math.ceil(b.y+ey+1)};
+  const ax=axes(b),minY=b.type==='car'?-b.h/2:-b.h/2,maxY=b.type==='car'?Math.max(b.h/2,7.5+Math.max(...b.wheelY)+3.15):b.h/2;
+  const centerY=(minY+maxY)/2,halfY=(maxY-minY)/2,c=worldPoint(b,0,centerY);
+  const ex=Math.abs(ax[0][0])*b.w/2+Math.abs(ax[1][0])*halfY,ey=Math.abs(ax[0][1])*b.w/2+Math.abs(ax[1][1])*halfY;
+  return{minX:Math.floor(c.x-ex-1),maxX:Math.ceil(c.x+ex+1),minY:Math.floor(c.y-ey-1),maxY:Math.ceil(c.y+ey+1)};
  }
  function projectRadius(b,axis){const a=axes(b),x=axis.x??axis[0],y=axis.y??axis[1];return Math.abs(x*a[0][0]+y*a[0][1])*b.w/2+Math.abs(x*a[1][0]+y*a[1][1])*b.h/2}
  function collisionForCell(b,x,y){
@@ -632,7 +666,7 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
     // The car's underside is open so the independently simulated wheels carry it.
     if(b.type==='car'&&local.y>2.7&&Math.abs(local.x)<14.5)continue;
     const c=collisionForCell(b,x,y);if(!c)continue;
-    if(movable.has(material)&&displaceCell?.(x,y,c.nx,c.ny,b.vx,b.vy))continue;
+    if(movable.has(material)&&displaceCell?.(x,y,-c.nx,-c.ny,b.vx,b.vy))continue;
     if(!deepest||c.depth>deepest.depth)deepest=c;
    }
    if(!deepest)break;
@@ -650,21 +684,24 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
  }
  function bucketAllowsMove(b,from,to){
   const a=localPoint(b,from.x,from.y),z=localPoint(b,to.x,to.y);
-  const inside=p=>Math.abs(p.x)<5.65&&p.y> -7.15&&p.y<7.2;
+  const wallX=y=>7-(y+8)*2/17;
+  const inside=p=>p.y> -7.5&&p.y<8.5&&Math.abs(p.x)<wallX(p.y)-.35;
   const ai=inside(a),zi=inside(z);
   if(ai&&zi)return true;
   if(ai&&!zi)return false;
-  if(!ai&&z.y<= -7.15&&Math.abs(z.x)<5.65)return true;
-  if(!ai&&zi)return a.y< -7.15&&z.y>a.y&&Math.abs(z.x)<5.65;
-  return !(Math.abs(z.x)<7.05&&z.y> -8.15&&z.y<8.8);
+  if(!ai&&z.y<= -7.5&&Math.abs(z.x)<6.5)return true;
+  if(!ai&&zi)return a.y< -7.5&&z.y>a.y&&Math.abs(z.x)<wallX(z.y)-.35;
+  return !(Math.abs(z.x)<8&&z.y> -8&&z.y<9.2);
  }
  function blocksParticleMove(x1,y1,x2,y2){
   const dx=x2-x1,dy=y2-y1,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.3));
-  for(const b of bodies)for(let i=1;i<=steps;i++){
-   const t=i/steps,x=x1+dx*t,y=y1+dy*t,p=localPoint(b,x,y);
-   if(b.type==='bucket'){if(!bucketAllowsMove(b,{x:x1+dx*(i-1)/steps,y:y1+dy*(i-1)/steps},{x,y}))return true;continue}
-   if(b.type==='ball'){if(Math.hypot(p.x,p.y)<b.w*.49)return true}
-   else if(Math.abs(p.x)<b.w/2&&Math.abs(p.y)<b.h/2)return true;
+  for(const b of bodies){
+   if(b.type==='bucket'){let prev={x:x1,y:y1};for(let i=1;i<=steps;i++){const t=i/steps,next={x:x1+dx*t,y:y1+dy*t};if(!bucketAllowsMove(b,prev,next))return true;prev=next}continue}
+   const solid=q=>{if(b.type==='ball')return Math.hypot(q.x,q.y)<b.w*.49;if(Math.abs(q.x)<b.w/2&&Math.abs(q.y)<b.h/2)return true;if(b.type==='car')for(let k=0;k<2;k++){const wx=k===0?-10.5:10.5,wy=7.5+b.wheelY[k];if(Math.hypot(q.x-wx,q.y-wy)<3.15)return true}return false};
+   const from=localPoint(b,x1,y1),to=localPoint(b,x2,y2),starts=solid(from),ends=solid(to);
+   if(starts&&!ends)continue;
+   if(!starts&&ends)return true;
+   for(let i=1;i<steps;i++){const t=i/steps;if(solid(localPoint(b,x1+dx*t,y1+dy*t)))return true}
   }
   return false;
  }
@@ -674,16 +711,16 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   const cx=wheel.x,cy=wheel.y;
   let groundY=Infinity,material=null;
   const minX=Math.max(0,Math.floor(cx-r)),maxX=Math.min(getWidth()-1,Math.floor(cx+r));
-  const minY=Math.max(0,Math.floor(cy-r-1)),maxY=Math.min(getHeight()-1,Math.ceil(cy+r));
+  const minY=Math.max(0,Math.floor(cy-r-8)),maxY=Math.min(getHeight()-1,Math.ceil(cy+r+8));
   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
    const m=getCell(x,y);if(!m)continue;
-   const nearestX=clamp(cx,x,x+1),horizontal=cx-nearestX;
-   // Only the lower half of the wheel supports the chassis. Side walls and
-   // overhead pixels must never be mistaken for a road surface.
-   const vertical=y-cy;
-   if(vertical<.25||vertical>r+.5||Math.abs(horizontal)>=r)continue;
-   if(horizontal*horizontal+vertical*vertical>r*r+.35)continue;
-   if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
+   const nearestX=clamp(cx,x,x+1),horizontal=cx-nearestX,vertical=y-cy;
+   if(Math.abs(horizontal)>=r||vertical>r+.5)continue;
+   // A wheel may already have crossed the surface during a fast fall. Accept
+   // that penetration only while descending so the suspension can recover it.
+   if(vertical<0){if(b.vy<=0)continue}
+   else if(vertical<.25||horizontal*horizontal+vertical*vertical>r*r+.35)continue;
+   if(movable.has(m)&&displaceCell?.(x,y,0,1,b.vx,b.vy))continue;
    if(y<groundY){groundY=y;material=m}
   }
   if(!material)return null;
@@ -721,7 +758,24 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   for(const p of particles){
    if(p.x<box.minX-1||p.x>box.maxX+1||p.y<box.minY-1||p.y>box.maxY+1)continue;
    const q=localPoint(b,p.x,p.y),hx=b.w/2,hy=b.h/2;
-   if(b.type==='bucket'&&Math.abs(q.x)<5.65&&q.y<7.2)continue;
+   if(b.type==='bucket'){const wallX=7-(q.y+8)*2/17,inside=q.y> -7.5&&Math.abs(q.x)<wallX;if(q.y> -7.5&&q.y<8.5&&Math.abs(q.x)>wallX-.55){const side=Math.sign(q.x)||1,limit=wallX+(inside?-.56:.56);q.x=side*limit;const normal=rotate(side*(inside?-1:1),0,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue}
+    if(inside&&q.y>8){q.y=8;const normal=rotate(0,-1,b.angle),surface=pointVelocity(b,q.x,q.y),vn=(p.vx-surface.x)*normal.x+(p.vy-surface.y)*normal.y;if(vn<0){p.vx-=1.08*vn*normal.x;p.vy-=1.08*vn*normal.y}const corrected=worldPoint(b,q.x,q.y);p.x=corrected.x;p.y=corrected.y;continue}
+    if(inside)continue;
+   }
+   if(b.type==='car'){
+    let wheelHit=false;
+    for(let wheel=0;wheel<2;wheel++){
+     const wx=wheel===0?-10.5:10.5,wy=7.5+b.wheelY[wheel],dx=q.x-wx,dy=q.y-wy,distance=Math.hypot(dx,dy);
+     if(distance>=3.65)continue;
+     const nx=distance>1e-7?dx/distance:0,ny=distance>1e-7?dy/distance:-1;
+     const normal=rotate(nx,ny,b.angle),surface=pointVelocity(b,wx,wy);
+     const corrected=worldPoint(b,wx+nx*3.66,wy+ny*3.66);p.x=corrected.x;p.y=corrected.y;
+     const rvx=p.vx-surface.x,rvy=p.vy-surface.y,vn=rvx*normal.x+rvy*normal.y;
+     if(vn<0){const impulse=-1.12*vn;p.vx+=normal.x*impulse;p.vy+=normal.y*impulse;b.vx-=normal.x*impulse*.012;b.vy-=normal.y*impulse*.012}
+     wheelHit=true;break;
+    }
+    if(wheelHit)continue;
+   }
    if(Math.abs(q.x)>hx+.5||Math.abs(q.y)>hy+.5)continue;
    let nx=0,ny=0,depth;
    const ox=hx+.5-Math.abs(q.x),oy=hy+.5-Math.abs(q.y);
@@ -781,32 +835,7 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   // Wake a body when a nearby object is moving into it.
   for(const b of bodies)if(b.sleep>0&&Math.hypot(b.vx,b.vy)>.12)b.sleep=0;
  }
- function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
- function draw(ctx){
-  ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
-  for(const b of bodies){
-   ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.angle);
-   if(b.type==='ball'){
-    const g=ctx.createRadialGradient(-3,-4,1,0,0,6.5);g.addColorStop(0,'#fff4d1');g.addColorStop(.28,'#ffbd59');g.addColorStop(1,'#b94b2b');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,5.7,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#612d27';ctx.lineWidth=1;ctx.stroke();
-   }else if(b.type==='car'){
-    ctx.fillStyle='#111923';roundRect(ctx,-16,-2.5,32,8,3);ctx.fillStyle='#e65355';roundRect(ctx,-15,-6.5,30,7,3);ctx.fillStyle='#f5b4a6';roundRect(ctx,-7.5,-11.5,15,6.5,2);ctx.fillStyle='#8ed7e8';roundRect(ctx,-5.8,-10.7,11.6,4.5,1);
-    for(let i=0;i<2;i++){
-     const x=i===0?-10.5:10.5,y=7.5+b.wheelY[i];ctx.save();ctx.translate(x,y);ctx.rotate(b.wheelSpin[i]);ctx.fillStyle='#20252d';ctx.beginPath();ctx.arc(0,0,3.15,0,Math.PI*2);ctx.fill();ctx.fillStyle='#aeb9c7';ctx.beginPath();ctx.arc(0,0,1.35,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c8d1da';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(-2.2,0);ctx.lineTo(2.2,0);ctx.stroke();ctx.restore();
-     ctx.strokeStyle=b.wheelGround[i]?'#c5d3df':'#687786';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,1);ctx.lineTo(x,2.2+b.wheelY[i]);ctx.stroke();
-    }
-    if(b.damage>.08){ctx.strokeStyle='#702f35';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-4,-5.5);ctx.lineTo(-1,-2);ctx.lineTo(2,-5);ctx.stroke()}
-   }else if(b.type==='bucket'){
-    ctx.fillStyle='#b5c3cf';ctx.beginPath();ctx.moveTo(-7,-8);ctx.lineTo(7,-8);ctx.lineTo(5,9);ctx.lineTo(-5,9);ctx.closePath();ctx.fill();ctx.strokeStyle='#526575';ctx.lineWidth=1.5;ctx.stroke();ctx.strokeStyle='#dbe6ed';ctx.beginPath();ctx.arc(0,-7,7,Math.PI,Math.PI*2);ctx.stroke();
-   }else if(b.type==='crate'){
-    ctx.fillStyle='#a86b3e';roundRect(ctx,-7.5,-7.5,15,15,1);ctx.strokeStyle='#5e3827';ctx.lineWidth=1.5;ctx.strokeRect(-6,-6,12,12);ctx.beginPath();ctx.moveTo(-6,-6);ctx.lineTo(6,6);ctx.moveTo(6,-6);ctx.lineTo(-6,6);ctx.stroke();
-   }else{
-    ctx.fillStyle='#447d91';roundRect(ctx,-6.5,-8.5,13,17,3);ctx.fillStyle='#9dc4ca';ctx.fillRect(-5,-5,10,2);ctx.fillStyle='#2c5264';ctx.fillRect(-6,5,12,2);
-   }
-   ctx.restore();
-  }
-  if(drag){const p=worldPoint(drag.body,drag.point.x,drag.point.y);ctx.strokeStyle='rgba(131,228,189,.8)';ctx.lineWidth=.8;ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(drag.target.x,drag.target.y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#83e4bd';ctx.beginPath();ctx.arc(p.x,p.y,1.8,0,Math.PI*2);ctx.fill()}
-  ctx.restore();
- }
+ function draw(ctx){drawObjectBodies(ctx,bodies,drag,worldPoint)}
  function serialize(){return bodies.map(b=>[b.id,b.type,+b.x.toFixed(2),+b.y.toFixed(2),+b.vx.toFixed(2),+b.vy.toFixed(2),+b.angle.toFixed(3),+b.spin.toFixed(3),+b.damage.toFixed(2),...(b.type==='car'?[...b.wheelY,...b.wheelV,...b.wheelSpin]:[])])}
  function restore(items){
   if(!Array.isArray(items))return;
@@ -1083,7 +1112,7 @@ function drawVisualParticles(){
 }
 function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
 function reaction(){}
-function tick(){if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
