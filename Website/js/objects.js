@@ -69,7 +69,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   let axis;
   if(Math.abs(local.y)>b.h/2&&Math.abs(local.x)<=b.w/2+1)axis=rotate(0,-Math.sign(local.y),b.angle);
   else if(Math.abs(local.x)>b.w/2&&Math.abs(local.y)<=b.h/2+1)axis=rotate(-Math.sign(local.x),0,b.angle);
-  else axis=Math.abs(dx)>Math.abs(dy)?[Math.sign(dx)||1,0]:[0,Math.sign(dy)||1];
+  else axis=Math.abs(dx)>Math.abs(dy)?{x:Math.sign(dx)||1,y:0}:{x:0,y:Math.sign(dy)||1};
   const depth=projectRadius(b,axis)+.5-Math.abs(dx*axis.x+dy*axis.y);
   if(depth<=0)return null;
   return{depth,nx:axis.x,ny:axis.y,cx,cy};
