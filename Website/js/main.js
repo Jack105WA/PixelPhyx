@@ -447,7 +447,7 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.joined&&multiplayer.isHost){
-  if(now-lastWorldPublish>=(multiplayer.lanMode?1000:5000)){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
+  if(now-lastWorldPublish>=5000){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
   if(now-lastRopePublish>=100){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
  if(multiplayer?.joined&&multiplayer.isHost&&objectSystem.count&&now-lastPropPublish>=100){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
@@ -565,7 +565,7 @@ document.querySelector('#createLobby').onclick=async()=>{
 let stopLobbyGallery=null;
 async function openLobbyGallery(){
  try{
-  await connectFirebase(firebaseConfig);
+  await connectPhoton();
   
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
@@ -599,7 +599,7 @@ async function requestAndJoinRoom(code){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Choose a lobby first');return}
  try{
-  await connectFirebase(firebaseConfig);
+  await connectPhoton();
   
   log('Sending join request to '+clean+'…');
   const approved=await multiplayer.requestJoin(clean,{name:playerName});
@@ -640,7 +640,7 @@ async function joinRoom(code,approved=false){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
  try{
-  await connectFirebase(firebaseConfig);
+  await connectPhoton();
   if(!multiplayer)throw new Error('Multiplayer failed to initialize');
   lastRemoteWorldAt=0;lastWorldPublish=0;
   await multiplayer.joinRoom(clean,{name:playerName,color:playerColor},approved,false);room=clean;
