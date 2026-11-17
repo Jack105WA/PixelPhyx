@@ -1,4 +1,6 @@
-import { packOperation, unpackOperation, encodeTransfer, decodeTransfer } from './photon-codec.js';
+const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
+const { packOperation, unpackOperation, encodeTransfer, decodeTransfer } =
+  await import('./photon-codec.js?v=' + encodeURIComponent(cacheVersion));
 
 export const EVENTS = {
   OP: 1, SNAPSHOT: 2, ROPES: 3, PROPS: 4,
