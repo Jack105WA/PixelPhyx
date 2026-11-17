@@ -659,10 +659,13 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
    if(b.type==='bucket'){
     const insideCavity=p=>Math.abs(p.x)<5.8&&p.y>-7.2&&p.y<7.5;
     const aInside=insideCavity(a),zInside=insideCavity(z);
+    if(aInside&&zInside)continue;
     if(aInside&&!zInside)return true;
-    if(!aInside&&zInside&&z.y< -6.5)return false;
-    if(!aInside&&zInside&&z.y>=-6.5)return true;
-    if(!aInside&&!zInside&&Math.abs(z.x)<7.2&&z.y> -8.5&&z.y<9)return true;
+    if(!aInside&&zInside){
+     if(a.y< -7.2&&z.y>a.y&&Math.abs(z.x)<5.8)continue;
+     return true;
+    }
+    if(Math.abs(z.x)<7.2&&z.y> -8.2&&z.y<9)return true;
     continue;
    }
    if(b.type==='ball'){
@@ -940,7 +943,7 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
  return false;
 }
 const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
-function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
+function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)||objectSystem.blocksParticleMove(x1,y1,x2,y2)}
 function stepRopes(){
  // The host is the sole rope-physics authority in multiplayer. Other clients
  // render the host's snapshots and only apply local pointer previews.
