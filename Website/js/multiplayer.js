@@ -69,14 +69,17 @@ export function createMultiplayer(callbacks = {}) {
       state.log('Photon error: ' + (error?.message || error?.code || 'Unknown error'));
     });
     state.client.on('warning', warning => state.log('Photon warning: ' + warning.message));
-    state.client.on('disconnected', ({ cause }) => recover(cause));
+    state.client.on('roomLeft', () => { state.roomName = ''; state.approvedPlayers.clear(); state.roster(); });
+    state.client.on('disconnected', ({ cause }) => { if (cause !== 'none') recover(cause); });
     try {
-      await state.client.connect();
+      await state.client.connect({ auth: { userId: state.playerId } });
       state.report('online', 'PHOTON ONLINE');
       state.log('Connected to Photon Cloud.');
       return state.playerId;
     } catch (error) {
       state.report('', 'CONNECTION FAILED');
+      state.client.dispose();
+      state.client = null;
       throw error;
     }
   }
