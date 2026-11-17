@@ -45,12 +45,35 @@ const gameScript = [
   'const {createObjectSystem}=PixelPhyxObjects;',
   offlineMain,
   '})();'
+].join('\\n');
+
+// Route canvas input through its shell so every visual layer shares one reliable
+// pointer target. Pointer capture stays on the shell for the full drag.
+const offlineGameScript = gameScript
+  .replaceAll("canvas.addEventListener('pointerdown',", "canvas.parentElement.addEventListener('pointerdown',")
+  .replaceAll("canvas.addEventListener('pointermove',", "canvas.parentElement.addEventListener('pointermove',")
+  .replaceAll("canvas.addEventListener('pointerup',", "canvas.parentElement.addEventListener('pointerup',")
+  .replaceAll("canvas.addEventListener('pointercancel',", "canvas.parentElement.addEventListener('pointercancel',")
+  .replaceAll("canvas.addEventListener('wheel',", "canvas.parentElement.addEventListener('wheel',")
+  .replaceAll("canvas.setPointerCapture(", "canvas.parentElement.setPointerCapture(");
+  '/* Generated from main.js and the physics modules. */',
+  'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
+  'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
+  'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
+  'const PixelPhyxRenderer=(()=>{', renderer, 'return {drawObjectBodies};', '})();',
+  'const PixelPhyxObjects=(()=>{const {drawObjectBodies}=PixelPhyxRenderer;', objects, 'return {createObjectSystem};', '})();',
+  '(()=>{const firebaseConfig={};',
+  'const {stepMaterialPhysics,materialState,resetMaterialState}=PixelPhyxMaterial;',
+  'const {createPhysicsEngine}=PixelPhyxEngine;',
+  'const {createObjectSystem}=PixelPhyxObjects;',
+  offlineMain,
+  '})();'
 ].join('\n');
-new vm.Script(gameScript, { filename: 'offline-game.js' });
+new vm.Script(offlineGameScript, { filename: 'offline-game.js' });
 
 const scriptTag = /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/i;
 if (!scriptTag.test(offlineHtml)) throw new Error('Offline game script not found.');
-let builtHtml = offlineHtml.replace(scriptTag, '<script>\n' + gameScript + '\n</script>');
+let builtHtml = offlineHtml.replace(scriptTag, '<script>\n' + offlineGameScript + '\n</script>');
 builtHtml = builtHtml
   .replace('<span class="status-dot"></span>', '')
   .replace('<button class="btn" id="downloadOffline" type="button">Download offline copy</button>', '')
