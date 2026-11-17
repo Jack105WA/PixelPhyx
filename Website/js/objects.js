@@ -1,5 +1,5 @@
 // PixelPhyx rigid props. World coordinates use one unit per material cell.
-export function createObjectSystem({getWidth,getHeight,getGravity,getCell,setCell,displaceCell,onPublish=()=>{}}){
+export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,getAirborne=()=>[],onPublish=()=>{}}){
  const bodies=[];let nextId=1,drag=null;
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const defs={
@@ -127,6 +127,24 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,setCel
    }
   }
  }
+ function collideAirborne(b){
+  const particles=getAirborne();if(!Array.isArray(particles)||!particles.length)return;
+  const reach=Math.max(b.w,b.h)*.6+2;
+  for(const p of particles){
+   if(Math.abs(p.x-b.x)>reach||Math.abs(p.y-b.y)>reach)continue;
+   const local=localPoint(b,p.x,p.y),hx=b.w/2,hy=b.h/2;
+   if(Math.abs(local.x)>hx+.6||Math.abs(local.y)>hy+.6)continue;
+   const px=hx+.6-Math.abs(local.x),py=hy+.6-Math.abs(local.y);
+   let nx=0,ny=0,penetration;
+   if(px<py){nx=local.x<0?-1:1;penetration=px}else{ny=local.y<0?-1:1;penetration=py}
+   const worldNormal={x:nx*Math.cos(b.angle)-ny*Math.sin(b.angle),y:nx*Math.sin(b.angle)+ny*Math.cos(b.angle)};
+   const corrected=worldPoint(b,{x:local.x+nx*(penetration+.02),y:local.y+ny*(penetration+.02)});
+   p.x=corrected.x;p.y=corrected.y;
+   const surface=pointVelocity(b,local),rvx=p.vx-surface.x,rvy=p.vy-surface.y,vn=rvx*worldNormal.x+rvy*worldNormal.y;
+   if(vn<0){const impulse=-(1.25)*vn;p.vx+=worldNormal.x*impulse;p.vy+=worldNormal.y*impulse}
+   p.vx=clamp(p.vx*.985,-16,16);p.vy=clamp(p.vy*.985,-16,16);
+  }
+ }
  function solveBodyContacts(){
   for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++){
    const a=bodies[i],b=bodies[j],ra=Math.min(a.w,a.h)*.42,rb=Math.min(b.w,b.h)*.42;
@@ -150,7 +168,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,setCel
    applyGrabConstraint(b);
    b.vy=clamp(b.vy+.16*gravity,-20,20);b.vx*=.999;b.spin*=.992;
    b.x+=b.vx;b.y+=b.vy;b.angle+=b.spin;
-   solveCarSuspension(b);solveTerrain(b);
+   solveCarSuspension(b);solveTerrain(b);collideAirborne(b);
    if(b.y>h+30||b.x<-30||b.x>w+30)remove(b.id);
    if(b.sleep>10&&Math.abs(b.vx)<.08&&Math.abs(b.vy)<.08&&Math.abs(b.spin)<.008){b.vx=0;b.vy=0;b.spin=0}
   }
