@@ -705,21 +705,24 @@ export function createMultiplayer(callbacks = {}) {
     }
   }
 
+  let cleanupInProgress = false;
   async function cleanupEmptyLobbies() {
-    if (!db || !auth?.currentUser) return;
-    let directorySnapshot;
+    if (!db || !auth?.currentUser || cleanupInProgress) return;
+    cleanupInProgress = true;
     try {
-      directorySnapshot = await get(ref(db, 'lobbyDirectory'));
-    } catch (error) {
-      log('Empty-server check failed: ' + error.message);
-      return;
-    }
+      let directorySnapshot;
+      try {
+        directorySnapshot = await get(ref(db, 'lobbyDirectory'));
+      } catch (error) {
+        log('Empty-server check failed: ' + error.message);
+        return;
+      }
 
-    const entries = Object.values(directorySnapshot.val() || {})
-      .filter(entry => entry && typeof entry.room === 'string')
-      .slice(0, 100);
+      const entries = Object.values(directorySnapshot.val() || {})
+        .filter(entry => entry && typeof entry.room === 'string')
+        .slice(0, 100);
 
-    for (const entry of entries) {
+      for (const entry of entries) {
       const roomId = entry.room;
       if (!/^(PX-|LAN-)[A-Z0-9-]{4,22}$/.test(roomId)) continue;
       const roomRef = ref(db, 'rooms/' + roomId);
@@ -762,6 +765,9 @@ export function createMultiplayer(callbacks = {}) {
       } catch (error) {
         log('Could not clean empty server ' + roomId + ': ' + error.message);
       }
+      }
+    } finally {
+      cleanupInProgress = false;
     }
   }
 
