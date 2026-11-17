@@ -154,7 +154,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    const nearestX=clamp(cx,x,x+1),horizontal=cx-nearestX;
    // Only the lower half of the wheel supports the chassis. Side walls and
    // overhead pixels must never be mistaken for a road surface.
-   const vertical=cy-y;
+   const vertical=y-cy;
    if(vertical<.25||vertical>r+.5||Math.abs(horizontal)>=r)continue;
    if(horizontal*horizontal+vertical*vertical>r*r+.35)continue;
    if(movable.has(m)&&displaceCell?.(x,y,0,-1,b.vx,b.vy))continue;
