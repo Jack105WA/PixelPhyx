@@ -582,10 +582,10 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   bodies.push(b);return b;
  }
  function remove(id){const i=bodies.findIndex(b=>b.id===id);if(i>=0)bodies.splice(i,1);if(drag?.body.id===id)drag=null}
- function hit(b,x,y){const p=localPoint(b,x,y);if(b.type==='ball')return Math.hypot(p.x,p.y)<=b.w*.56;if(b.type==='bucket')return Math.abs(p.x)<=b.w/2&&Math.abs(p.y)<=b.h/2;return Math.abs(p.x)<=b.w/2&&Math.abs(p.y)<=b.h/2}
+ function hit(b,x,y){const p=localPoint(b,x,y);if(b.type==='ball')return Math.hypot(p.x,p.y)<=b.w*.56;if(Math.abs(p.x)<=b.w/2&&Math.abs(p.y)<=b.h/2)return true;if(b.type==='car')for(let i=0;i<2;i++){const wx=i===0?-10.5:10.5,wy=7.5+b.wheelY[i];if(Math.hypot(p.x-wx,p.y-wy)<=3.15)return true}return false}
  function grabAt(x,y){
   let chosen=null,best=-Infinity;
-  for(let i=bodies.length-1;i>=0;i--){const b=bodies[i];if(!hit(b,x,y))continue;const score=b.type==='ball'?b.w*.56-Math.hypot(x-b.x,y-b.y):Math.min(b.w/2-Math.abs(localPoint(b,x,y).x),b.h/2-Math.abs(localPoint(b,x,y).y));if(score>best){best=score;chosen=b}}
+  for(let i=bodies.length-1;i>=0;i--){const b=bodies[i],p=localPoint(b,x,y);if(!hit(b,x,y))continue;let score=b.type==='ball'?b.w*.56-Math.hypot(p.x,p.y):Math.min(b.w/2-Math.abs(p.x),b.h/2-Math.abs(p.y));if(b.type==='car')for(let k=0;k<2;k++){const wx=k===0?-10.5:10.5,wy=7.5+b.wheelY[k];score=Math.max(score,3.15-Math.hypot(p.x-wx,p.y-wy))}if(score>best){best=score;chosen=b}}
   if(!chosen)return false;
   const p=localPoint(chosen,x,y),now=Date.now();
   drag={body:chosen,point:p,target:{x,y},targetV:{x:0,y:0},last:{x,y},lastAt:now};
@@ -606,8 +606,8 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
   if(!drag||drag.body!==b)return;
   const p=worldPoint(b,drag.point.x,drag.point.y),v=pointVelocity(b,drag.point.x,drag.point.y);
   const dx=drag.target.x-p.x,dy=drag.target.y-p.y;
-  const stiffness=.14,damping=.58;
-  const fx=clamp(dx*stiffness+(drag.targetV.x-v.x)*damping,-b.mass*4,b.mass*4);
+  const stiffness=.28,damping=.95;
+  const fx=clamp(dx*stiffness+(drag.targetV.x-v.x)*damping,-b.mass*5,b.mass*5);
   const fy=clamp(dy*stiffness+(drag.targetV.y-v.y)*damping,-b.mass*4,b.mass*4);
   b.vx=clamp(b.vx+fx/b.mass*dt,-32,32);b.vy=clamp(b.vy+fy/b.mass*dt,-32,32);
   b.spin=clamp(b.spin+(drag.point.x*fy-drag.point.y*fx)/inertia(b)*dt,-.8,.8);
