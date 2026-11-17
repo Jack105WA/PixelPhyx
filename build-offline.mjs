@@ -3,15 +3,17 @@ import vm from 'node:vm';
 
 const websiteDir = 'Website/';
 const read = path => readFile(websiteDir + path, 'utf8');
-const [offlineHtml, mainSource, physicsSource, engineSource] = await Promise.all([
+const [offlineHtml, mainSource, physicsSource, engineSource, objectsSource] = await Promise.all([
   read('offline.html'),
   read('js/main.js'),
   read('js/material-physics.js'),
-  read('js/physics-engine.js')
+  read('js/physics-engine.js'),
+  read('js/objects.js')
 ]);
 const stripExports = source => source.replace(/\bexport\s+(?=(?:const|function)\b)/g, '');
 const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
+const objects = stripExports(objectsSource);
 if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine)) {
   throw new Error('Unsupported export syntax in physics modules.');
 }
@@ -28,13 +30,15 @@ const offlineMain = mainStart.replace(
 if (offlineMain === mainStart) throw new Error('Could not replace multiplayer import.');
 
 const gameScript = [
-  '/* Generated from main.js, material-physics.js and physics-engine.js. */',
+  '/* Generated from main.js and the physics modules. */',
   'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
   'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
   'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
+  'const PixelPhyxObjects=(()=>{', objects, 'return {createObjectSystem};', '})();',
   '(()=>{const firebaseConfig={};',
   'const {stepMaterialPhysics,materialState,resetMaterialState}=PixelPhyxMaterial;',
   'const {createPhysicsEngine}=PixelPhyxEngine;',
+  'const {createObjectSystem}=PixelPhyxObjects;',
   offlineMain,
   '})();'
 ].join('\n');
