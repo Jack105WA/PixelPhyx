@@ -445,8 +445,12 @@ addEventListener('keydown',e=>{
 
 const openModal=id=>document.querySelector('#'+id).classList.add('open');
 document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));
-document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+function closeOnlineModal(modal){
+ modal.classList.remove('open');
+ if(modal.id==='roomModal'&&stopLobbyGallery){stopLobbyGallery();stopLobbyGallery=null}
+}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeOnlineModal(b.closest('.modal')));
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeOnlineModal(m)}));
 
 let multiplayerLoading=null;
 let usageStatus=null;
