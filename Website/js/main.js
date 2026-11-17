@@ -574,10 +574,11 @@ function updateCustomServerUI(){
  customServerSettings.hidden=!enabled;
  const firebaseMode=customServerType.value==='firebase';
  customServerAddress.disabled=!firebaseMode;
- customServerAddress.placeholder=firebaseMode?'https://your-project-default-rtdb.firebaseio.com':'IP address and port';
+ customServerAddress.placeholder=firebaseMode?'https://your-project-default-rtdb.firebaseio.com':'192.168.1.100:8080';
+ customServerAddress.closest('.control').querySelector('label').textContent=firebaseMode?'Database address':'Server address';
  customServerHint.textContent=firebaseMode
   ?'Enter a Realtime Database URL from the same Firebase project. Authentication and database rules must be configured for that project.'
-  :'PixelPhyx Server support is not implemented in this client yet.';
+  :'The IP server connection protocol is not available in this client yet. Selecting this type will show an explanatory error when connecting.';
 }
 customServerToggle.addEventListener('change',updateCustomServerUI);
 customServerType.addEventListener('change',updateCustomServerUI);
