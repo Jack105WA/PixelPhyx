@@ -11,6 +11,8 @@ export function createPhotonSync(state) {
   const transfers = new Map();
   let lastRopesAt = 0, lastRopesSignature = '', lastPropsSignature = '', lastWorldSignature = '';
   let snapshotBusy = false, pendingSnapshot = null;
+  // One authoritative sequence orders reliable edits against slower full snapshots.
+  let operationRevision = 0, lastAppliedOperationRevision = 0;
 
   const room = () => state.client?.room || null;
   const send = (code, data, options = {}) => {
@@ -28,7 +30,7 @@ export function createPhotonSync(state) {
   async function sendSnapshot(targetPlayers) {
     if (!state.isHost() || !targetPlayers.length) return;
     const payload = {
-      world: state.callbacks.getWorld?.(),
+      world: (() => { const world = state.callbacks.getWorld?.(); return world ? { ...world, operationRevision } : null; })(),
       ropes: state.callbacks.getRopes?.(),
       sentAt: Date.now()
     };
@@ -89,7 +91,13 @@ export function createPhotonSync(state) {
     clearTimeout(transfer.timer);
     try {
       const snapshot = await decodeTransfer(transfer.parts, transfer.compressed);
-      if (snapshot.world) state.callbacks.onWorld?.(snapshot.world);
+      if (snapshot.world) {
+        const revision = Number.isInteger(snapshot.world.operationRevision) ? snapshot.world.operationRevision : 0;
+        if (revision >= lastAppliedOperationRevision) {
+          lastAppliedOperationRevision = revision;
+          state.callbacks.onWorld?.(snapshot.world);
+        }
+      }
       if (snapshot.ropes) state.callbacks.onRopes?.(snapshot.ropes);
       state.log('World synchronized from the room host.');
     } catch (error) {
@@ -104,14 +112,18 @@ export function createPhotonSync(state) {
       if (!state.isApproved(senderNumber)) return;
       const decoded = unpackOperation(operation);
       if (!decoded) return;
+      const revision = ++operationRevision;
       state.callbacks.onOperation?.(decoded);
       const recipients = state.targets(senderNumber);
-      if (recipients.length) send(EVENTS.OP, operation, {
+      if (recipients.length) send(EVENTS.OP, { ...operation, revision }, {
         reliable: true, channel: 0, targetPlayers: recipients
       });
       return;
     }
     if (senderNumber === masterNumber) {
+      const revision = Number.isInteger(operation.revision) ? operation.revision : lastAppliedOperationRevision + 1;
+      if (revision <= lastAppliedOperationRevision) return;
+      lastAppliedOperationRevision = revision;
       const decoded = unpackOperation(operation);
       if (decoded) state.callbacks.onOperation?.(decoded);
     }
@@ -142,6 +154,7 @@ export function createPhotonSync(state) {
     if (!room() || !operation) return;
     const payload = packOperation({ ...operation, by: state.playerId, createdAt: Date.now() });
     if (state.isHost()) {
+      payload.revision = ++operationRevision;
       const recipients = state.targets();
       if (recipients.length) send(EVENTS.OP, payload, {
         reliable: true, channel: 0, targetPlayers: recipients
