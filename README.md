@@ -28,6 +28,8 @@ Everyone in a room shares the same particle world and rope structures. Player pr
 - **Draw:** place the selected material.
 - **Line:** drag to draw a straight material line.
 - **Rope:** click and drag from one anchor point to another. The rope sags and reacts to gravity using a Verlet constraint solver.
+- **Props:** spawn cars, buckets, balls, crates, and barrels from the Props panel. They have rigid-body gravity, collisions, rotation, bouncing, and crash deformation.
+- **Grab:** select Grab and drag a prop from the exact point you click. The prop hangs from that point and can swing or rotate as you move it.
 - **Erase:** remove particles.
 - **Box:** place a block of the selected material.
 - **Blast:** place TNT; ignite it with fire to detonate.
