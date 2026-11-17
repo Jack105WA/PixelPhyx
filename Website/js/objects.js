@@ -86,6 +86,11 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    const box=bounds(b);let deepest=null;
    for(let y=Math.max(0,box.minY);y<=Math.min(h-1,box.maxY);y++)for(let x=Math.max(0,box.minX);x<=Math.min(w-1,box.maxX);x++){
     const material=getCell(x,y);if(!material)continue;
+    const local=localPoint(b,x+.5,y+.5);
+    // The bucket is a U-shaped container, not a closed rectangle.
+    if(b.type==='bucket'&&(local.y< -7.15||(Math.abs(local.x)<5.65&&local.y<7.2)))continue;
+    // The car's underside is open so the independently simulated wheels carry it.
+    if(b.type==='car'&&local.y>2.7&&Math.abs(local.x)<14.5)continue;
     const c=collisionForCell(b,x,y);if(!c)continue;
     if(movable.has(material)&&displaceCell?.(x,y,-c.nx,-c.ny,b.vx,b.vy))continue;
     if(!deepest||c.depth>deepest.depth)deepest=c;
@@ -141,11 +146,12 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   if(b.type!=='car')return;
   for(let i=0;i<2;i++){
    const hit=wheelGround(b,i),old=b.wheelY[i];
-   const spring=hit?clamp((old-hit.target)*.24-b.wheelV[i]*.48,-1.4,1.8):clamp(-old*.16-b.wheelV[i]*.32,-.7,.7);
-   b.wheelV[i]=clamp(b.wheelV[i]-spring*dt,-8,8);
+   const wheelAccel=hit?clamp((hit.target-old)*.24-b.wheelV[i]*.48,-1.4,1.8):clamp(-old*.16-b.wheelV[i]*.32,-.7,.7);
+   b.wheelV[i]=clamp(b.wheelV[i]+wheelAccel*dt,-8,8);
    b.wheelY[i]=clamp(old+b.wheelV[i]*dt,-4,2.5);
-   // The spring reaction lifts the chassis; left/right differences create body roll.
-   b.vy-=spring*.2*dt;
+   // Compression and damping transfer force back into the chassis.
+   const springForce=clamp(-b.wheelY[i]*.24-b.wheelV[i]*.48,-1.4,1.8);
+   b.vy-=springForce*.9*dt;
    b.spin+=(i===0?1:-1)*spring*.0009*dt;
    const contact=!!hit&&b.wheelY[i]>=hit.target-.12;
    b.wheelGround[i]=contact;
@@ -165,6 +171,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
   for(const p of particles){
    if(p.x<box.minX-1||p.x>box.maxX+1||p.y<box.minY-1||p.y>box.maxY+1)continue;
    const q=localPoint(b,p.x,p.y),hx=b.w/2,hy=b.h/2;
+   if(b.type==='bucket'&&Math.abs(q.x)<5.65&&q.y> -7.15&&q.y<7.2)continue;
    if(Math.abs(q.x)>hx+.5||Math.abs(q.y)>hy+.5)continue;
    let nx=0,ny=0,depth;
    const ox=hx+.5-Math.abs(q.x),oy=hy+.5-Math.abs(q.y);
@@ -210,7 +217,7 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
     b.x+=b.vx*dt;b.y+=b.vy*dt;b.angle+=b.spin*dt;
     solveSuspension(b,dt);resolveTerrain(b);collideAirborne(b);
     if(b.y>h+35||b.x<-35||b.x>w+35)remove(b.id);
-    if(Math.hypot(b.vx,b.vy)<.1&&Math.abs(b.spin)<.01&&!drag?.body===b)b.sleep++;
+    if(Math.hypot(b.vx,b.vy)<.1&&Math.abs(b.spin)<.01&&(!drag||drag.body!==b))b.sleep++;
    }
    solveBodyPairs();
   }
