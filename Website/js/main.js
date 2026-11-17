@@ -451,7 +451,7 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
   if(now-lastWorldPublish>=5000){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
   if(now-lastRopePublish>=100){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
- if(multiplayer?.joined&&(multiplayer.isHost&&objectSystem.count||objectSystem.dragging)&&now-lastPropPublish>=150){lastPropPublish=now;publishOperation({type:'props',items:objectSystem.serialize()})}
+ if(multiplayer?.joined&&multiplayer.isHost&&objectSystem.count&&now-lastPropPublish>=100){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -570,6 +570,7 @@ async function connectFirebase(config){
      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
      getWorld:()=>serialize(),
      getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
+     getProps:()=>objectSystem.serialize(),
      onLeafblowers:people=>{const now=performance.now();for(const [id,state] of Object.entries(people||{})){if(id===playerId)continue;const data=state?.leafblower;if(!data)continue;if(data.active&&[data.x,data.y,data.dx,data.dy].every(Number.isFinite)){const current=remoteLeafblowers[id];if(current){current.targetX=data.x;current.targetY=data.y;current.targetDx=data.dx;current.targetDy=data.dy;current.receivedAt=now;current.active=true}else remoteLeafblowers[id]={x:data.x,y:data.y,dx:data.dx,dy:data.dy,targetX:data.x,targetY:data.y,targetDx:data.dx,targetDy:data.dy,receivedAt:now,active:true}}else if(remoteLeafblowers[id])remoteLeafblowers[id].active=false}},
      onPlayers:renderPlayers,
      onJoinRequest:request=>queueJoinRequest(request),
