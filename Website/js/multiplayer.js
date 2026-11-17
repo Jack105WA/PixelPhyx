@@ -926,9 +926,9 @@ export function createMultiplayer(callbacks = {}) {
     if (!db || !joined || !room || hostId !== playerId || !world || typeof world.cells !== 'string') return;
     const now = Date.now();
     // Full snapshots are recovery checkpoints, not per-frame traffic.
-    if (!force && now - lastWorldWrite < 5000) return;
+    if (!force && now - lastWorldWrite < (rtcMode ? 1000 : 5000)) return;
     const signature = [world.canvasSize, world.width, world.height, world.gravity, world.ambient, world.cells].join('|');
-    if (!force && signature === lastWorldSignature && !rtcMode) return;
+    if (!force && signature === lastWorldSignature) return;
 
     // Run-length encode the cell grid. Empty space and broad material regions
     // compress dramatically, keeping authoritative checkpoints inexpensive.
