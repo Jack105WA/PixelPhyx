@@ -154,7 +154,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public, realtime
-as $
+as $$
 declare
   row_path text;
   parts text[];
