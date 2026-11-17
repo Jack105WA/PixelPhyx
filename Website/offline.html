@@ -640,7 +640,7 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
     const springForce=clamp((-b.wheelY[i])*s.stiffness-b.wheelV[i]*s.damping,-.2,1.8);
     b.wheelV[i]=clamp(b.wheelV[i]+springForce,-2.2,2.2);
     b.wheelY[i]=clamp(b.wheelY[i]+b.wheelV[i],-4,1);
-    b.vy-=springForce*.7;
+    b.vy-=springForce*.7;b.spin+=(i===0?1:-1)*springForce*.012;
     const wheelSpeed=b.vx+(i===0?1:-1)*b.spin*11;
     b.wheelSpin[i]+=wheelSpeed*.055;
     b.vx*=.999;
@@ -673,18 +673,37 @@ function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,
  }
  function solveBodyContacts(){
   for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++){
-   const a=bodies[i],b=bodies[j],ra=Math.min(a.w,a.h)*.42,rb=Math.min(b.w,b.h)*.42;
-   let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),minimum=ra+rb;
-   if(d>=minimum)continue;
-   if(d<1e-5){dx=1;dy=0;d=1}
-   const nx=dx/d,ny=dy/d,overlap=minimum-d,total=1/a.mass+1/b.mass;
-   a.x-=nx*overlap*(1/a.mass)/total;b.x+=nx*overlap*(1/b.mass)/total;
-   a.y-=ny*overlap*(1/a.mass)/total;b.y+=ny*overlap*(1/b.mass)/total;
-   const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
-   if(relative>=0)continue;
-   const impulse=-(1+Math.min(a.restitution,b.restitution))*relative/total;
-   a.vx-=impulse*nx/a.mass;a.vy-=impulse*ny/a.mass;b.vx+=impulse*nx/b.mass;b.vy+=impulse*ny/b.mass;
-   if(Math.abs(relative)>2){a.damage=Math.min(1,a.damage+Math.abs(relative)*.006);b.damage=Math.min(1,b.damage+Math.abs(relative)*.006)}
+   const a=bodies[i],b=bodies[j],ac=Math.cos(a.angle),as=Math.sin(a.angle),bc=Math.cos(b.angle),bs=Math.sin(b.angle);
+   const axes=[[ac,as],[-as,ac],[bc,bs],[-bs,bc]];
+   let minOverlap=Infinity,nx=0,ny=0,separated=false;
+   const dx=b.x-a.x,dy=b.y-a.y;
+   for(const [ax,ay] of axes){
+    const ar=Math.abs(ax*ac+ay*as)*a.w/2+Math.abs(ax*(-as)+ay*ac)*a.h/2;
+    const br=Math.abs(ax*bc+ay*bs)*b.w/2+Math.abs(ax*(-bs)+ay*bc)*b.h/2;
+    const overlap=ar+br-Math.abs(dx*ax+dy*ay);
+    if(overlap<=0){separated=true;break}
+    if(overlap<minOverlap){minOverlap=overlap;const sign=dx*ax+dy*ay<0?-1:1;nx=ax*sign;ny=ay*sign}
+   }
+   if(separated)continue;
+   const invA=1/a.mass,invB=1/b.mass,total=invA+invB;
+   const correction=Math.max(0,minOverlap-.015)*.82/total;
+   a.x-=nx*correction*invA;b.x+=nx*correction*invB;
+   a.y-=ny*correction*invA;b.y+=ny*correction*invB;
+   const ia=Math.max(.5,a.mass*(a.w*a.w+a.h*a.h)/12),ib=Math.max(.5,b.mass*(b.w*b.w+b.h*b.h)/12);
+   const supportA=worldPoint(a,{x:Math.sign(nx*ac+ny*as||1)*a.w/2,y:Math.sign(-nx*as+ny*ac||1)*a.h/2}),supportB=worldPoint(b,{x:-Math.sign(nx*bc+ny*bs||1)*b.w/2,y:-Math.sign(-nx*bs+ny*bc||1)*b.h/2});
+   const contactX=(supportA.x+supportB.x)/2,contactY=(supportA.y+supportB.y)/2,raX=contactX-a.x,raY=contactY-a.y,rbX=contactX-b.x,rbY=contactY-b.y;
+   const avx=a.vx-a.spin*raY,avy=a.vy+a.spin*raX,bvx=b.vx-b.spin*rbY,bvy=b.vy+b.spin*rbX;
+   const rvx=bvx-avx,rvy=bvy-avy,vn=rvx*nx+rvy*ny;
+   if(vn>=0)continue;
+   const ran=raX*ny-raY*nx,rbn=rbX*ny-rbY*nx;
+   const e=Math.min(a.restitution,b.restitution),denom=total+ran*ran/ia+rbn*rbn/ib;
+   const impulse=-(1+e)*vn/denom,ix=impulse*nx,iy=impulse*ny;
+   a.vx-=ix*invA;a.vy-=iy*invA;b.vx+=ix*invB;b.vy+=iy*invB;
+   a.spin-=(raX*iy-raY*ix)/ia;b.spin+=(rbX*iy-rbY*ix)/ib;
+   const tx=-ny,ty=nx,tangent=rvx*tx+rvy*ty;
+   const jt=clamp(-tangent/denom,-impulse*.24,impulse*.24);
+   a.vx-=jt*tx*invA;a.vy-=jt*ty*invA;b.vx+=jt*tx*invB;b.vy+=jt*ty*invB;
+   if(Math.abs(vn)>2){a.damage=Math.min(1,a.damage+Math.abs(vn)*.006);b.damage=Math.min(1,b.damage+Math.abs(vn)*.006)}
    a.sleep=b.sleep=0;
   }
  }
