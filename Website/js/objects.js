@@ -133,10 +133,13 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    if(b.type==='bucket'){
     const insideCavity=p=>Math.abs(p.x)<5.8&&p.y>-7.2&&p.y<7.5;
     const aInside=insideCavity(a),zInside=insideCavity(z);
+    if(aInside&&zInside)continue;
     if(aInside&&!zInside)return true;
-    if(!aInside&&zInside&&z.y< -6.5)return false;
-    if(!aInside&&zInside&&z.y>=-6.5)return true;
-    if(!aInside&&!zInside&&Math.abs(z.x)<7.2&&z.y> -8.5&&z.y<9)return true;
+    if(!aInside&&zInside){
+     if(a.y< -7.2&&z.y>a.y&&Math.abs(z.x)<5.8)continue;
+     return true;
+    }
+    if(Math.abs(z.x)<7.2&&z.y> -8.2&&z.y<9)return true;
     continue;
    }
    if(b.type==='ball'){
