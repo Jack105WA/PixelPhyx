@@ -58,6 +58,10 @@ jobs:
           ref: photon-test
           path: photon-test
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Validate Photon JavaScript modules
         run: |
           for file in photon-test/Website/js/*.js; do
