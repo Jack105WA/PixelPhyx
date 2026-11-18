@@ -3,13 +3,13 @@ const { packOperation, unpackOperation, encodeTransfer, decodeTransfer } =
   await import('./photon-codec.js?v=' + encodeURIComponent(cacheVersion));
 
 export const EVENTS = {
-  OP: 1, SNAPSHOT: 2, ROPES: 3, PROPS: 4,
+  OP: 1, SNAPSHOT: 2, ROPES: 3,
   JOIN_REQUEST: 5, JOIN_REPLY: 6, SYNC_REQUEST: 7
 };
 
 export function createPhotonSync(state) {
   const transfers = new Map();
-  let lastRopesAt = 0, lastRopesSignature = '', lastPropsSignature = '', lastWorldSignature = '';
+  let lastRopesAt = 0, lastRopesSignature = '', lastWorldSignature = '';
   let snapshotBusy = false, pendingSnapshot = null;
   // One authoritative sequence orders reliable edits against slower full snapshots.
   let operationRevision = 0, lastAppliedOperationRevision = 0;
@@ -148,11 +148,6 @@ export function createPhotonSync(state) {
         state.callbacks.onRopes?.(data);
       }
     });
-    state.client.onEvent(EVENTS.PROPS, ({ senderNumber, data }) => {
-      if (senderNumber === room()?.masterClientNumber && Array.isArray(data?.items)) {
-        state.callbacks.onOperation?.({ type: 'props', items: data.items, by: data.by });
-      }
-    });
   }
 
   function requestSnapshot() {
@@ -186,7 +181,6 @@ export function createPhotonSync(state) {
       JSON.stringify(world.materialState || {}),
       JSON.stringify(world.moves || []),
       JSON.stringify(world.airborne || []),
-      JSON.stringify(world.props || [])
     ].join('|');
     if (signature === lastWorldSignature) return;
     lastWorldSignature = signature;
@@ -209,22 +203,11 @@ export function createPhotonSync(state) {
     }, { reliable: false, channel: 2, targetPlayers: recipients });
   }
 
-  function publishProps(items) {
-    if (!state.isHost() || !Array.isArray(items)) return;
-    const signature = JSON.stringify(items);
-    if (signature === lastPropsSignature) return;
-    lastPropsSignature = signature;
-    const recipients = state.targets();
-    if (recipients.length) send(EVENTS.PROPS, {
-      by: state.playerId, updatedAt: Date.now(), items
-    }, { reliable: true, channel: 3, targetPlayers: recipients });
-  }
-
   function dispose() {
     for (const transfer of transfers.values()) clearTimeout(transfer.timer);
     transfers.clear();
     pendingSnapshot = null;
   }
 
-  return { setup, requestSnapshot, queueSnapshot, publishOperation, publishWorld, publishRopes, publishProps, dispose };
+  return { setup, requestSnapshot, queueSnapshot, publishOperation, publishWorld, publishRopes, dispose };
 }
