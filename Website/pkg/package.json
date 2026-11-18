@@ -1,0 +1,16 @@
+{
+  "name": "pixelphyx-wasm",
+  "type": "module",
+  "description": "PixelPhyx browser simulation and pixel rendering core",
+  "version": "0.1.0",
+  "files": [
+    "pixelphyx_wasm_bg.wasm",
+    "pixelphyx_wasm.js",
+    "pixelphyx_wasm.d.ts"
+  ],
+  "main": "pixelphyx_wasm.js",
+  "types": "pixelphyx_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
