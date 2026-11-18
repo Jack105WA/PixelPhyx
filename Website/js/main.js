@@ -15,14 +15,6 @@ const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:
 const particleInterpolationCanvas=document.createElement('canvas'),particleInterpolationCtx=particleInterpolationCanvas.getContext('2d');
 particleInterpolationCanvas.className='particle-interpolation';canvas.parentElement.insertBefore(particleInterpolationCanvas,canvas.nextElementSibling);
 let frameImage=ctx.createImageData(W,H);
-const bloomCanvas=document.createElement('canvas'),bloomCtx=bloomCanvas.getContext('2d');
-let bloomImage=null,bloomPixels=null,bloomW=0,bloomH=0;
-function resizeBloomBuffer(){
- bloomW=Math.max(1,Math.ceil(W/4));bloomH=Math.max(1,Math.ceil(H/4));
- bloomCanvas.width=bloomW;bloomCanvas.height=bloomH;
- bloomImage=bloomCtx.createImageData(bloomW,bloomH);bloomPixels=bloomImage.data;
-}
-resizeBloomBuffer();
 function protectStrokePoint(p){
  if(!activeStrokeMeta||!inside(p.x,p.y))return;
  const radius=activeStrokeMeta.tool==='bomb'?2:activeStrokeMeta.brush;
@@ -382,15 +374,9 @@ function drawCursorName(c,targetCtx){
 function render(){
  if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(node===ropeDrag?.node)continue;if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
  let count=0;
- const rendered=wasmEngine.render_frame(cells,materialState.wetness,materialState.heat,colorLut,movingDestinations,W,H);
- const frameLength=N*4;
- frameImage.data.set(rendered.subarray(0,frameLength));
- bloomPixels.set(rendered.subarray(frameLength));
+ frameImage.data.set(wasmEngine.render_composited_frame(cells,materialState.wetness,materialState.heat,colorLut,movingDestinations,W,H));
  count=wasmEngine.count_particles(cells);
- bloomCtx.putImageData(bloomImage,0,0);
  ctx.putImageData(frameImage,0,0);
- ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.58;ctx.imageSmoothingEnabled=true;
- ctx.drawImage(bloomCanvas,0,0,W,H);ctx.restore();
  drawInterpolatedCells();
  drawAirborneParticles();
  drawVisualParticles();
