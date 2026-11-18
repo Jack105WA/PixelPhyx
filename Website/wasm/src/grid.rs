@@ -112,9 +112,10 @@ pub fn step_particles(
                 if let Some(to)=vertical {
                     if to<len && blocked[i]&2==0 {
                         let below=cells[to];
-                        let should_fall=matches!(below,2|6)
-                            || (below==0 && random(seed,i,0x5A4D_F411)
-                                < (0.95*(1.0-wet[i]*0.82)*gravity.clamp(0.1,2.0)).clamp(0.04,1.0));
+                        // Sand is the fast-falling material: do not throttle
+                        // its vertical step with a per-tick probability. Wetness
+                        // affects clumping/appearance, not its basic fall rate.
+                        let should_fall=matches!(below,0|2|6);
                         if should_fall && (below==0||matches!(below,2|6)) {
                             swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                             continue;
