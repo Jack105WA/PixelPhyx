@@ -535,7 +535,7 @@ document.querySelector('#copyRoomCode').onclick=async()=>{
   setTimeout(()=>{button.title='Copy room code';button.setAttribute('aria-label','Copy room code')},1200);
  }catch(error){log('Could not copy room code: '+error.message)}
 };
-document.querySelector('#leaveRoom').onclick=async()=>{
+const leaveRoomButton=document.querySelector('#leaveRoom');if(leaveRoomButton)leaveRoomButton.onclick=async()=>{
  const button=document.querySelector('#leaveRoom');button.disabled=true;
  try{
   await multiplayer?.leaveRoom();
