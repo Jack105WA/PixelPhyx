@@ -32,7 +32,7 @@ function publishStrokeBatch(final=false){
  if(!points.length)return;
  lastPublishedStrokePoint=strokePoints.length;
  lastStrokePublishAt=performance.now();
- multiplayer.publishOperation({
+ multiplayer.publishStroke({
   type:'stroke',points,tool:activeStrokeMeta.tool,material:activeStrokeMeta.material,
   brush:activeStrokeMeta.brush,erase:activeStrokeMeta.erase
  },{reliable:final});
