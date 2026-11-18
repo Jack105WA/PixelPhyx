@@ -126,6 +126,33 @@ pub fn step_combustion(
     let mut detonations = 0u32;
     if width == 0 || height == 0 { return 0; }
 
+    // Pre-pass makes ignition independent of whether fire is left or right
+    // of the fuse in the row-major simulation scan.
+    for i in 0..len {
+        if cells[i] != 17 || burn[i] > 0.0 { continue; }
+        let x = i % width;
+        let y = i / width;
+        let mut touching_fire = false;
+        for dy in -1isize..=1 {
+            for dx in -1isize..=1 {
+                if dx == 0 && dy == 0 { continue; }
+                let nx = x as isize + dx;
+                let ny = y as isize + dy;
+                if nx < 0 || ny < 0 || nx >= width as isize || ny >= height as isize { continue; }
+                if cells[ny as usize * width + nx as usize] == 5 {
+                    touching_fire = true;
+                    break;
+                }
+            }
+            if touching_fire { break; }
+        }
+        if touching_fire {
+            fuel[i] = material_fuel(17);
+            burn[i] = 1.0;
+            heat[i] = 900.0;
+        }
+    }
+
     for i in 0..len {
         if cells[i] == 12 {
             let x=i%width; let y=i/width;
@@ -208,21 +235,23 @@ pub fn step_combustion(
                 if burn[i] <= 0.0 { ignite(heat, fuel, burn, i, material); }
                 burn[i] += 1.0;
                 heat[i] = heat[i].max(520.0);
-                // Let each segment visibly burn before advancing one cell right.
-                if burn[i] >= 3.0 && x + 1 < width {
-                    let next = i + 1;
-                    if cells[next] == 17 && burn[next] <= 0.0 {
-                        ignite(heat, fuel, burn, next, 17);
+                // Burn each segment visibly, then advance exactly one cell right.
+                if burn[i] >= 8.0 {
+                    if x + 1 < width {
+                        let next = i + 1;
+                        if cells[next] == 17 && burn[next] <= 0.0 {
+                            fuel[next] = material_fuel(17);
+                            burn[next] = 1.0;
+                            heat[next] = 900.0;
+                        }
                     }
-                }
-                let starting_fuel = if fuel[i] > 0.0 { fuel[i] } else { material_fuel(17) };
-                fuel[i] = (starting_fuel - 0.045).max(0.0);
-                if fuel[i] <= 0.0 {
                     cells[i] = 9;
                     heat[i] = 180.0;
                     burn[i] = 0.0;
                     fuel[i] = 0.0;
+                    continue;
                 }
+                fuel[i] = (material_fuel(17) * (1.0 - burn[i] / 8.0)).max(0.0);
             }
             continue;
         }
