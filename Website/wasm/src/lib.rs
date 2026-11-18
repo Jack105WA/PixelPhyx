@@ -31,3 +31,8 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: u3
 pub fn step_combustion(cells: &mut [u8], heat: &mut [f32], wetness: &[f32], fuel: &mut [f32], burn: &mut [f32], age: &[u16], ambient: f32, width: u32, height: u32) {
     chemistry::step_combustion(cells, heat, wetness, fuel, burn, age, ambient, width as usize, height as usize);
 }
+
+#[wasm_bindgen]
+pub fn step_material_thermal(cells: &[u8], wetness: &mut [f32], heat: &mut [f32], air: &mut [f32], next_air: &mut [f32], fuel: &mut [f32], burn: &mut [f32], age: &mut [u16], corrosion: &mut [f32], ambient: f32, width: u32, height: u32) {
+    chemistry::step_material_thermal(cells, wetness, heat, air, next_air, fuel, burn, age, corrosion, ambient, width as usize, height as usize);
+}
