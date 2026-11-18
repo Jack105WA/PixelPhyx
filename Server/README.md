@@ -1,22 +1,26 @@
-# PixelPhyx Local Server
+# PixelPhyx Multiplayer Server
 
-Windows self-hosted multiplayer server. Photon is not required.
+This folder contains only the dedicated multiplayer relay server. It does **not** host, download, or bundle the PixelPhyx website/game client.
 
 ## Start
 
-Run `Start Server.bat`. The launcher checks for updates, installs the small Node.js dependencies when needed, and starts the server. Keep the console open while hosting.
+Run `Start Server.bat`. It checks for server updates, installs the small Node.js dependencies if needed, and starts the WebSocket server.
 
 Node.js 20 or newer is required: https://nodejs.org/
 
 ## Connect
 
-The server listens on all local network adapters by default:
+Open the PixelPhyx game client separately (for example, from GitHub Pages or another static web host). Select **Online**, enter the server IP/hostname, and press **Connect to server**.
 
-- This PC: `ws://127.0.0.1:3000/pixelphyx`
-- LAN: `ws://YOUR-LAN-IP:3000/pixelphyx`
-- Internet: `ws://YOUR-PUBLIC-IP:3000/pixelphyx`
+The default port is `3000`. The WebSocket endpoint is `/pixelphyx`.
 
-Forward the configured port as **TCP** to the hosting PC's LAN IP in your router. Allow Node.js through Windows Firewall on Private networks. Use the same address in the game's server connection field.
+- Same PC: `127.0.0.1:3000`
+- Local network: `192.168.x.x:3000`
+- Internet: `YOUR-PUBLIC-IP:3000`
+
+Forward the configured port as **TCP** to the hosting PC's LAN IP in your router. Allow Node.js through Windows Firewall on Private networks.
+
+A game client loaded over HTTPS needs a secure WebSocket (WSS) endpoint. A plain server started by this folder uses WS; put it behind a TLS reverse proxy for HTTPS clients.
 
 ## Configuration
 
@@ -28,8 +32,4 @@ Edit `config.yml`:
 - `lobby_count`: maximum number of active lobbies.
 - `public_address`: optional public hostname/IP note.
 
-The server relays game events and snapshots. The lobby host remains the authoritative physics simulator, matching the current PixelPhyx synchronization model. If the host leaves, server ownership transfers to another connected player; the new host requests a fresh world snapshot.
-
-## Data and privacy
-
-No external account or Photon service is used. The server keeps rooms and player state in memory; worlds are not saved to disk. Only connected players can exchange game messages.
+The server keeps rooms and player state in memory. Worlds are not saved to disk.
