@@ -69,10 +69,10 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
  <div class="section"><div class="section-title">Materials <span id="materialCount" style="color:var(--muted);font:10px 'DM Mono'">16</span></div><div class="material-grid" id="materials"></div></div>
  <div class="section">
   <div class="section-title">World controls</div>
-  <div class="control"><label>Brush size <output id="brushOut">5 px</output></label><input id="brush" type="range" min="1" max="22" value="5"></div>
-  <div class="control"><label>Gravity <output id="gravityOut">1.0×</output></label><input id="gravity" type="range" min="0" max="25" value="10"></div>
-  <div class="control"><label>Simulation speed <output id="speedOut">1×</output></label><input id="speed" type="range" min="1" max="5" value="1"></div>
-  <div class="control"><label>Ambient temperature <output id="tempOut">20°C</output></label><input id="temperatureControl" type="range" min="-100" max="1200" value="20"></div>
+  <div class="control"><label for="brush">Brush size <output id="brushOut">5 px</output></label><input id="brush" type="range" min="1" max="22" value="5"></div>
+  <div class="control"><label for="gravity">Gravity <output id="gravityOut">1.0×</output></label><input id="gravity" type="range" min="0" max="25" value="10"></div>
+  <div class="control"><label for="speed">Simulation speed <output id="speedOut">1×</output></label><input id="speed" type="range" min="1" max="5" value="1"></div>
+  <div class="control"><label for="temperatureControl">Ambient temperature <output id="tempOut">20°C</output></label><input id="temperatureControl" type="range" min="-100" max="1200" value="20"></div>
  </div>
 </aside>
 <section class="center">
@@ -103,12 +103,12 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 <div class="modal" id="firebaseModal"><div class="dialog"><h2>CONNECT YOUR LAB</h2><p>Paste the Firebase Web App config from Project settings → General → Your apps. Your config is stored only in this browser. The Firebase API key is a public client identifier; secure your database with the rules in the README.</p><textarea id="firebaseConfig" spellcheck="false" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://YOUR-PROJECT-default-rtdb.firebaseio.com","projectId":"...","appId":"..."}'></textarea><div class="dialog-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="connectFirebase">Connect to Firebase</button></div></div></div>
 <div class="modal" id="roomModal"><div class="dialog"><h2>SERVERS</h2><p>Browse live servers, create your own, or request access to an existing server. Server hosts approve incoming requests.</p>
  <div class="online-settings">
-  <div class="control"><label>Display name</label><input id="playerName" type="text" maxlength="20" placeholder="Your name"></div>
-  <div class="control"><label>Color</label><input id="playerColor" type="color" value="#65d6ad"></div>
+  <div class="control"><label for="playerName">Display name</label><input id="playerName" type="text" maxlength="20" placeholder="Your name"></div>
+  <div class="control"><label for="playerColor">Color</label><input id="playerColor" type="color" value="#65d6ad"></div>
  </div>
  <div class="online-section" id="currentRoomSection" hidden><div class="section-title">Your current server</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><code id="currentRoomCode" style="font:12px 'DM Mono',monospace;color:#a5f0d0;letter-spacing:.5px">—</code><button class="btn" id="copyRoomCode" type="button" aria-label="Copy room code" title="Copy room code" style="padding:7px 9px;display:grid;place-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg></button></div></div>
  <div class="online-section"><div class="section-title">Players <span id="playerCount" style="color:var(--muted)">0 online</span></div><div class="player-list online-player-list" id="players"><div class="player">Local experiment</div></div></div>
- <div class="online-section"><div class="section-title">Join by server code</div><div class="control"><label>Server code</label><input id="roomCode" type="text" maxlength="24" placeholder="e.g. PX-ABCDE"></div><button class="btn primary" id="join" style="width:100%;margin-top:9px">Request to join</button></div>
+ <div class="online-section"><div class="section-title">Join by server code</div><div class="control"><label for="roomCode">Server code</label><input id="roomCode" type="text" maxlength="24" placeholder="e.g. PX-ABCDE"></div><button class="btn primary" id="join" style="width:100%;margin-top:9px">Request to join</button></div>
  <div class="online-section"><div class="dialog-actions" style="justify-content:space-between;margin-top:0"><span class="muted" id="lobbyCapacity">0 / 20 active servers</span><button class="btn primary" id="createLobby">+ Create server</button></div><div class="lobby-gallery" id="lobbyGallery"><div class="lobby-empty">Connecting to servers…</div></div></div>
  <div class="dialog-actions"><button class="btn" data-close>Close</button></div></div></div>
 <script>
