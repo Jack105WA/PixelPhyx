@@ -28,8 +28,8 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: u3
 }
 
 #[wasm_bindgen]
-pub fn step_combustion(cells: &mut [u8], heat: &mut [f32], wetness: &[f32], fuel: &mut [f32], burn: &mut [f32], age: &[u16], ambient: f32, width: u32, height: u32) {
-    chemistry::step_combustion(cells, heat, wetness, fuel, burn, age, ambient, width as usize, height as usize);
+pub fn step_combustion(cells: &mut [u8], heat: &mut [f32], wetness: &[f32], fuel: &mut [f32], burn: &mut [f32], age: &[u16], ambient: f32, width: u32, height: u32) -> u32 {
+    chemistry::step_combustion(cells, heat, wetness, fuel, burn, age, ambient, width as usize, height as usize)
 }
 
 #[wasm_bindgen]
