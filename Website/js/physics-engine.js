@@ -41,26 +41,6 @@ export function createPhysicsEngine(){
   }
   return false;
  }
- function collideRopeNode(n,cells,w,h){
-  n.x=clamp(n.x,.5,w-.5);n.y=clamp(n.y,.5,h-.5);
-  const x=Math.floor(n.x),y=Math.floor(n.y),m=cells[y*w+x];if(m!==3&&m!==4&&m!==10&&m!==12&&m!==15)return;
-  const d=[n.x-x,x+1-n.x,n.y-y,y+1-n.y],side=d.indexOf(Math.min(...d));
-  if(side===0){n.x=x-.002;n.px=n.x}else if(side===1){n.x=x+1.002;n.px=n.x}else if(side===2){n.y=y-.002;n.py=n.y}else{n.y=y+1.002;n.py=n.y}
- }
- function solveRopes(ropes,cells,w,h,gravity){
-  const substeps=2,passes=10,dt=1/substeps;
-  for(const rope of ropes){const p=rope.points;if(!Array.isArray(p)||p.length<2||p.length>MAX_POINTS)continue;
-   for(const n of p)if(!n.dragMoved){n.ox=n.x;n.oy=n.y}
-   const rest=Number.isFinite(rope.length)&&rope.length>0?rope.length:1;
-   for(let sub=0;sub<substeps;sub++){
-    for(const n of p){if(n.anchor){n.px=n.x;n.py=n.y;continue}const vx=(n.x-n.px)*.995,vy=(n.y-n.py)*.995;n.px=n.x;n.py=n.y;n.x+=vx;n.y+=vy+.22*gravity*dt*dt;collideRopeNode(n,cells,w,h)}
-    for(let pass=0;pass<passes;pass++){
-     for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1],wa=a.anchor?0:1,wb=b.anchor?0:1,sum=wa+wb;if(!sum)continue;const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<1e-7)continue;const error=(d-rest)/d*.86;if(wa){a.x+=dx*error*wa/sum;a.y+=dy*error*wa/sum}if(wb){b.x-=dx*error*wb/sum;b.y-=dy*error*wb/sum}}
-     for(let i=1;i<p.length-1;i++)collideRopeNode(p[i],cells,w,h);
-    }
-   }
-  }
- }
  function solveGridContacts(ropes,cells,w,h,vx,vy){
   rebuildIndex(ropes);if(!segments.length)return;
   const mass=m=>m===1?1.6:m===2?1:m===3||m===15?2.7:m===4?.65:m===6?.82:m===7?1.1:m===10?.92:m===11?2.5:m===12?1.1:m===14?1.9:m===16?.85:.35,contacts=new Map();
@@ -191,7 +171,7 @@ export function createPhysicsEngine(){
  }
  function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,airborneParticles,onExtract}){
   if(!Array.isArray(ropes)||ropes.length>MAX_ROPES)return;
-  solveRopes(ropes,cells,width,height,gravity);rebuildIndex(ropes);
+  rebuildIndex(ropes);
   pushParticlesFromRopeSweep(ropes,cells,width,height,velocityX,velocityY,gravity);
   solveGridContacts(ropes,cells,width,height,velocityX,velocityY);
   extractAirborne(cells,width,height,velocityX,velocityY,materialState,airborneParticles,onExtract);
