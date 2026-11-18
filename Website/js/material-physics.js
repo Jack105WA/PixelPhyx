@@ -99,9 +99,6 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   const i=index(x,y),m=cells[i];if(!m)continue;
   const p=PROPERTIES[m]||{};
   age[i]=Math.min(65535,age[i]+1);
-  if(m===M.WATER&&ambient<0&&Math.random()<clamp(-ambient/9000,0,.12))cells[i]=M.ICE;
-  if(m===M.ICE&&ambient>0&&Math.random()<clamp(ambient/14000,0,.1))cells[i]=M.WATER;
-  if(m===M.WATER&&ambient>100&&Math.random()<clamp((ambient-100)/18000,0,.05)){cells[i]=M.STEAM;continue}
   if(m===M.FIRE){
    heat[i]=Math.max(heat[i],700+Math.random()*250);
    const lifetime=100+Math.random()*100;
