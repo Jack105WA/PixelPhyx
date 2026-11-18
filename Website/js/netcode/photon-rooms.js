@@ -97,8 +97,6 @@ export function createPhotonRooms(state, sync) {
     if (world) sync.publishWorld(world);
     const ropes = state.callbacks.getRopes?.();
     if (ropes) sync.publishRopes(ropes.ropes || []);
-    const props = state.callbacks.getProps?.();
-    if (props) sync.publishProps(props);
     return state.roomName;
   }
 
