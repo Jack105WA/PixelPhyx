@@ -4,7 +4,6 @@ mod grid;
 mod input;
 mod render;
 mod ropes;
-mod rigid_bodies;
 
 use wasm_bindgen::prelude::*;
 pub use engine::World;
@@ -60,12 +59,6 @@ pub fn step_particles(
 
 #[wasm_bindgen]
 pub fn step_ropes(x:&mut[f32],y:&mut[f32],px:&mut[f32],py:&mut[f32],ox:&mut[f32],oy:&mut[f32],anchors:&[u8],drag:&[u8],offsets:&[u32],lengths:&[f32],cells:&[u8],width:u32,height:u32,gravity:f32){ropes::step_ropes(x,y,px,py,ox,oy,anchors,drag,offsets,lengths,cells,width as usize,height as usize,gravity);}
-
-/// Integrates rigid bodies and resolves body-to-body oriented-box collisions.
-#[wasm_bindgen]
-pub fn step_rigid_bodies(state: &mut [f32], gravity: f32, dt: f32) {
-    rigid_bodies::step_rigid_bodies(state, gravity, dt);
-}
 
 /// Renders the pixel layer and glow mask in one WASM call.
 #[wasm_bindgen]
