@@ -88,7 +88,7 @@ export async function decodeTransfer(parts, compressed) {
   }
   let bytes = joined;
   if (compressed) {
-    if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot decompress Photon snapshots.');
+    if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot decompress server snapshots.');
     bytes = await transform(joined, DecompressionStream);
   }
   if (bytes.byteLength > MAX_TRANSFER_BYTES) throw new Error('Decompressed snapshot exceeds the 2 MB safety limit.');
