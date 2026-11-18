@@ -655,6 +655,8 @@ async function connectToEnteredServer(){
   await connectLocalServer();
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
+  document.querySelector('#join').disabled=false;
+  document.querySelector('#createLobby').disabled=false;
   updateCurrentRoomUI();
   log('Connected to '+address);
  }catch(error){alert('Could not connect to '+address+': '+error.message)}
