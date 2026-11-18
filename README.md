@@ -1,61 +1,81 @@
 # PixelPhyx
 
-PixelPhyx is a browser-based pixel physics and chemistry sandbox. Build worlds with falling particles, liquids, gases, reactions, explosions, ropes, and rigid-body props.
+PixelPhyx is a browser-based 2D pixel physics and chemistry sandbox featuring falling particles, liquids, gases, material reactions, explosions, ropes, rigid-body props, and multiplayer.
 
-## Play
+## Play online
 
 Production: https://jack105wa.github.io/PixelPhyx/
 
 Photon test preview: https://jack105wa.github.io/PixelPhyx/photon-test/
 
-The Photon preview is isolated from production and uses Photon Realtime for multiplayer.
+Photon WASM preview: https://jack105wa.github.io/PixelPhyx/photon-wasm/
 
-## Photon multiplayer
+The Photon previews are isolated from production. The WASM preview runs the migrated simulation engine compiled from Rust to WebAssembly.
 
-- Photon Realtime Core 6 handles browser connections, room discovery, room membership, and reliable gameplay events.
-- The room's Photon master client is the physics authority. Other clients render interpolated world snapshots instead of simulating a separate copy of the particle world.
-- Drawing, erasing, material placement, ropes, props, settings, pause/resume, and single-step requests are relayed through the room host.
-- Room hosts approve join requests. Photon automatically transfers master-client ownership if the host leaves.
-- World snapshots are compressed and chunked. Ropes use small, frequent state updates; prop state is sent only when it changes.
-- The browser SDK uses secure WebSockets and Photon Cloud relay. It does not provide direct LAN peer-to-peer transport.
+## Play offline
 
-The App ID in the browser code is a public Photon application identifier, not a secret. Photon usage, CCU limits, and billing are controlled in the [Photon Dashboard](https://dashboard.photonengine.com/).
+Download the standalone HTML edition from the [latest GitHub release](https://github.com/Jack105WA/PixelPhyx/releases/latest).
+
+The offline edition is generated from Website/ by Offline/build-offline.mjs. Local offline play does not require the online multiplayer services.
+
+## Multiplayer
+
+The Photon preview uses Photon Realtime Core 6 for browser connections, room discovery, room membership, and reliable gameplay events. The room's Photon master client is the physics authority; other clients render interpolated world snapshots instead of simulating a separate copy of the particle world.
+
+Drawing, erasing, material placement, ropes, props, settings, pause/resume, and single-step requests are relayed through the room host. Room hosts approve join requests, and Photon transfers master-client ownership if the host leaves. World snapshots are compressed and chunked; ropes use small, frequent state updates, and prop state is sent only when it changes.
+
+Photon uses secure WebSockets and Photon Cloud relay. It does not provide direct LAN peer-to-peer transport. The App ID in browser code is a public application identifier, not a secret. Usage, CCU limits, and billing are controlled in the [Photon Dashboard](https://dashboard.photonengine.com/).
 
 ## Controls
 
 - **Draw:** place the selected material.
+- **Line:** drag to draw a straight material line.
 - **Rope:** drag to create a rope; right-click to delete.
-- **Grab:** drag rope points or props.
 - **Props:** spawn cars, buckets, balls, crates, and barrels.
+- **Grab:** drag rope points or props.
+- **Erase:** remove particles.
+- **Box:** place a block of the selected material.
+- **Blast:** place TNT and ignite it with fire.
+- **Heat / Cool:** place fire or ice.
 - **Brush size:** use the slider or mouse wheel.
 - **Gravity:** adjust gravity strength.
-- **Simulation speed:** change the local simulation rate multiplier.
-- **Ambient temperature:** set the world temperature.
-- **Space:** pause or resume the shared simulation.
-- **Step:** advance one simulation step while paused (host-authoritative).
+- **Simulation speed:** change the simulation rate multiplier. The physics clock uses fixed simulation steps.
+- **Ambient temperature:** adjust the world temperature; heat and cold affect water and ice.
+- **Space:** pause or resume.
+- **Step:** advance one simulation step while paused in supported multiplayer sessions.
 - **Right click:** erase.
 - **Export PNG:** save an image of the current experiment.
 
-## Offline edition
+## Rust and WebAssembly
 
-The standalone offline edition is generated from the source in Website/ by Offline/build-offline.mjs.
+The Photon WASM branch moves performance-sensitive simulation and pixel-processing systems into Rust compiled to browser WebAssembly:
+
+- Physics force integration and particle movement/collisions.
+- Material reactions, chemistry, and heat simulation.
+- Rope constraints and rigid-body collision solving.
+- Canvas pixel rendering and rendering effects compositing.
+- Input coordinate mapping and brush rasterization.
+
+JavaScript continues to handle browser events, application orchestration, multiplayer integration, and drawing UI/entity overlays. The UI shell is written in TypeScript and compiled to browser-ready JavaScript.
+
+The WASM package is built during CI; generated package artifacts are not committed to the repository.
 
 ## GitHub Pages deployment
 
-The workflow in .github/workflows/pages.yml publishes:
-- main as the production site root.
-- server-migrate under /server-migrate/.
-- photon-test under /photon-test/.
+GitHub Pages must use **GitHub Actions** as its source in repository Settings → Pages.
 
-The Photon branch is syntax-checked before deployment. GitHub Pages must use **GitHub Actions** as its source in repository Settings → Pages.
+The workflow in .github/workflows/pages.yml:
+- Publishes main as the production site root.
+- Publishes server-migrate under /server-migrate/.
+- Publishes photon-test under /photon-test/.
+- Builds the Rust/WASM package and publishes photon-wasm under /photon-wasm/.
+- Rebuilds the standalone offline edition on main.
 
 ## Repository layout
 
 - Website/ contains the browser game and published site.
-- Website/js/main.js contains the existing sandbox and rendering integration.
-- Website/js/multiplayer.js connects the UI to Photon.
-- Website/js/photon-sync.js handles gameplay events and authoritative snapshots.
-- Website/js/photon-rooms.js handles Photon rooms, lobbies, and join approvals.
-- Website/js/photon-codec.js compresses and chunks world snapshots.
-- Server/ contains the retired Firebase backend files retained for reference; the Photon branch does not load them.
-- .github/workflows/ contains deployment automation.
+- Website/js/ contains the browser-side game, simulation integration, multiplayer, and UI modules.
+- Website/wasm/ contains the Rust source for the WebAssembly engine.
+- Offline/build-offline.mjs builds the standalone offline edition.
+- .github/workflows/ contains GitHub Actions automation.
+- Server/ contains backend and configuration files retained in the repository.
