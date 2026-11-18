@@ -151,19 +151,6 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
     }
    }
   }
-  if(m===M.ACID){
-   // Acid corrodes by contact over time. Each material has a different resistance.
-   const resistance={[M.SAND]:18,[M.PLANT]:24,[M.WOOD]:42,[M.STONE]:95,[M.GLASS]:125,[M.ICE]:10,[M.SALT]:8};
-   for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){
-    const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
-    const ni=index(nx,ny),other=cells[ni],limit=resistance[other];
-    if(limit){
-     corrosion[ni]+=other===M.SAND||other===M.SALT?1.2:.65;
-     if(corrosion[ni]>=limit){cells[ni]=M.EMPTY;corrosion[ni]=0;burn[ni]=0;heat[ni]=0;wet[ni]=0;fuel[ni]=0;age[ni]=0}
-    }
-   }
-   if(age[i]>1800){cells[i]=M.EMPTY;continue}
-  }
   if(m===M.SALT&&get(x,y+1)===M.WATER&&Math.random()<.04)cells[i]=M.EMPTY;
   if(m===M.STEAM&&Math.random()<.003)cells[i]=M.WATER;
   if(m===M.SMOKE&&Math.random()<.002)cells[i]=M.EMPTY;
