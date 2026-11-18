@@ -171,6 +171,7 @@ pub fn step_particles(
     // materials on the normal single movement pass.
     for pass in 0..3 {
         let pass_seed=seed.wrapping_add(pass*0x9E37_79B9);
+        for y in (0..height-1).rev() {
             let reverse=random(pass_seed,y,0x5A4D_5EC0)<0.5;
             for k in 0..width {
                 let x=if reverse {width-1-k}else{k};
@@ -201,6 +202,7 @@ pub fn step_particles(
                     }
                 }
             }
+        }
     }
     moves
 }
