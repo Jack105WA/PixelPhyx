@@ -71,3 +71,9 @@ pub fn step_rigid_bodies(state: &mut [f32], gravity: f32, dt: f32) {
 pub fn render_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u8],moving:&[u8],width:u32,height:u32)->Vec<u8>{
  render::render_frame(cells,wetness,heat,colors,moving,width as usize,height as usize)
 }
+
+/// Returns the final pixel frame with its glow layer composited in Rust.
+#[wasm_bindgen]
+pub fn render_composited_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u8],moving:&[u8],width:u32,height:u32)->Vec<u8>{
+ render::render_composited_frame(cells,wetness,heat,colors,moving,width as usize,height as usize)
+}
