@@ -75,9 +75,10 @@ export function createServerSync(state) {
 
   async function receiveSnapshot(senderNumber, chunk) {
     if (senderNumber !== room()?.masterClientNumber || !chunk ||
-        typeof chunk.id !== 'string' || !Number.isInteger(chunk.index) ||
-        !Number.isInteger(chunk.total) || chunk.total < 1 || chunk.total > 180 ||
-        !(chunk.bytes instanceof Uint8Array)) return;
+        typeof chunk.id !== 'string' || chunk.id.length > 64 ||
+        !Number.isInteger(chunk.index) || !Number.isInteger(chunk.total) ||
+        chunk.total < 1 || chunk.total > 8192 || chunk.index < 0 || chunk.index >= chunk.total ||
+        !(chunk.bytes instanceof Uint8Array) || chunk.bytes.byteLength > 64 * 1024) return;
     let transfer = transfers.get(chunk.id);
     if (!transfer) {
       if (transfers.size >= 3) {
