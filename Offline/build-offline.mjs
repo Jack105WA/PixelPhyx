@@ -57,7 +57,7 @@ const gameScript = [
   'const PixelPhyxUi=(()=>{', ui, 'return {initializeUiShell};', '})();',
   'const {initializeUiShell}=PixelPhyxUi;',
   '(async()=>{const firebaseConfig={};',
-  'const {stepMaterialPhysics,materialState,resetMaterialState}=PixelPhyxMaterial;',
+  'const {materialState,resetMaterialState}=PixelPhyxMaterial;',
   'const {createPhysicsEngine}=PixelPhyxEngine;',
   offlineMain,
   '})();',
