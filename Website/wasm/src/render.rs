@@ -78,12 +78,13 @@ pub fn render_composited_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u
  let bw=width.saturating_add(3)/4;
  let bh=height.saturating_add(3)/4;
  if bw==0||bh==0||combined.len()<frame_len+bw.saturating_mul(bh).saturating_mul(4){combined.truncate(frame_len);return combined}
+ let bloom=combined[frame_len..frame_len+bw*bh*4].to_vec();
  let sample=|x:f32,y:f32,c:usize|->f32{
   let x=x.clamp(0.0,(bw-1) as f32);let y=y.clamp(0.0,(bh-1) as f32);
   let x0=x.floor() as usize;let y0=y.floor() as usize;
   let x1=(x0+1).min(bw-1);let y1=(y0+1).min(bh-1);
   let fx=x-x0 as f32;let fy=y-y0 as f32;
-  let at=|xx:usize,yy:usize|combined[frame_len+(yy*bw+xx)*4+c] as f32;
+  let at=|xx:usize,yy:usize|bloom[(yy*bw+xx)*4+c] as f32;
   let top=at(x0,y0)*(1.0-fx)+at(x1,y0)*fx;
   let bottom=at(x0,y1)*(1.0-fx)+at(x1,y1)*fx;
   top*(1.0-fy)+bottom*fy
