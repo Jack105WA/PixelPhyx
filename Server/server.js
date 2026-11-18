@@ -196,7 +196,21 @@ function handle(client, message) {
       const created = { name, hostId: client.id, hostName: player.name, maxPlayers: settings.maxPlayers, players: new Map([[client.id, player]]), simulationToken: crypto.randomBytes(32).toString('hex') };
       rooms.set(name, created); client.room = name; client.number = player.number;
       send(client.socket, 'room-joined', { room: name, isHost: true, number: player.number, players: roomRoster(created) });
-      broadcastLobbies(); break;
+      broadcastLobbies();
+      launchSimulation(created).catch(error => {
+        console.error('Could not start simulation for ' + name + ':', error.message);
+        send(client.socket, 'error', { message: 'Could not start the headless simulation: ' + error.message });
+        const active = rooms.get(name);
+        if (active) {
+          for (const p of active.players.values()) {
+            const peer = clients.get(p.id);
+            if (peer) { peer.room = null; peer.approved = false; send(peer.socket, 'room-left', { reason: 'Simulation startup failed.' }); }
+          }
+          rooms.delete(name);
+          broadcastLobbies();
+        }
+      });
+      break;
     }
     case 'simulation-join': {
       const target=rooms.get(String(message.room||'').toUpperCase());
