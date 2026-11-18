@@ -135,7 +135,15 @@ function createClient() {
       client.send('identity', { name: properties.name, color: properties.color }); client.emit('playerPropertiesChanged');
     },
     sendEvent(code, data, options = {}) { return client.send('event', { code, data, reliable: options.reliable, receivers: options.receivers, targetPlayers: options.targetPlayers }); },
-    async connectSimulation(roomName, token) {\n      const result = await client.waitFor('room-joined', () => client.send('simulation-join', { room: roomName, token }));\n      return result.room;\n    },\n    async createRoom() {
+    async connectSimulation(roomName, token) {
+      const result = await client.waitFor('room-joined', () => client.send('simulation-join', { room: roomName, token }));
+      return result.room;
+    },
+    async connectSimulation(roomName, token) {
+      const result = await client.waitFor('room-joined', () => client.send('simulation-join', { room: roomName, token }));
+      return result.room;
+    },
+    async createRoom() {
       const result = await client.waitFor('room-joined', () => client.send('create-room', { name: client.localPlayer?.name || 'Lab guest', color: client.localPlayer?.customProperties?.color || '#65d6ad' }));
       return { name: result.room };
     },
