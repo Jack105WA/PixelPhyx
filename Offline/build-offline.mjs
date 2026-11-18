@@ -29,12 +29,16 @@ if (mainStart === mainSource) throw new Error('Could not remove module imports f
 const offlineMain = mainStart.replace(
   "const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));",
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
-);
+).replace(/\blocalStorage\.getItem\(/g, 'offlineReadSetting(')
+ .replace(/\blocalStorage\.setItem\(/g, 'offlineWriteSetting(');
 if (offlineMain === mainStart) throw new Error('Could not replace multiplayer import.');
 
 const gameScript = [
   '/* Generated from main.js and the physics modules. */',
   'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
+  'const offlineStorage=(()=>{try{return window.localStorage}catch{return null}})();',
+  'const offlineReadSetting=key=>{try{return offlineStorage?.getItem(key)||null}catch{return null}};',
+  'const offlineWriteSetting=(key,value)=>{try{offlineStorage?.setItem(key,value)}catch(error){console.info("Offline preferences could not be saved.",error)}};',
   'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
   'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
   'const PixelPhyxRenderer=(()=>{', renderer, 'return {drawObjectBodies};', '})();',
@@ -70,8 +74,54 @@ builtHtml = builtHtml
   .replace('cursor:none', 'cursor:crosshair')
   .replace('const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];', 'const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];')
   .replace(/<script>\s*\(\(\s*\)\s*=>\s*\{[\s\S]*?<\/script>\s*/, '');
+// The downloadable entrypoint must itself contain the complete game. A file:// page
+// cannot fetch a sibling HTML file, and an online updater defeats offline use.
+builtHtml = builtHtml
+  .replace('<div class="brandtag">ONLINE PHYSICS LAB</div>', '<div class="brandtag">OFFLINE PHYSICS LAB</div>')
+  .replace('<title>PixelPhyx — Online Physics Lab</title>', '<title>PixelPhyx — Offline Physics Lab</title>')
+  .replace('name="description" content="A multiplayer pixel physics and chemistry sandbox. Build, experiment, and break things together."', 'name="description" content="A standalone offline pixel physics and chemistry sandbox. Save and load your experiments locally."')
+  .replace('<button class="btn" id="save">Export PNG</button>', '<button class="btn" id="save">Export PNG</button>');
+if (!builtHtml.includes('id="saveWorld"')) builtHtml = builtHtml.replace('<button class="btn" id="save">Export PNG</button>', '<button class="btn" id="save">Export PNG</button><button class="btn" id="saveWorld" type="button">Save World</button><button class="btn" id="loadWorld" type="button">Load World</button><input id="loadWorldFile" type="file" accept="application/json,.json" hidden>');
+builtHtml = builtHtml.replace(/<script id="pixelphyx-offline-updater">[\s\S]*?<\/script>\s*/i, '');
+const persistenceCode = String.raw`
+// Local world files preserve pixels, material state, props, ropes and simulation settings.
+const saveWorldButton=document.querySelector('#saveWorld');
+const loadWorldButton=document.querySelector('#loadWorld');
+const loadWorldFile=document.querySelector('#loadWorldFile');
+saveWorldButton.addEventListener('click',()=>{
+ const snapshot=serialize();
+ snapshot.format='pixelphyx-world';snapshot.version=1;
+ snapshot.ropes=ropes.map(rope=>({id:rope.id,points:rope.points.map(p=>[p.x,p.y,!!p.anchor])}));
+ const blob=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download='pixelphyx-world.json';link.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+loadWorldButton.addEventListener('click',()=>loadWorldFile.click());
+loadWorldFile.addEventListener('change',async()=>{
+ const file=loadWorldFile.files?.[0];if(!file)return;
+ try{
+  if(file.size>12*1024*1024)throw new Error('World file is too large (12 MB maximum).');
+  const snapshot=JSON.parse(await file.text());
+  if(snapshot?.format!=='pixelphyx-world'||snapshot.version!==1||typeof snapshot.cells!=='string')throw new Error('This is not a supported PixelPhyx world file.');
+  const imported={...snapshot,by:'offline-file',updatedAt:Date.now()+1};
+  if(!applyWorld(imported))throw new Error('The world data could not be loaded.');
+  applyRopeState({by:'offline-file',ropes:Array.isArray(snapshot.ropes)?snapshot.ropes:[]});
+  running=snapshot.running!==false;
+  document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Play';
+  render();log('World loaded from '+file.name);
+ }catch(error){alert('Could not load world: '+error.message);log('World load failed: '+error.message)}
+ finally{loadWorldFile.value=''}
+});
+`;
+const closingIife = /\n\}\)\(\);\s*$/;
+if (!closingIife.test(offlineGameScript)) throw new Error('Could not find the offline game entrypoint.');
+const finalGameScript=offlineGameScript.replace(closingIife, '\n'+persistenceCode+'\n})();');
+new vm.Script(finalGameScript, { filename: 'offline-game.js' });
+builtHtml = builtHtml.replace(/<script>\n[\s\S]*?<\/script>/i, '<script>\n'+finalGameScript+'\n</script>');
 await Promise.all([
   writeFile(offlineDir + 'offline.html', builtHtml, 'utf8'),
-  writeFile(websiteDir + 'offline.html', builtHtml, 'utf8')
+  writeFile(websiteDir + 'offline.html', builtHtml, 'utf8'),
+  writeFile(offlineDir + 'PixelPhyx-Offline.html', builtHtml, 'utf8')
 ]);
-console.log('Built offline.html with the unified physics engine.');
+console.log('Built fully standalone offline game with local world save/load.');
