@@ -1,14 +1,12 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem, setRigidBodyWasmStep }, { createWasmEngine }, { initializeUiShell }] = await Promise.all([
+const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createWasmEngine }, { initializeUiShell }] = await Promise.all([
   import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`),
-  import(`./objects.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./wasm-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./ui.js?v=${encodeURIComponent(cacheVersion)}`)
 ]);
 const wasmEngine = await createWasmEngine();
-setRigidBodyWasmStep(wasmEngine.step_rigid_bodies);
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
@@ -71,11 +69,10 @@ function selectTool(id,button){tool=id;document.querySelectorAll('.tool').forEac
 const matEl=document.querySelector('#materials');
 materials.forEach(m=>{const b=document.createElement('button');b.className='material'+(m.id===selected?' active':'');b.innerHTML='<span class="mico" style="color:'+m.color+'">'+m.icon+'</span><span class="mname">'+m.name+'</span>';b.title=m.name+' · '+m.type;b.onclick=()=>{selected=m.id;document.querySelectorAll('.material').forEach(x=>x.classList.remove('active'));b.classList.add('active')};matEl.append(b)});
 document.querySelector('#materialCount').textContent=materials.length+' TYPES';
-document.querySelectorAll('[data-prop]').forEach(button=>button.addEventListener('click',()=>{const type=button.dataset.prop;const item=objectSystem.spawn(type,W/2,Math.max(12,H*.22));if(item){publishOperation({type:'propAdd',kind:type,id:item.id,x:item.x,y:item.y});log(type.charAt(0).toUpperCase()+type.slice(1)+' spawned')}}));
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
- cells=new Uint8Array(N);updated=new Uint8Array(N);movementBlocks=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem?.clear();frameImage=ctx.createImageData(W,H);
+ cells=new Uint8Array(N);updated=new Uint8Array(N);movementBlocks=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#canvasSize').title='Current resolution: '+W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
@@ -114,7 +111,6 @@ canvas.parentElement.addEventListener('pointerdown',e=>{
  const p=canvasPoint(e);if(!inside(p.x,p.y))return;
  if(tool==='rope'&&e.button===2){e.preventDefault();const hit=findRopeAt(p);if(hit){ropes=ropes.filter(r=>r.id!==hit.id);publishOperation({type:'ropeDelete',ropeId:hit.id});log('Rope deleted')}return}
  if(tool==='grab'&&e.button===0){
-  if(objectSystem.grabAt(p.x+.5,p.y+.5)){drawing=true;canvas.parentElement.setPointerCapture(e.pointerId);return}
   const hit=findRopeGrab(p);
   if(hit){ropeDrag={kind:'rope',...hit,wasAnchor:hit.node.anchor};hit.node.anchor=true;hit.node.x=p.x;hit.node.y=p.y;hit.node.px=p.x;hit.node.py=p.y;drawing=true;canvas.parentElement.setPointerCapture(e.pointerId);ropeDrag.lastX=p.x;ropeDrag.lastY=p.y;ropeDrag.lastTime=performance.now();ropeDrag.velocityX=0;ropeDrag.velocityY=0;log('Rope grabbed — pull to move it')}
   return;
@@ -124,7 +120,6 @@ canvas.parentElement.addEventListener('pointerdown',e=>{
 });
 canvas.parentElement.addEventListener('pointermove',e=>{
  const p=canvasPoint(e);
- if(objectSystem.dragging){objectSystem.moveGrab(p.x+.5,p.y+.5);return}
  if(ropeDrag){const {node,rope,nodeIndex}=ropeDrag;const now=performance.now(),elapsed=Math.max(1,now-(ropeDrag.lastTime||now)),scale=Math.min(2,16.667/elapsed);ropeDrag.velocityX=Math.max(-8,Math.min(8,(p.x-ropeDrag.lastX)*scale));ropeDrag.velocityY=Math.max(-8,Math.min(8,(p.y-ropeDrag.lastY)*scale));ropeDrag.lastX=p.x;ropeDrag.lastY=p.y;ropeDrag.lastTime=now;if(!node.dragMoved){node.sx=node.x;node.sy=node.y;node.ox=node.x;node.oy=node.y;node.dragMoved=true}node.x=p.x;node.y=p.y;node.px=p.x;node.py=p.y;return}
  if(tool==='leafblower'&&drawing){const dx=p.x-lastPoint.x,dy=p.y-lastPoint.y,distance=Math.hypot(dx,dy);if(distance>.35){leafblower.dx=dx/distance;leafblower.dy=dy/distance}leafblower.x=p.x;leafblower.y=p.y;lastPoint=p;const now=performance.now();if(now-leafblower.lastPublish>=33){leafblower.lastPublish=now;multiplayer?.publishLeafblower({active:true,x:p.x,y:p.y,dx:leafblower.dx,dy:leafblower.dy})}return}
  if(!drawing)return;
@@ -132,14 +127,13 @@ canvas.parentElement.addEventListener('pointermove',e=>{
  if(tool==='rope'){lastPoint=p;return}act(p,e);protectStrokePoint(p);publishStrokeBatch(false)
 });
 canvas.parentElement.addEventListener('pointerup',e=>{
- if(objectSystem.dragging){objectSystem.releaseGrab();drawing=false;return}
  if(ropeDrag){const {rope,node,nodeIndex}=ropeDrag;node.anchor=ropeDrag.wasAnchor;if(!node.anchor){node.px=node.x-ropeDrag.velocityX;node.py=node.y-ropeDrag.velocityY}publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,vx:ropeDrag.velocityX,vy:ropeDrag.velocityY,predicted:false});ropeDrag=null;drawing=false;return}
  if(tool==='leafblower'){leafblower.active=false;drawing=false;lastPoint=null;return}
  if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){const created=createRope(ropeStart,end);if(created)publishOperation({type:'rope',ropeId:created.id,a:ropeStart,b:end})}ropeStart=null}
  else if(strokePoints.length){publishStrokeBatch(true);activeStrokeMeta=null}
  drawing=false;activeErase=false;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0
 });
-canvas.parentElement.addEventListener('pointercancel',()=>{if(objectSystem.dragging)objectSystem.releaseGrab();if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0;activeErase=false});
+canvas.parentElement.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0;activeErase=false});
 canvas.parentElement.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
@@ -154,31 +148,7 @@ function createRope(a,b,ropeId=newRopeId()){
 }
 function newRopeId(){return 'rope-'+(globalThis.crypto?.randomUUID?.()||Math.random().toString(36).slice(2)+Date.now().toString(36))}
 const physicsEngine=createPhysicsEngine();
-function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
- if(!inside(x,y))return false;
- const from=idx(x,y),material=cells[from];
- if(!material||![M.SAND,M.WATER,M.FIRE,M.OIL,M.ACID,M.STEAM,M.SMOKE,M.LAVA,M.SALT,M.CHARCOAL].includes(material))return false;
- // nx/ny point from the body into the particle; move it farther along that normal.
- const primary=[Math.abs(nx)>=Math.abs(ny)?[Math.sign(nx),0]:[0,Math.sign(ny)],[0,-1],[-1,0],[1,0],[0,1]];
- const unique=new Set();
- for(const [dx,dy] of primary){
-  if(!dx&&!dy)continue;
-  const tx=x+dx,ty=y+dy;if(!inside(tx,ty))continue;
-  const to=idx(tx,ty);if(unique.has(to))continue;unique.add(to);
-  if(cells[to]!==M.EMPTY)continue;
-  cells[to]=material;cells[from]=M.EMPTY;
-  for(const key of ['wetness','heat','fuel','burn','age','corrosion']){
-   const state=materialState[key];if(state){state[to]=state[from];state[from]=0}
-  }
-  particleVelocityX[to]=Math.max(-12,Math.min(12,(bodyVx||0)*.32+dx*.65));
-  particleVelocityY[to]=Math.max(-12,Math.min(12,(bodyVy||0)*.32+dy*.65));
-  particleVelocityX[from]=particleVelocityY[from]=0;
-  recordParticleMove(from,to,material);return true;
- }
- return false;
-}
-const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
-function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)||objectSystem.blocksParticleMove(x1,y1,x2,y2)}
+function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)}
 
 function wasmRandom(seed,index,salt){
  let value=(seed^Math.imul(index,0x9E3779B9)^salt)>>>0;
@@ -189,7 +159,7 @@ function wasmRandom(seed,index,salt){
 }
 function buildMovementBlocks(seed){
  movementBlocks.fill(0);
- if(!ropes.length&&!objectSystem.count)return;
+ if(!ropes.length)return;
  const movable=m=>m===1||m===2||m===6||m===7||m===11||m===14||m===16;
  const canSwap=(m,target)=>target===M.EMPTY||(m===M.SAND&&(target===M.WATER||target===M.OIL));
  for(let i=0;i<N;i++){
@@ -309,7 +279,7 @@ function drawVisualParticles(){
  }
  ctx.globalAlpha=1;
 }
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();const seed=++simulationTick;buildMovementBlocks(seed);const moveTriples=wasmEngine.step_particles(cells,updated,particleVelocityX,particleVelocityY,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,movementBlocks,W,H,gravity,seed);
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();const seed=++simulationTick;buildMovementBlocks(seed);const moveTriples=wasmEngine.step_particles(cells,updated,particleVelocityX,particleVelocityY,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,movementBlocks,W,H,gravity,seed);
  for(let move=0;move+2<moveTriples.length;move+=3)recordParticleMove(moveTriples[move],moveTriples[move+1],moveTriples[move+2],false);
  for(let i=0;i<N;i++){const m=cells[i];if(!m)continue;const x=i%W,y=(i/W)|0;
   if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
@@ -421,7 +391,6 @@ function render(){
  drawInterpolatedCells();
  drawAirborneParticles();
  drawVisualParticles();
- objectSystem.draw(ctx);
  ctx.lineCap='round';ctx.lineJoin='round';
  for(const rope of ropes){const p=rope.points;if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x+.5,p[0].y+.5);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x+.5,p[i].y+.5);ctx.strokeStyle='#c69b6b';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#f1d2a4';ctx.lineWidth=.7;ctx.stroke()}
   for(const [id,target] of Object.entries(remoteCursorTargets)){
@@ -460,7 +429,7 @@ function render(){
  if(particleCountElement)particleCountElement.textContent=count.toLocaleString();if(particleHudElement)particleHudElement.textContent=count.toLocaleString()+' PARTICLES';if(ropeCountElement)ropeCountElement.textContent=ropes.length;if(gravityReadElement)gravityReadElement.textContent=gravity.toFixed(1)+'×';
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=8;
-let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,lastPropPublish=0;
+let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0;
  function loop(now){
   if(now-lastAirTemperatureUpdate>=250){lastAirTemperatureUpdate=now;updateCurrentAirTemperature()}
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
@@ -474,7 +443,6 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
   if(now-lastWorldPublish>=syncInterval){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
   if(now-lastRopePublish>=200){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
- if(multiplayer?.joined&&multiplayer.isHost&&now-lastPropPublish>=300){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
  render();requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -486,7 +454,7 @@ document.querySelector('#canvasSize').title='Current resolution: '+W+' × '+H;
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size});else e.target.title='Current resolution: '+W+' × '+H});
 document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';publishOperation({type:'simulation',running})};
 document.querySelector('#step').onclick=()=>{if(!running){if(multiplayer?.joined&&!multiplayer.isHost)publishOperation({type:'simulationStep'});else{tick();rebuildCellInterpolation();cellRenderAlpha=0;render();publishOperation({type:'simulationStep'})}}};
-document.querySelector('#clear').onclick=()=>{cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);movingParticles.length=0;airborneParticles.length=0;snapshotMoves.clear();movingDestinations.fill(0);moveByDestination.fill(-1);visualParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear();publishOperation({type:'clear'});render();log('World cleared')};
+document.querySelector('#clear').onclick=()=>{cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);movingParticles.length=0;airborneParticles.length=0;snapshotMoves.clear();movingDestinations.fill(0);moveByDestination.fill(-1);visualParticles.length=0;resetMaterialState(N);ropes=[];publishOperation({type:'clear'});render();log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
 
 document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#brushOut').textContent=brush+' px'};
@@ -534,7 +502,6 @@ async function connectPhoton(){
       onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
       getWorld:()=>serialize(),
       getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
-      getProps:()=>objectSystem.serialize(),
       onPlayers:renderPlayers,
       onJoinRequest:request=>queueJoinRequest(request)
      });
@@ -644,7 +611,7 @@ function encodeCells(data){let raw='';for(let i=0;i<data.length;i+=0x8000)raw+=S
 function decodeCells(value,packed=false,rle=false){if(Array.isArray(value))return Uint8Array.from(value);const raw=atob(value);if(rle){const out=new Uint8Array(N);let offset=0;for(let i=0;i+1<raw.length;i+=2){const count=raw.charCodeAt(i),material=raw.charCodeAt(i+1);if(!count||offset+count>N)throw new Error('Invalid compressed world snapshot');out.fill(material,offset,offset+count);offset+=count}if(offset!==N)throw new Error('Incomplete compressed world snapshot');return out}if(packed){const out=new Uint8Array(raw.length*2);for(let i=0;i<raw.length;i++){const byte=raw.charCodeAt(i);out[i*2]=byte&15;out[i*2+1]=byte>>4}return out}const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
 function encodeMaterialField(values,scale=1){const bytes=new Uint8Array(values.length);for(let i=0;i<values.length;i++)bytes[i]=Math.max(0,Math.min(255,Math.round(values[i]*scale)));let raw='';for(let i=0;i<bytes.length;i+=0x8000)raw+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(raw)}
 function decodeMaterialField(value,target,scale=1){if(typeof value!=='string')return;try{const raw=atob(value);if(raw.length!==target.length)return;for(let i=0;i<raw.length;i++)target[i]=raw.charCodeAt(i)/scale}catch{}}
-function serialize(){const moves=Array.from(snapshotMoves.values(),p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]);snapshotMoves.clear();return{width:W,height:H,canvasSize,simulationTick,cells:encodeCells(cells),packed:false,moves,airborne:airborneParticles.slice(0,5000).map(p=>[p.x,p.y,p.vx,p.vy,p.material,p.wetness,p.heat,p.fuel,p.burn,p.age,p.corrosion]),props:objectSystem.serialize(),materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},gravity,ambient,running,updatedAt:Date.now(),by:playerId}}
+function serialize(){const moves=Array.from(snapshotMoves.values(),p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]);snapshotMoves.clear();return{width:W,height:H,canvasSize,simulationTick,cells:encodeCells(cells),packed:false,moves,airborne:airborneParticles.slice(0,5000).map(p=>[p.x,p.y,p.vx,p.vy,p.material,p.wetness,p.heat,p.fuel,p.burn,p.age,p.corrosion]),materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},gravity,ambient,running,updatedAt:Date.now(),by:playerId}}
 function applyRopeState(data){
  if(!data||data.by===playerId||!Array.isArray(data.ropes))return;
  const next=[];
@@ -667,7 +634,7 @@ function applyRopeState(data){
  }
  ropes=next;
 }
-function applyWorld(data){if(!data||data.by===playerId)return true;const snapshotAt=Number.isFinite(data.updatedAt)?data.updatedAt:0;if(snapshotAt&&snapshotAt<=lastAppliedSnapshotAt)return false;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed,!!data.rle)}catch(e){return false}if(incoming.length!==N)return false;if(snapshotAt)lastAppliedSnapshotAt=snapshotAt;if(Number.isInteger(data.simulationTick))simulationTick=data.simulationTick;lastRemoteWorldAt++;remoteSnapshotReceivedAt=performance.now();remoteSnapshotInterval=N>100000?1000:N>30000?750:500;remoteApplying=true;const now=performance.now(),isPredicting=multiplayer?.joined&&!multiplayer.isHost;for(let i=0;i<N;i++){const protectedEdit=protectedStrokeCells.get(i);if(protectedEdit&&protectedEdit.until>now){incoming[i]=protectedEdit.material;continue}if(protectedEdit)protectedStrokeCells.delete(i);if(isPredicting&&movingDestinations[i]&&cells[i]!==M.EMPTY){incoming[i]=cells[i];continue}if(incoming[i]===M.EMPTY){particleVelocityX[i]=0;particleVelocityY[i]=0}}cells.set(incoming);airborneParticles=Array.isArray(data.airborne)?data.airborne.slice(0,5000).filter(p=>Array.isArray(p)&&p.length>=5&&p.slice(0,5).every(Number.isFinite)&&p[4]>0&&p[4]<=16&&p[0]>=0&&p[0]<W&&p[1]>=0&&p[1]<H).map(p=>({x:p[0],y:p[1],vx:p[2],vy:p[3],material:p[4],wetness:p[5]||0,heat:p[6]||0,fuel:p[7]||0,burn:p[8]||0,age:p[9]||0,corrosion:p[10]||0,sleep:0})):[];movingParticles=multiplayer?.joined&&!multiplayer.isHost?[]:(Array.isArray(data.moves)?data.moves.slice(0,W*H).filter(p=>Array.isArray(p)&&p.length>=5&&p.every(Number.isFinite)&&inside(p[0],p[1])&&inside(p[2],p[3])&&p[4]>0&&p[4]<=16).map(p=>({fromX:p[0],fromY:p[1],toX:p[2],toY:p[3],toIndex:idx(p[2],p[3]),material:p[4]})):[]);moveByDestination.fill(-1);rebuildCellInterpolation();if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.props))objectSystem.restore(data.props);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;if(typeof data.running==='boolean'){running=data.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';}document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false;return true}
+function applyWorld(data){if(!data||data.by===playerId)return true;const snapshotAt=Number.isFinite(data.updatedAt)?data.updatedAt:0;if(snapshotAt&&snapshotAt<=lastAppliedSnapshotAt)return false;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed,!!data.rle)}catch(e){return false}if(incoming.length!==N)return false;if(snapshotAt)lastAppliedSnapshotAt=snapshotAt;if(Number.isInteger(data.simulationTick))simulationTick=data.simulationTick;lastRemoteWorldAt++;remoteSnapshotReceivedAt=performance.now();remoteSnapshotInterval=N>100000?1000:N>30000?750:500;remoteApplying=true;const now=performance.now(),isPredicting=multiplayer?.joined&&!multiplayer.isHost;for(let i=0;i<N;i++){const protectedEdit=protectedStrokeCells.get(i);if(protectedEdit&&protectedEdit.until>now){incoming[i]=protectedEdit.material;continue}if(protectedEdit)protectedStrokeCells.delete(i);if(isPredicting&&movingDestinations[i]&&cells[i]!==M.EMPTY){incoming[i]=cells[i];continue}if(incoming[i]===M.EMPTY){particleVelocityX[i]=0;particleVelocityY[i]=0}}cells.set(incoming);airborneParticles=Array.isArray(data.airborne)?data.airborne.slice(0,5000).filter(p=>Array.isArray(p)&&p.length>=5&&p.slice(0,5).every(Number.isFinite)&&p[4]>0&&p[4]<=16&&p[0]>=0&&p[0]<W&&p[1]>=0&&p[1]<H).map(p=>({x:p[0],y:p[1],vx:p[2],vy:p[3],material:p[4],wetness:p[5]||0,heat:p[6]||0,fuel:p[7]||0,burn:p[8]||0,age:p[9]||0,corrosion:p[10]||0,sleep:0})):[];movingParticles=multiplayer?.joined&&!multiplayer.isHost?[]:(Array.isArray(data.moves)?data.moves.slice(0,W*H).filter(p=>Array.isArray(p)&&p.length>=5&&p.every(Number.isFinite)&&inside(p[0],p[1])&&inside(p[2],p[3])&&p[4]>0&&p[4]<=16).map(p=>({fromX:p[0],fromY:p[1],toX:p[2],toY:p[3],toIndex:idx(p[2],p[3]),material:p[4]})):[]);moveByDestination.fill(-1);rebuildCellInterpolation();if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;if(typeof data.running==='boolean'){running=data.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';}document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false;return true}
 async function joinRoom(code,approved=false){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
@@ -696,7 +663,7 @@ function renderPlayers(people){
   d.append(av,nm,you);el.append(d);
  }
 }
-function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='props'||op.type==='propAdd'||op.type==='propDelete'){objectSystem.apply(op)}else if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear()}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='simulation'&&typeof op.running==='boolean'){running=op.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';}else if(op.type==='simulationStep'){if(multiplayer?.isHost&&!running){tick();rebuildCellInterpolation();cellRenderAlpha=0}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.ox=node.x;node.oy=node.y;node.dragMoved=true;node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
+function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles.length=0;resetMaterialState(N);ropes=[]}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='simulation'&&typeof op.running==='boolean'){running=op.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';}else if(op.type==='simulationStep'){if(multiplayer?.isHost&&!running){tick();rebuildCellInterpolation();cellRenderAlpha=0}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.ox=node.x;node.oy=node.y;node.dragMoved=true;node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
 let localCursor=null;
 canvas.parentElement.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;localCursor=p});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
