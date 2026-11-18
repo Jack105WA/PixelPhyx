@@ -448,18 +448,16 @@ function openCustomMaterialEditor(existing=null){
  const modal=document.createElement('div');modal.className='modal open';const dialog=document.createElement('form');dialog.className='dialog custom-material-dialog';
  const m=existing||{name:'',icon:'',color:'#b58cff',type:'Metallic',state:'solid',density:1,flammable:false,affectedByGravity:true,particles:[]};
  const particleChoices=getCustomParticleChoices(existing?.id);
- dialog.innerHTML='<h2></h2><div class="custom-form-grid"> <div class="control full"><label>Name</label><input name="name" type="text" maxlength="24" required></div> <div class="control"><label>Icon <span class="muted">Optional</span></label><input name="icon" type="text" maxlength="4"></div> <div class="control"><label>Color</label><input name="color" type="color"></div> <div class="control full"><label>Weight / Density <output id="customDensityOut"></output></label><input id="customDensity" name="density" type="range" min="0" max="3" step="0.1"></div> <div class="control"><label>Type</label><select name="type"><option>Metallic</option><option>Wood</option><option>Stone</option><option>Organic</option><option>Plastic</option><option>Other</option></select></div> <div class="control"><label>State</label><select name="state"><option value="solid">Solid</option><option value="liquid">Liquid</option><option value="gas">Gas</option></select></div> <div class="control full"><label>Properties</label><div class="custom-properties"><label><input type="checkbox" name="flammable"> Flammable</label><label><input type="checkbox" name="affectedByGravity"> Affected by gravity</label></div></div> <div class="control full"><label>Particles</label><div class="custom-particle-picker"><select id="customParticleChoice"><option value="">Select a particle…</option></select><button class="btn" type="button" id="addCustomParticle">Add particle</button></div><div id="customParticleList" class="custom-particle-list"></div></div></div> <div class="dialog-actions"><button class="btn ghost" type="button" data-cancel>Cancel</button><button class="btn primary" type="submit"></button></div>';
- const heading=dialog.querySelector('h2');
- heading.textContent=existing?'Edit Material':'Create Material';
- const submitButton=dialog.querySelector('button[type="submit"]');
- submitButton.textContent=existing?'Save Changes':'Create Material';
- const particleSelect=dialog.querySelector('#customParticleChoice');
- for(const particle of particleChoices){
-  const option=document.createElement('option');
-  option.value=String(particle.id);
-  option.textContent=(particle.icon||'')+' '+particle.name;
-  particleSelect.append(option);
- }
+ dialog.innerHTML=`<h2>${existing?'Edit Material':'Create Material'}</h2><div class="custom-form-grid">
+ <div class="control full"><label>Name</label><input name="name" type="text" maxlength="24" required></div>
+ <div class="control"><label>Icon <span class="muted">Optional</span></label><input name="icon" type="text" maxlength="4"></div>
+ <div class="control"><label>Color</label><input name="color" type="color"></div>
+ <div class="control full"><label>Weight / Density <output id="customDensityOut"></output></label><input id="customDensity" name="density" type="range" min="0" max="3" step="0.1"></div>
+ <div class="control"><label>Type</label><select name="type"><option>Metallic</option><option>Wood</option><option>Stone</option><option>Organic</option><option>Plastic</option><option>Other</option></select></div>
+ <div class="control"><label>State</label><select name="state"><option value="solid">Solid</option><option value="liquid">Liquid</option><option value="gas">Gas</option></select></div>
+ <div class="control full"><label>Properties</label><div class="custom-properties"><label><input type="checkbox" name="flammable"> Flammable</label><label><input type="checkbox" name="affectedByGravity"> Affected by gravity</label></div></div>
+ <div class="control full"><label>Particles</label><div class="custom-particle-picker"><select id="customParticleChoice"><option value="">Select a particle…</option>${particleChoices.map(p=>'<option value="'+p.id+'">'+p.icon+' '+p.name+'</option>').join('')}</select><button class="btn" type="button" id="addCustomParticle">Add particle</button></div><div id="customParticleList" class="custom-particle-list"></div></div></div>
+ <div class="dialog-actions"><button class="btn ghost" type="button" data-cancel>Cancel</button><button class="btn primary" type="submit">${existing?'Save Changes':'Create Material'}</button></div>`;
  modal.append(dialog);document.body.append(modal);dialog.elements.name.value=m.name;dialog.elements.icon.value=m.icon||'';dialog.elements.color.value=m.color||'#b58cff';dialog.elements.density.value=Number(m.density??1);dialog.elements.type.value=m.type||'Other';dialog.elements.state.value=m.state||'solid';dialog.elements.flammable.checked=!!m.flammable;dialog.elements.affectedByGravity.checked=m.affectedByGravity!==false;
  let particles=[...new Set(m.particles||[])];const list=dialog.querySelector('#customParticleList'),density=dialog.querySelector('#customDensity');
  const paint=()=>{list.replaceChildren();if(!particles.length){const e=document.createElement('span');e.className='muted';e.textContent='No particles added';list.append(e)}for(const id of particles){const p=particleChoices.find(x=>x.id===id);if(!p)continue;const chip=document.createElement('span');chip.className='custom-particle-chip';chip.textContent=p.icon+' '+p.name;const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.addEventListener('click',()=>{particles=particles.filter(x=>x!==id);paint()});chip.append(remove);list.append(chip)}};
