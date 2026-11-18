@@ -665,7 +665,7 @@ async function connectToEnteredServer(){
 document.querySelector('#connectServer').onclick=connectToEnteredServer;
 function renderLobbyGallery(lobbies){
  const gallery=document.querySelector('#lobbyGallery');
- document.querySelector('#lobbyCapacity').textContent=lobbies.length+' servers listed';
+ document.querySelector('#lobbyCapacity').textContent=lobbies.length+' lobbies listed';
  gallery.replaceChildren();
  if(!lobbies.length){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No active servers yet. Create one to become the host.';gallery.append(empty);return}
  for(const lobby of lobbies){
