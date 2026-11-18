@@ -2,6 +2,7 @@ mod chemistry;
 mod engine;
 mod grid;
 mod render;
+mod ropes;
 
 use wasm_bindgen::prelude::*;
 pub use engine::World;
@@ -54,3 +55,6 @@ pub fn step_particles(
 )->Vec<u32>{
     grid::step_particles(cells,updated,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,width as usize,height as usize,gravity,seed)
 }
+
+#[wasm_bindgen]
+pub fn step_ropes(x:&mut[f32],y:&mut[f32],px:&mut[f32],py:&mut[f32],ox:&mut[f32],oy:&mut[f32],anchors:&[u8],drag:&[u8],offsets:&[u32],lengths:&[f32],cells:&[u8],width:u32,height:u32,gravity:f32){ropes::step_ropes(x,y,px,py,ox,oy,anchors,drag,offsets,lengths,cells,width as usize,height as usize,gravity);}
