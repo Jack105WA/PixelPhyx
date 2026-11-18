@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
  "$ErrorActionPreference='Stop'; $base='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/local-server/Server';" ^
  "$updateAll=$false;" ^
  "try { $remote=Invoke-RestMethod ($base+'/version.json'); if(Test-Path 'version.json') { $local=Get-Content 'version.json' -Raw | ConvertFrom-Json; if($remote.version -ne $local.version) { $updateAll=$true; Write-Host ('Updating server to '+$remote.version) } } else { $updateAll=$true } } catch { Write-Host 'Version check unavailable; repairing missing files only.' }" ^
- "$required=@('server.js','download-website.js','package.json','version.json','Start Server.bat','README.md');" ^
+ "$required=@('server.js','download-website.js','package.json','version.json','README.md');" ^
  "foreach($f in $required) {" ^
  "  if($updateAll -or !(Test-Path -LiteralPath $f)) {" ^
  "    $tmp=$f+'.download'; Invoke-WebRequest -UseBasicParsing ($base+'/'+[uri]::EscapeDataString($f)) -OutFile $tmp; Move-Item -Force $tmp $f; Write-Host ('Installed '+$f)" ^
