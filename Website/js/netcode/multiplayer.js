@@ -66,7 +66,7 @@ function createClient() {
         let settled = false;
         const saved = localStorage.getItem('pixelphyx-server-address') || '';
         const url = saved ? saved.replace(/\/$/, '') + '/pixelphyx' :
-          (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.hostname + ':3000/pixelphyx';
+          (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/pixelphyx';
         try { socket = new WebSocket(url); } catch (error) { reject(error); return; }
         const timeout = setTimeout(() => { if (!settled) { settled = true; socket.close(); reject(new Error('Connection timed out. Check the server address and port.')); } }, 10000);
         socket.addEventListener('open', () => { client.isConnected = true; });
@@ -201,7 +201,8 @@ export function createMultiplayer(callbacks = {}) {
     finally { sync.dispose(); state.client?.dispose(); state.client = null; state.roomName = ''; state.approvedPlayers.clear(); state.report('', 'DISCONNECTED'); }
   }
   return {
-    connect, createLobby: rooms.createLobby, joinRoom: rooms.joinRoom, requestJoin: rooms.requestJoin,
+    connect, connectSimulation: (roomName, token) => state.client.connectSimulation(roomName, token),
+    createLobby: rooms.createLobby, joinRoom: rooms.joinRoom, requestJoin: rooms.requestJoin,
     respondToJoinRequest: rooms.respondToJoinRequest,
     watchLobbies: rooms.watchLobbies, leaveRoom: rooms.leaveRoom, disconnect,
     publishOperation: sync.publishOperation, publishStroke: sync.publishStroke, publishWorld: sync.publishWorld, publishRopes: sync.publishRopes,
