@@ -12,6 +12,8 @@ setRigidBodyWasmStep(wasmEngine.step_rigid_bodies);
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
+// Allocate every WASM chemistry/physics state buffer for the initial world.
+resetMaterialState(N);
 const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});
 const particleInterpolationCanvas=document.createElement('canvas'),particleInterpolationCtx=particleInterpolationCanvas.getContext('2d');
 particleInterpolationCanvas.className='particle-interpolation';canvas.parentElement.insertBefore(particleInterpolationCanvas,canvas.nextElementSibling);
@@ -72,7 +74,7 @@ document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 document.querySelectorAll('[data-prop]').forEach(button=>button.addEventListener('click',()=>{const type=button.dataset.prop;const item=objectSystem.spawn(type,W/2,Math.max(12,H*.22));if(item){publishOperation({type:'propAdd',kind:type,id:item.id,x:item.x,y:item.y});log(type.charAt(0).toUpperCase()+type.slice(1)+' spawned')}}));
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
- W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
+ W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
  cells=new Uint8Array(N);updated=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem?.clear();frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
