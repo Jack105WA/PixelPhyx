@@ -119,6 +119,10 @@ const script = document.createElement('script');
 script.type = 'module';
 script.src = './js/main.js?v=' + Date.now().toString(36);
 document.head.appendChild(script);
+const serverListScript = document.createElement('script');
+serverListScript.type = 'module';
+serverListScript.src = './js/server-list.js?v=' + Date.now().toString(36);
+document.head.appendChild(serverListScript);
 </script>
 </body>
 </html>
