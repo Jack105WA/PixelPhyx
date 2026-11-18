@@ -67,7 +67,8 @@ async function launchSimulation(room) {
     try{fs.rmSync(profile,{recursive:true,force:true});}catch{}
   });
   const portFile=path.join(profile,'DevToolsActivePort'); let port=0;
-  for(let i=0;i<100;i++){if(child.exitCode!==null)throw new Error('Chrome exited before its debugging endpoint started.');try{port=Number(fs.readFileSync(portFile,'utf8').split(/\r?\n/)[0]);}catch{}if(port>0)break;await new Promise(resolve=>setTimeout(resolve,100));}
+  for(let i=0;i<100;i++){if(child.exitCode!==null)throw new Error('Chrome exited before its debugging endpoint started.');try{port=Number(fs.readFileSync(portFile,'utf8').split(/\r?
+/)[0]);}catch{}if(port>0)break;await new Promise(resolve=>setTimeout(resolve,100));}
   if(!port){closeSimulation(room.name);throw new Error('Chrome did not start its headless debugging endpoint.');}
   const targetUrl='http://127.0.0.1:'+settings.port+'/?pixelphyx-sim='+encodeURIComponent(room.simulationToken)+'&room='+encodeURIComponent(room.name);
   const response=await fetch('http://127.0.0.1:'+port+'/json/new?'+encodeURIComponent(targetUrl),{method:'PUT'});
@@ -118,7 +119,8 @@ function removeFromRoom(client) {
   if (!room) { client.room = null; return; }
   room.players.delete(client.id);
   client.room = null;
-  if (client.isSimulation) { closeSimulation(room.name); for (const p of room.players.values()) { const peer=clients.get(p.id); if(peer){peer.room=null;peer.approved=false;send(peer.socket,'room-left',{reason:'The server simulation stopped.'});} } rooms.delete(room.name); broadcastLobbies(); return; }\n  if (room.players.size === 0) { rooms.delete(room.name); closeSimulation(room.name); }
+  if (client.isSimulation) { closeSimulation(room.name); for (const p of room.players.values()) { const peer=clients.get(p.id); if(peer){peer.room=null;peer.approved=false;send(peer.socket,'room-left',{reason:'The server simulation stopped.'});} } rooms.delete(room.name); broadcastLobbies(); return; }
+  if (room.players.size === 0) { rooms.delete(room.name); closeSimulation(room.name); }
   else {
     if (room.hostId === client.id) {
       const next = room.players.values().next().value;
@@ -191,12 +193,22 @@ function handle(client, message) {
       const name = 'PX-' + crypto.randomBytes(4).toString('hex').slice(0, 7).toUpperCase();
       const player = { id: client.id, number: nextPlayerNumber++, socket: client.socket, name: safeName(message.name), color: message.color || '#65d6ad', approved: true };
       client.approved = true;
-      const created = { name, hostId: client.id, hostName: player.name, maxPlayers: settings.maxPlayers, players: new Map([[client.id, player]]) };
+      const created = { name, hostId: client.id, hostName: player.name, maxPlayers: settings.maxPlayers, players: new Map([[client.id, player]]), simulationToken: crypto.randomBytes(32).toString('hex') };
       rooms.set(name, created); client.room = name; client.number = player.number;
       send(client.socket, 'room-joined', { room: name, isHost: true, number: player.number, players: roomRoster(created) });
       broadcastLobbies(); break;
     }
-    case 'simulation-join': {\n      const target=rooms.get(String(message.room||'').toUpperCase());\n      if(!target||typeof message.token!=='string'||message.token.length!==64||message.token!==target.simulationToken)throw new Error('Simulation authentication failed.');\n      if(client.room)throw new Error('Simulation is already assigned to a room.');\n      const player={id:client.id,number:nextPlayerNumber++,socket:client.socket,name:'Server Simulation',color:'#8b9cff',approved:true,isSimulation:true};\n      client.room=target.name;client.number=player.number;client.approved=true;client.isSimulation=true;target.players.set(client.id,player);target.hostId=client.id;target.simulationClientId=client.id;\n      send(client.socket,'room-joined',{room:target.name,isHost:true,number:player.number,players:roomRoster(target)});\n      for(const p of target.players.values())if(p.id!==client.id)send(p.socket,'host-changed',{hostId:client.id});\n      sendRoster(target);broadcastLobbies();break;\n    }\n    case 'join-room': {
+    case 'simulation-join': {
+      const target=rooms.get(String(message.room||'').toUpperCase());
+      if(!target||typeof message.token!=='string'||message.token.length!==64||message.token!==target.simulationToken)throw new Error('Simulation authentication failed.');
+      if(client.room)throw new Error('Simulation is already assigned to a room.');
+      const player={id:client.id,number:nextPlayerNumber++,socket:client.socket,name:'Server Simulation',color:'#8b9cff',approved:true,isSimulation:true};
+      client.room=target.name;client.number=player.number;client.approved=true;client.isSimulation=true;target.players.set(client.id,player);target.hostId=client.id;target.simulationClientId=client.id;
+      send(client.socket,'room-joined',{room:target.name,isHost:true,number:player.number,players:roomRoster(target)});
+      for(const p of target.players.values())if(p.id!==client.id)send(p.socket,'host-changed',{hostId:client.id});
+      sendRoster(target);broadcastLobbies();break;
+    }
+    case 'join-room': {
       if (room) throw new Error('Leave your current server before joining another.');
       const target = rooms.get(String(message.room || '').toUpperCase());
       if (!target) throw new Error('Server not found. Check the server code and address.');
@@ -291,8 +303,9 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     return res.end(JSON.stringify({ name: settings.name, port: settings.port, maxPlayers: settings.maxPlayers, lobbyCount: settings.lobbyCount, publicAddress: settings.publicAddress }));
   }
-  res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
-  res.end('PixelPhyx multiplayer server is running. Connect your game client using WebSocket path /pixelphyx.');
+  if (fs.existsSync(path.join(WEBSITE_ROOT, 'index.html'))) return serveGame(res, pathname);
+  res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' });
+  res.end('PixelPhyx game files were not found. Place the Website folder beside Server.');
 });
 const wss = new WebSocket.Server({ server, path: '/pixelphyx', maxPayload: settings.maxPayloadBytes });
 wss.on('connection', socket => {
@@ -347,7 +360,9 @@ server.listen(settings.port, settings.host, () => {
   console.log('  Bind:       ' + settings.host);
   console.log('  Port:       ' + settings.port);
   const addresses = Object.values(os.networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal).map(item => item.address);
-  console.log('  Game:       http://localhost:' + settings.port + '/');\n  console.log('  WebSocket:  ws://localhost:' + settings.port + '/pixelphyx');
+  console.log('  Game:       http://localhost:' + settings.port + '/');
+  console.log('  Game:       http://localhost:' + settings.port + '/');
+  console.log('  WebSocket:  ws://localhost:' + settings.port + '/pixelphyx');
   for (const address of addresses) console.log('  LAN URL:    ws://' + address + ':' + settings.port + '/pixelphyx');
   console.log('  Max players per lobby: ' + settings.maxPlayers);
   console.log('  Lobby limit: ' + settings.lobbyCount);
@@ -357,7 +372,8 @@ server.listen(settings.port, settings.host, () => {
 });
 function shutdown() {
   clearInterval(heartbeat);
-  for (const room of rooms.values()) closeSimulation(room.name);\n  for (const client of clients.values()) { send(client.socket, 'server-shutdown'); client.socket.close(); }
+  for (const room of rooms.values()) closeSimulation(room.name);
+  for (const client of clients.values()) { send(client.socket, 'server-shutdown'); client.socket.close(); }
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 }
