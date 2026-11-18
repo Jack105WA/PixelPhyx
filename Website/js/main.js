@@ -249,7 +249,7 @@ function stepVisualParticles(){
      if(Math.random()<.45)emitVisualParticle(p.x,p.y,'steam');
      alive=false;
     }else if(p.kind==='ember'&&(m===M.WOOD||m===M.PLANT||m===M.OIL||m===M.TNT)){
-     const heatIndex=idx(gx,gy);materialState.heat[heatIndex]=Math.min(1600,materialState.heat[heatIndex]+12);alive=false;
+     const heatIndex=idx(gx,gy);materialState.heatInputs[heatIndex]+=12;alive=false;
     }else if(p.kind==='molten'&&p.bounce===0&&p.vy>.08){
      p.vy=-Math.abs(p.vy)*.12;p.vx*=.35;p.bounce=1;p.life=Math.min(p.life,8);
     }else alive=false;
@@ -286,7 +286,7 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  }
  }}
  stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
- const detonations=wasmEngine.step_chemistry(cells,materialState.wetness,materialState.heat,materialState.airHeat,materialState.airNext,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,ambient,W,H);
+ const detonations=wasmEngine.step_chemistry(cells,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.airHeat,materialState.airNext,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,ambient,W,H);
  if(detonations)log('TNT detonation!');
  stepVisualParticles();
 }
