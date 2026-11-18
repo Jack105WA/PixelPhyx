@@ -41,9 +41,9 @@ export function createPhysicsEngine(){
   }
   return false;
  }
- function solveGridContacts(ropes,cells,w,h,vx,vy){
+ function solveGridContacts(ropes,cells,w,h,vx,vy,materialDensity){
   rebuildIndex(ropes);if(!segments.length)return;
-  const mass=m=>m===1?1.6:m===2?1:m===3||m===15?2.7:m===4?.65:m===6?.82:m===7?1.1:m===10?.92:m===11?2.5:m===12?1.1:m===14?1.9:m===16?.85:.35,contacts=new Map();
+  const mass=m=>m>17&&Number.isFinite(materialDensity?.[m])?Math.max(.05,materialDensity[m]):m===1?1.6:m===2?1:m===3||m===15?2.7:m===4?.65:m===6?.82:m===7?1.1:m===10?.92:m===11?2.5:m===12?1.1:m===14?1.9:m===16?.85:.35,contacts=new Map();
   for(const s of segments){
    const old={ax:s.a.px+.5,ay:s.a.py+.5,bx:s.b.px+.5,by:s.b.py+.5};
    const x0=Math.max(0,Math.floor(Math.min(s.ax,s.bx,old.ax,old.bx)-1)),x1=Math.min(w-1,Math.ceil(Math.max(s.ax,s.bx,old.ax,old.bx)+1)),y0=Math.max(0,Math.floor(Math.min(s.ay,s.by,old.ay,old.by)-1)),y1=Math.min(h-1,Math.ceil(Math.max(s.ay,s.by,old.ay,old.by)+1));
@@ -169,11 +169,11 @@ export function createPhysicsEngine(){
   const count=Math.max(3,Math.min(MAX_POINTS-1,Math.ceil(distance/1.5))),points=[];for(let i=0;i<=count;i++){const t=i/count,x=x0+(x1-x0)*t,y=y0+(y1-y0)*t;points.push({x,y,px:x,py:y,sx:x,sy:y,anchor:i===0||i===count,sweepAge:0})}
   return{id,points,length:distance/count,stiffness:1};
  }
- function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,airborneParticles,onExtract}){
+ function step({ropes,cells,width,height,gravity=1,velocityX,velocityY,materialState,airborneParticles,materialDensity,onExtract}){
   if(!Array.isArray(ropes)||ropes.length>MAX_ROPES)return;
   rebuildIndex(ropes);
   pushParticlesFromRopeSweep(ropes,cells,width,height,velocityX,velocityY,gravity);
-  solveGridContacts(ropes,cells,width,height,velocityX,velocityY);
+  solveGridContacts(ropes,cells,width,height,velocityX,velocityY,materialDensity);
   extractAirborne(cells,width,height,velocityX,velocityY,materialState,airborneParticles,onExtract);
   advanceAirborne(airborneParticles,cells,width,height,gravity,materialState,velocityX,velocityY);
  }
