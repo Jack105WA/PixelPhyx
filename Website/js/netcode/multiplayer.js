@@ -201,9 +201,19 @@ export function createMultiplayer(callbacks = {}) {
     respondToJoinRequest: rooms.respondToJoinRequest,
     watchLobbies: rooms.watchLobbies, leaveRoom: rooms.leaveRoom, disconnect,
     publishOperation: sync.publishOperation, publishWorld: sync.publishWorld, publishRopes: sync.publishRopes,
-    publishLeafblower: () => {}, updateCursor: () => {},
+    publishLeafblower: () => {}, updateCursor: (position, color, name) => sync.publishCursor(position, color, name),
     updateIdentity: (name, color) => { if (state.client?.room) state.setLocalIdentity({ name, color }, state.isApproved(state.client.localPlayer.number)); },
     get joined() { return !!state.client?.room; }, get isHost() { return state.isHost(); },
-    get playerId() { return state.playerId; }, get room() { return state.roomName; }
+    get playerId() { return state.playerId; }, get room() { return state.roomName; },
+    get networkSettings() {
+      const network = state.client?.serverInfo?.network || {};
+      return {
+        snapshotIntervalMs: Math.max(100, Number(network.snapshotIntervalMs) || 400),
+        ropeUpdateIntervalMs: Math.max(20, Number(network.ropeUpdateIntervalMs) || 50),
+        cursorUpdates: network.cursorUpdates !== false,
+        cursorUpdateIntervalMs: Math.max(20, Number(network.cursorUpdateIntervalMs) || 40),
+        predictionEnabled: network.predictionEnabled === true
+      };
+    }
   };
 }
