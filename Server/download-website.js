@@ -24,7 +24,10 @@ async function downloadWebsite(destination) {
 
   const marker = path.join(destination, '.pixelphyx-website-tree');
   try {
-    if (fs.readFileSync(marker, 'utf8').trim() === tree.sha && fs.existsSync(path.join(destination, 'index.html'))) return;
+    if (fs.readFileSync(marker, 'utf8').trim() === tree.sha &&
+        fs.existsSync(path.join(destination, 'index.html')) &&
+        fs.existsSync(path.join(destination, 'pkg', 'pixelphyx_wasm.js')) &&
+        fs.existsSync(path.join(destination, 'pkg', 'pixelphyx_wasm_bg.wasm'))) return;
   } catch {}
 
   fs.mkdirSync(destination, { recursive: true });
