@@ -21,7 +21,7 @@ function swap(cells,s,a,b,recordMove){
   if(first)recordMove(a,b,first);
   if(second)recordMove(b,a,second);
  }
- for(const key of ['wetness','heat','fuel','burn','age','corrosion']){
+ for(const key of ['wetness','heat','heatInputs','fuel','burn','age','corrosion']){
   const values=s[key],value=values[a];
   values[a]=values[b];values[b]=value;
  }
