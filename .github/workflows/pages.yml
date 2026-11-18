@@ -28,6 +28,8 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-pack
+      - name: Type-check TypeScript UI
+        run: npx --yes --package typescript tsc Website/js/ui.ts --target ES2022 --module ES2022 --lib ES2022,DOM --strict --skipLibCheck --noEmit
       - name: Compile optimized browser WASM
         run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
       - name: Validate JavaScript modules
