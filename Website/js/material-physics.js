@@ -99,9 +99,6 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   const i=index(x,y),m=cells[i];if(!m)continue;
   const p=PROPERTIES[m]||{};
   age[i]=Math.min(65535,age[i]+1);
-  if(m===M.SALT&&get(x,y+1)===M.WATER&&Math.random()<.04)cells[i]=M.EMPTY;
-  if(m===M.STEAM&&Math.random()<.003)cells[i]=M.WATER;
-  if(m===M.SMOKE&&Math.random()<.002)cells[i]=M.EMPTY;
   if(m===M.SAND&&wet[i]>0)wet[i]=Math.max(0,wet[i]-.0008);
   // Conduct heat between neighboring cells, not just toward ambient temperature.
   if(heat[i]>ambient){
