@@ -52,7 +52,7 @@ const gameScript = [
   'const missingWasmExports=wasmExports.filter(name=>typeof wasmGlue[name]!=="function");if(missingWasmExports.length)throw new Error("Offline WASM build is missing required exports: "+missingWasmExports.join(", "));',
   'async function createWasmEngine(){return Object.freeze(Object.fromEntries(wasmExports.map(name=>[name,wasmGlue[name]])))}',
   'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
-  'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
+  'const PixelPhyxMaterial=(()=>{', physics, 'return {materialState,resetMaterialState};', '})();',
   'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
   'const PixelPhyxUi=(()=>{', ui, 'return {initializeUiShell};', '})();',
   'const {initializeUiShell}=PixelPhyxUi;',
