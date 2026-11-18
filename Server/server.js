@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const WebSocket = require('ws');
 const yaml = require('js-yaml');
 const { downloadWebsite } = require('./download-website');
@@ -85,7 +85,7 @@ function closeSimulation(name) {
 async function launchSimulation(room) {
   const detected = findBrowser();
   if (!detected) throw new Error('No supported browser was found. Install Chrome, Edge, Brave, Vivaldi, Chromium, or Firefox. Set PIXELPHYX_BROWSER_PATH to your browser executable if it is installed elsewhere.');
-  const { chromium, firefox } = require('playwright-core');
+  let playwright;\n  try { playwright = require('playwright-core'); }\n  catch (error) {\n    if (error.code !== 'MODULE_NOT_FOUND') throw error;\n    console.log('Installing headless browser support (first run)...');\n    const install = spawnSync('npm', ['install','--omit=dev','--no-audit','--no-fund'], { cwd:ROOT, encoding:'utf8', windowsHide:true, shell:process.platform === 'win32' });\n    if (install.error || install.status !== 0) throw new Error('Could not install Playwright browser support: ' + (install.error?.message || install.stderr || install.stdout || 'npm install failed.'));\n    playwright = require('playwright-core');\n  }\n  const { chromium, firefox } = playwright;
   const browserType = detected.engine === 'firefox' ? firefox : chromium;
   const profile = fs.mkdtempSync(path.join(os.tmpdir(),'pixelphyx-sim-'));
   let context;
