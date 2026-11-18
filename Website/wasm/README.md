@@ -1,6 +1,6 @@
 # PixelPhyx Rust/WASM engine
 
-This branch is an offline engine migration. It does not use Photon, room transport, player presence, or multiplayer synchronization in the new engine API.
+The `photon-wasm` branch is the offline engine migration. The WASM simulation API does not depend on Photon, room transport, player presence, or multiplayer synchronization.
 
 ## Build
 
@@ -8,9 +8,9 @@ This branch is an offline engine migration. It does not use Photon, room transpo
 wasm-pack build Website/wasm --target web --release --out-dir ../pkg
 ```
 
-## Ownership target
+## Target architecture
 
-| System | Implementation |
+| System | Final implementation |
 |---|---|
 | Physics simulation | Rust/WASM |
 | Material reactions and chemistry | Rust/WASM |
@@ -22,8 +22,11 @@ wasm-pack build Website/wasm --target web --release --out-dir ../pkg
 | Input handling | Rust/WASM |
 | UI and menus | TypeScript |
 
-## Current status
+## Migration progress
 
-The new `World` WASM API provides simulation state, configurable material properties and reaction pairs, grid particle movement, basic axis-aligned rigid-body integration/collision, pointer-driven brush input, and RGBA frame generation.
+- **Material reactions and chemistry:** migrated to the consolidated `step_chemistry` WASM entry point. It owns acid corrosion, water phase changes, salt dissolution, steam/smoke transitions, fire and lava reactions, fuel consumption, ignition, TNT detonation, moisture transfer, air convection, and thermal conduction.
+- **JavaScript material module:** reduced to sand displacement, which belongs to the particle movement migration rather than chemistry.
+- **Build validation:** `wasm-pack build` and JavaScript module syntax validation passed in GitHub Actions on the `photon-wasm` branch.
+- **Not yet migrated:** full particle movement, rope solving, rigid-body collision parity, the complete rendering pipeline, input ownership, and the TypeScript UI. The existing `World` API is still a foundation for those systems, not a completed replacement.
 
-This is an engine foundation, not a completed parity port. Existing material IDs/reaction rules, complete rope endpoint solving, robust rigid-body geometry, visual effects/compositing, and the current UI still need to be migrated and validated before replacing the existing runtime. The UI is not yet converted to TypeScript. The existing page/runtime may still contain online UI or transport code; those files have not yet been removed.
+The runtime calls chemistry once per simulation tick to avoid repeated JavaScript/WASM boundary crossings and unnecessary typed-array transfers.
