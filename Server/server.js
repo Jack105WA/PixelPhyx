@@ -67,8 +67,7 @@ async function launchSimulation(room) {
     try{fs.rmSync(profile,{recursive:true,force:true});}catch{}
   });
   const portFile=path.join(profile,'DevToolsActivePort'); let port=0;
-  for(let i=0;i<100;i++){if(child.exitCode!==null)throw new Error('Chrome exited before its debugging endpoint started.');try{port=Number(fs.readFileSync(portFile,'utf8').split(/\r?
-/)[0]);}catch{}if(port>0)break;await new Promise(resolve=>setTimeout(resolve,100));}
+  for(let i=0;i<100;i++){if(child.exitCode!==null)throw new Error('Chrome exited before its debugging endpoint started.');try{port=Number(fs.readFileSync(portFile,'utf8').split(String.fromCharCode(10))[0]);}catch{}if(port>0)break;await new Promise(resolve=>setTimeout(resolve,100));}
   if(!port){closeSimulation(room.name);throw new Error('Chrome did not start its headless debugging endpoint.');}
   const targetUrl='http://127.0.0.1:'+settings.port+'/?pixelphyx-sim='+encodeURIComponent(room.simulationToken)+'&room='+encodeURIComponent(room.name);
   const response=await fetch('http://127.0.0.1:'+port+'/json/new?'+encodeURIComponent(targetUrl),{method:'PUT'});
