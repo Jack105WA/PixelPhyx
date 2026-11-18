@@ -1,6 +1,6 @@
 # PixelPhyx Rust/WASM engine
 
-The `photon-wasm` branch is the offline engine migration. The WASM simulation API does not depend on Photon, room transport, player presence, or multiplayer synchronization.
+The Rust/WASM engine is independent of multiplayer transport, room management, player presence, and synchronization.
 
 ## Build
 
