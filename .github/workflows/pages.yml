@@ -1,7 +1,7 @@
 name: PixelPhyx workflows
 on:
   push:
-    branches: [main, server-migrate, photon-test]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,25 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  request-main-deploy:
-    name: Queue deployment from preview branch
-    if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Dispatch the Pages deployment on main
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'pages.yml',
-              ref: 'main'
-            });
-
   deploy-live:
     if: github.ref == 'refs/heads/main'
-    name: Deploy production and previews
+    name: Deploy production
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -44,16 +28,6 @@ jobs:
         with:
           ref: main
           path: production
-      - name: Check out migration branch
-        uses: actions/checkout@v4
-        with:
-          ref: server-migrate
-          path: migration
-      - name: Check out Photon test branch
-        uses: actions/checkout@v4
-        with:
-          ref: photon-test
-          path: photon-test
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -67,16 +41,14 @@ jobs:
         run: wasm-pack build production/Website/wasm --target web --release --out-dir ../pkg
       - name: Validate Photon JavaScript modules
         run: |
-          for file in production/Website/js/*.js production/Website/pkg/*.js photon-test/Website/js/*.js; do
+          for file in production/Website/js/*.js production/Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
       - uses: actions/configure-pages@v5
       - name: Assemble combined Pages site
         run: |
-          mkdir -p _site/server-migrate _site/photon-test
+          mkdir -p _site
           cp -a production/Website/. _site/
-          cp -a migration/Website/. _site/server-migrate/
-          cp -a photon-test/Website/. _site/photon-test/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
