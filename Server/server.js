@@ -22,6 +22,7 @@ const settings = {
 
 const rooms = new Map();
 const clients = new Map();
+const PUBLIC_DIR = path.join(ROOT, 'public');
 let nextPlayerNumber = 1;
 
 function send(socket, type, data = {}) {
@@ -99,6 +100,7 @@ function handle(client, message) {
       if (rooms.size >= settings.lobbyCount) throw new Error('This server has reached its lobby limit.');
       const name = 'PX-' + crypto.randomBytes(4).toString('hex').slice(0, 7).toUpperCase();
       const player = { id: client.id, number: nextPlayerNumber++, socket: client.socket, name: safeName(message.name), color: message.color || '#65d6ad', approved: true };
+      client.approved = true;
       const created = { name, hostId: client.id, hostName: player.name, maxPlayers: settings.maxPlayers, players: new Map([[client.id, player]]) };
       rooms.set(name, created); client.room = name; client.number = player.number;
       send(client.socket, 'room-joined', { room: name, isHost: true, number: player.number, players: roomRoster(created) });
@@ -111,6 +113,7 @@ function handle(client, message) {
       if (target.players.size >= target.maxPlayers) throw new Error('This server is full.');
       if (target.players.has(client.id)) throw new Error('You are already in this server.');
       const player = { id: client.id, number: nextPlayerNumber++, socket: client.socket, name: safeName(message.name), color: message.color || '#65d6ad', approved: false };
+      client.approved = false;
       target.players.set(client.id, player); client.room = target.name; client.number = player.number;
       send(client.socket, 'room-joined', { room: target.name, isHost: false, number: player.number, players: roomRoster(target) });
       for (const p of target.players.values()) if (p.id !== client.id) send(p.socket, 'player-joined', { player: { number: player.number, name: player.name, color: player.color, clientId: player.id, approved: false } });
@@ -122,6 +125,7 @@ function handle(client, message) {
       const target = [...room.players.values()].find(p => p.number === Number(message.playerNumber));
       if (!target || target.id === client.id) throw new Error('That join request is no longer active.');
       target.approved = !!message.approved;
+      const targetClient = clients.get(target.id); if (targetClient) targetClient.approved = target.approved;
       send(target.socket, 'join-reply', { approved: target.approved });
       if (!target.approved) { const targetClient = clients.get(target.id); if (targetClient) removeFromRoom(targetClient); }
       sendRoster(room); break;
@@ -159,8 +163,21 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     return res.end(JSON.stringify({ name: settings.name, port: settings.port, maxPlayers: settings.maxPlayers, lobbyCount: settings.lobbyCount, publicAddress: settings.publicAddress }));
   }
-  res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
-  res.end('PixelPhyx local multiplayer server is running. Open the PixelPhyx game and connect to this server address.');
+  const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
+  const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\\/+/, '');
+  const filePath = path.resolve(PUBLIC_DIR, relative);
+  if (!filePath.startsWith(PUBLIC_DIR + path.sep) && filePath !== path.join(PUBLIC_DIR, 'index.html')) {
+    res.writeHead(403); return res.end('Forbidden');
+  }
+  fs.stat(filePath, (error, stat) => {
+    if (error || !stat.isFile()) { res.writeHead(404); return res.end('Not found'); }
+    const ext = path.extname(filePath).toLowerCase();
+    const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8',
+      '.wasm':'application/wasm', '.json':'application/json; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png',
+      '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.ico':'image/x-icon', '.webp':'image/webp', '.woff2':'font/woff2' };
+    res.writeHead(200, { 'content-type': types[ext] || 'application/octet-stream', 'cache-control': ext === '.html' ? 'no-cache' : 'public, max-age=3600' });
+    fs.createReadStream(filePath).pipe(res);
+  });
 });
 const wss = new WebSocket.Server({ server, path: '/pixelphyx' });
 wss.on('connection', socket => {
