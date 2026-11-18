@@ -411,6 +411,7 @@ function drawCursorName(c,targetCtx){
  targetCtx.fillText(label,x,y);
  targetCtx.restore();
 }
+const particleCountElement=document.querySelector('#particleCount'),particleHudElement=document.querySelector('#particleHud'),ropeCountElement=document.querySelector('#ropeCount'),gravityReadElement=document.querySelector('#gravityRead');
 function render(){
  if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(node===ropeDrag?.node)continue;if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
  let count=0;
@@ -456,7 +457,7 @@ function render(){
   drawCursorName({x:screenX,y:screenY,name:c.name},nameCtx);
  }
  count+=airborneParticles.length;
- for(const [selector,value] of [['#particleCount',count.toLocaleString()],['#particleHud',count.toLocaleString()+' PARTICLES'],['#ropeCount',ropes.length],['#gravityRead',gravity.toFixed(1)+'×']]){const element=document.querySelector(selector);if(element)element.textContent=value;}
+ if(particleCountElement)particleCountElement.textContent=count.toLocaleString();if(particleHudElement)particleHudElement.textContent=count.toLocaleString()+' PARTICLES';if(ropeCountElement)ropeCountElement.textContent=ropes.length;if(gravityReadElement)gravityReadElement.textContent=gravity.toFixed(1)+'×';
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=8;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,lastPropPublish=0;
