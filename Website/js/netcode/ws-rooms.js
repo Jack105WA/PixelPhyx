@@ -201,7 +201,7 @@ export function createLocal serverRooms(state, sync) {
       try { await client().joinLobby(); }
       catch (error) { state.log('Lobby reconnect failed: ' + error.message); }
     }
-    state.report('online', 'PHOTON ONLINE');
+    state.report('online', 'LOCAL SERVER ONLINE');
     state.log('Left the Local server server.');
   }
 
