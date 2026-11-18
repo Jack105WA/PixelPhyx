@@ -7,7 +7,7 @@ export const EVENTS = {
   JOIN_REQUEST: 5, JOIN_REPLY: 6, SYNC_REQUEST: 7
 };
 
-export function createLocal serverSync(state) {
+export function createServerSync(state) {
   const transfers = new Map();
   let lastRopesAt = 0, lastRopesSignature = '', lastWorldSignature = '';
   let snapshotBusy = false, pendingSnapshot = null;
