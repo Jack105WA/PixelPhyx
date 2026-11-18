@@ -87,14 +87,22 @@ export function createServerSync(state) {
         transfers.delete(oldest);
       }
       transfer = {
-        parts: new Array(chunk.total), received: 0,
+        parts: new Array(chunk.total), received: 0, receivedBytes: 0,
         compressed: !!chunk.compressed,
         timer: setTimeout(() => transfers.delete(chunk.id), 20000)
       };
       transfers.set(chunk.id, transfer);
     }
     if (transfer.parts.length !== chunk.total || transfer.parts[chunk.index]) return;
+    const network = state.client?.serverInfo?.network || {};
+    const maxSnapshotBytes = Math.max(1024 * 1024, Number(network.maxSnapshotBytes) || 8 * 1024 * 1024);
+    if (transfer.receivedBytes + chunk.bytes.byteLength > maxSnapshotBytes) {
+      clearTimeout(transfer.timer);
+      transfers.delete(chunk.id);
+      return;
+    }
     transfer.parts[chunk.index] = chunk.bytes;
+    transfer.receivedBytes += chunk.bytes.byteLength;
     transfer.received++;
     if (transfer.received !== transfer.parts.length) return;
     transfers.delete(chunk.id);
