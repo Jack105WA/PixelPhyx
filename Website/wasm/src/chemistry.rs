@@ -190,7 +190,7 @@ pub fn step_combustion(
                     let chance = match target { 6=>0.58,13=>0.35,_=>0.24 };
                     if heat[ni] > material_ignition(target).max(200.0)
                         && random01(ni, age[ni], 0x1A7A_0000 + slot as u32) < chance {
-                        ignite(cells, heat, fuel, burn, ni, target);
+                        ignite(heat, fuel, burn, ni, target);
                     }
                 }
             }
@@ -323,7 +323,7 @@ pub fn step_material_thermal(
             heat[i]+=(air_temperature-heat[i])*(if material==4 {0.055}else{0.035});
         }
         let ignition=material_ignition(material);
-        if flammable(material) && heat[i]>if ignition>0.0 {ignition}else{220.0} {
+        if flammable(material) && heat[i] > (if ignition > 0.0 { ignition } else { 220.0 }) {
             let chance=(match material {4=>0.018,13=>0.025,6=>0.04,12=>0.025,_=>0.008})
                 *(1.0-wetness[i].clamp(0.0,1.0)*0.94);
             if random01(i,age[i],0xA17E_1000)<chance {
