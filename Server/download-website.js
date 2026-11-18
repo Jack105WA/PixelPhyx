@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
 const REPOSITORY = 'Jack105WA/PixelPhyx';
@@ -22,9 +23,10 @@ async function downloadWebsite(destination) {
   const files = (tree.tree || []).filter(item => item.type === 'blob' && item.path.startsWith('Website/'));
   if (!files.some(item => item.path === 'Website/index.html')) throw new Error('The repository does not contain Website/index.html.');
 
+  const websiteVersion = crypto.createHash('sha256').update(files.map(item => item.path + ':' + item.sha).sort().join('\n')).digest('hex');
   const marker = path.join(destination, '.pixelphyx-website-tree');
   try {
-    if (fs.readFileSync(marker, 'utf8').trim() === tree.sha &&
+    if (fs.readFileSync(marker, 'utf8').trim() === websiteVersion &&
         fs.existsSync(path.join(destination, 'index.html')) &&
         fs.existsSync(path.join(destination, 'pkg', 'pixelphyx_wasm.js')) &&
         fs.existsSync(path.join(destination, 'pkg', 'pixelphyx_wasm_bg.wasm'))) return;
@@ -61,7 +63,7 @@ async function downloadWebsite(destination) {
     }
   }
 
-  fs.writeFileSync(marker, tree.sha + '\n');
+  fs.writeFileSync(marker, websiteVersion + '\n');
   console.log('Downloaded ' + files.length + ' PixelPhyx website files into ' + destination + '.');
 }
 
