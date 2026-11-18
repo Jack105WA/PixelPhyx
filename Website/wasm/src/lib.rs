@@ -55,6 +55,8 @@ pub fn step_particles(
     fuel:&mut [f32], burn:&mut [f32], age:&mut [u16], corrosion:&mut [f32],
     blocked:&[u8], width:u32,height:u32,gravity:f32,seed:u32,
 )->Vec<u32>{
+    // Ignite fuse while the flame is still in its pre-movement position.
+    chemistry::prime_fuse_ignition(cells,heat,fuel,burn,width as usize,height as usize);
     grid::step_particles(cells,updated,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,blocked,width as usize,height as usize,gravity,seed)
 }
 
