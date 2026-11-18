@@ -382,23 +382,11 @@ function drawCursorName(c,targetCtx){
 function render(){
  if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(node===ropeDrag?.node)continue;if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
  let count=0;
- bloomPixels.fill(0);
- frameImage.data.set(wasmEngine.render_cells(cells,materialState.wetness,materialState.heat,colorLut,W,H));
- for(let i=0;i<N;i++){
-  const m=cells[i],p=i*4,heat=materialState.heat[i]||0;
-  if(m)count++;
-  if(movingDestinations[i]){frameImage.data[p]=12;frameImage.data[p+1]=16;frameImage.data[p+2]=24;}
-  let glow=0,gr=255,gg=135,gb=45;
-  if(m===M.FIRE)glow=210;
-  else if(m===M.LAVA){glow=190;gr=255;gg=65;gb=25}
-  else if(heat>95&&m!==M.WATER&&m!==M.ICE&&m!==M.STEAM&&m!==M.SMOKE)glow=Math.min(150,Math.round((heat-95)*.22));
-  if(glow>0){
-   const x=i%W,y=(i/W)|0,bp=(((y>>2)*bloomW+(x>>2))*4);
-   if(glow>bloomPixels[bp+3]){
-    bloomPixels[bp]=gr;bloomPixels[bp+1]=gg;bloomPixels[bp+2]=gb;bloomPixels[bp+3]=glow;
-   }
-  }
- }
+ const rendered=wasmEngine.render_frame(cells,materialState.wetness,materialState.heat,colorLut,movingDestinations,W,H);
+ const frameLength=N*4;
+ frameImage.data.set(rendered.subarray(0,frameLength));
+ bloomPixels.set(rendered.subarray(frameLength));
+ count=wasmEngine.count_particles(cells);
  bloomCtx.putImageData(bloomImage,0,0);
  ctx.putImageData(frameImage,0,0);
  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.58;ctx.imageSmoothingEnabled=true;
