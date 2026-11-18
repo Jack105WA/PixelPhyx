@@ -22,5 +22,7 @@ network:
   # Clients normally apply authoritative state without local movement prediction.
   prediction_enabled: false
   # Per-WebSocket message limit and maximum queued outgoing data per client.
+  snapshot_chunk_bytes: 24576
+  max_snapshot_bytes: 8388608
   max_payload_bytes: 8388608
   max_buffered_bytes: 16777216
