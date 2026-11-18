@@ -22,7 +22,7 @@ export function createServerRooms(state, sync) {
 
   function setup() {
     client().onEvent(EVENTS.JOIN_REQUEST, ({ senderNumber, data }) => {
-      if (!state.isHost() || !data || senderNumber === client().localPlayer.number) return;
+      if (!state.isRoomOwner() || !data || senderNumber === client().localPlayer.number) return;
       pendingRequests.set(String(senderNumber), { senderNumber, createdAt: Date.now() });
       state.callbacks.onJoinRequest?.({
         key: String(senderNumber), room: state.roomName,
@@ -149,7 +149,7 @@ export function createServerRooms(state, sync) {
   }
 
   async function respondToJoinRequest(key, isApproved) {
-    if (!state.isHost()) throw new Error('Only the room host can approve join requests.');
+    if (!state.isRoomOwner()) throw new Error('Only the room owner can approve join requests.');
     const request = pendingRequests.get(String(key));
     if (!request) throw new Error('That join request is no longer active.');
     pendingRequests.delete(String(key));
