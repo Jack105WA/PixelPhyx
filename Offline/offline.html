@@ -5,8 +5,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#10151e">
-<title>PixelPhyx — Online Physics Lab</title>
-<meta name="description" content="A multiplayer pixel physics and chemistry sandbox. Build, experiment, and break things together.">
+<title>PixelPhyx — Offline Physics Lab</title>
+<meta name="description" content="A standalone offline pixel physics and chemistry sandbox. Save and load your experiments locally.">
 <style>
 :root{color-scheme:dark;--bg:#0d1118;--surface:#151c27;--surface2:#1c2634;--surface3:#253245;--line:#2b394d;--text:#edf3fb;--muted:#91a1b7;--mint:#83e4bd;--mint2:#3da987;--orange:#ffb86a;--danger:#ff7777;--shadow:0 16px 40px #0005}
 *{box-sizing:border-box;-webkit-user-select:none;user-select:none}input,textarea,[contenteditable="true"]{-webkit-user-select:text;user-select:text}html,body{height:100%;margin:0}body{background:radial-gradient(ellipse at 50% -30%,#23364a 0,transparent 55%),var(--bg);color:var(--text);font:13px Inter,system-ui;overflow:hidden}
@@ -56,7 +56,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 <body>
 <div class="app">
 <header>
- <div class="brand"><div class="brandmark">P</div><div><div class="brandname">PIXELPHYX</div><div class="brandtag">ONLINE PHYSICS LAB</div></div></div>
+ <div class="brand"><div class="brandmark">P</div><div><div class="brandname">PIXELPHYX</div><div class="brandtag">OFFLINE PHYSICS LAB</div></div></div>
  <div hidden aria-hidden="true"><button id="firebaseBtn" type="button"></button><button id="roomBtn" type="button"></button></div>
  <div class="header-spacer"></div><div class="status" id="connection" aria-label="Connection status"></div><span class="room-pill" id="roomLabel">ROOM · LOCAL</span>
  
@@ -77,7 +77,7 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 </aside>
 <section class="center">
  <div class="toolbar">
-  <button class="btn primary" id="play">Ⅱ Pause</button><button class="btn" id="step">Step</button><button class="btn" id="clear">Clear world</button><span class="divider"></span><button class="btn" id="save">Export PNG</button><label class="canvas-size-control" for="canvasSize">Canvas <select id="canvasSize" class="btn" aria-label="Canvas size"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></label><span class="grow"></span><span class="room-pill" id="fps">60 FPS</span>
+  <button class="btn primary" id="play">Ⅱ Pause</button><button class="btn" id="step">Step</button><button class="btn" id="clear">Clear world</button><span class="divider"></span><button class="btn" id="save">Export PNG</button><button class="btn" id="saveWorld" type="button">Save World</button><button class="btn" id="loadWorld" type="button">Load World</button><input id="loadWorldFile" type="file" accept="application/json,.json" hidden><label class="canvas-size-control" for="canvasSize">Canvas <select id="canvasSize" class="btn" aria-label="Canvas size"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></label><span class="grow"></span><span class="room-pill" id="fps">60 FPS</span>
  </div>
  <div class="canvas-shell" id="canvasShell">
   <canvas id="world" width="320" height="180" aria-label="PixelPhyx physics sandbox"></canvas>
@@ -114,6 +114,10 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 <script>
 /* Generated from main.js and the physics modules. */
 window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};
+const offlineStorage=(()=>{try{return window.localStorage}catch{return null}})();
+const offlineReadSetting=key=>{try{return offlineStorage?.getItem(key)||null}catch{return null}};
+const offlineWriteSetting=(key,value)=>{try{offlineStorage?.setItem(key,value)}catch(error){console.info("Offline preferences could not be saved.",error)}};
+
 const PixelPhyxMaterial=(()=>{
 // PixelPhyx material simulation: density, capillary wetting, thermal transfer and combustion.
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -875,6 +879,20 @@ function resizeBloomBuffer(){
  bloomImage=bloomCtx.createImageData(bloomW,bloomH);bloomPixels=bloomImage.data;
 }
 resizeBloomBuffer();
+function protectStrokePoint(p){
+ if(!activeStrokeMeta||!inside(p.x,p.y))return;
+ const radius=activeStrokeMeta.tool==='bomb'?2:activeStrokeMeta.brush;
+ const r2=radius*radius,until=performance.now()+1400;
+ for(let y=-radius;y<=radius;y++)for(let x=-radius;x<=radius;x++)if(x*x+y*y<=r2){const px=p.x+x,py=p.y+y;if(inside(px,py)){const i=idx(px,py);protectedStrokeCells.set(i,{material:cells[i],until})}}
+}
+function publishStrokeBatch(force=false){
+ if(!activeStrokeMeta||!multiplayer?.joined)return;
+ const now=performance.now();if(!force&&now-lastStrokePublishAt<33)return;
+ const points=strokePoints.slice(lastPublishedStrokePoint);
+ if(!points.length)return;
+ lastPublishedStrokePoint=strokePoints.length;lastStrokePublishAt=now;
+ publishOperation({type:'stroke',points,tool:activeStrokeMeta.tool,material:activeStrokeMeta.material,brush:activeStrokeMeta.brush,erase:activeStrokeMeta.erase});
+}
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15,CHARCOAL:16};
 const materials=[
  {id:1,name:'Sand',icon:'▨',color:'#d9b45f',rgb:[217,180,95],type:'powder'},
@@ -900,8 +918,9 @@ let snapshotMoves=new Map();
 let temperatureUnit='C';
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
-let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=100,lastOperationAppliedAt=0,remoteLeafblowers={},lastRopePublish=0;
-let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
+let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=500,lastAppliedSnapshotAt=0,lastOperationAppliedAt=0,remoteLeafblowers={},lastRopePublish=0;
+const protectedStrokeCells=new Map();let activeStrokeMeta=null,lastStrokePublishAt=0,lastPublishedStrokePoint=0;
+let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=offlineReadSetting('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=offlineReadSetting('pixelphyx-player-color')||'#65d6ad';
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
 function setConnection(state){const el=document.querySelector('#connection');el.className='status '+state}
@@ -961,7 +980,7 @@ canvas.parentElement.addEventListener('pointerdown',e=>{
   return;
  }
  if(tool==='leafblower'&&e.button===0){drawing=true;activeErase=false;leafblower.active=true;leafblower.x=p.x;leafblower.y=p.y;leafblower.lastPublish=0;lastPoint=p;canvas.parentElement.setPointerCapture(e.pointerId);return}
- drawing=true;activeErase=e.button===2||tool==='erase';canvas.parentElement.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)
+ drawing=true;activeErase=e.button===2||tool==='erase';canvas.parentElement.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}activeStrokeMeta={tool,material:selected,brush,erase:activeErase};lastPublishedStrokePoint=0;lastStrokePublishAt=0;lastPoint=null;act(p,e);protectStrokePoint(p);publishStrokeBatch(true)
 });
 canvas.parentElement.addEventListener('pointermove',e=>{
  const p=canvasPoint(e);
@@ -970,17 +989,17 @@ canvas.parentElement.addEventListener('pointermove',e=>{
  if(tool==='leafblower'&&drawing){const dx=p.x-lastPoint.x,dy=p.y-lastPoint.y,distance=Math.hypot(dx,dy);if(distance>.35){leafblower.dx=dx/distance;leafblower.dy=dy/distance}leafblower.x=p.x;leafblower.y=p.y;lastPoint=p;const now=performance.now();if(now-leafblower.lastPublish>=33){leafblower.lastPublish=now;multiplayer?.publishLeafblower({active:true,x:p.x,y:p.y,dx:leafblower.dx,dy:leafblower.dy})}return}
  if(!drawing)return;
  if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);
- if(tool==='rope'){lastPoint=p;return}act(p,e)
+ if(tool==='rope'){lastPoint=p;return}act(p,e);protectStrokePoint(p);publishStrokeBatch(false)
 });
 canvas.parentElement.addEventListener('pointerup',e=>{
  if(objectSystem.dragging){objectSystem.releaseGrab();drawing=false;return}
  if(ropeDrag){const {rope,node,nodeIndex}=ropeDrag;node.anchor=ropeDrag.wasAnchor;if(!node.anchor){node.px=node.x-ropeDrag.velocityX;node.py=node.y-ropeDrag.velocityY}publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,vx:ropeDrag.velocityX,vy:ropeDrag.velocityY,predicted:false});ropeDrag=null;drawing=false;return}
  if(tool==='leafblower'){leafblower.active=false;drawing=false;lastPoint=null;return}
  if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){const created=createRope(ropeStart,end);if(created)publishOperation({type:'rope',ropeId:created.id,a:ropeStart,b:end})}ropeStart=null}
- else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});
- drawing=false;activeErase=false;lastPoint=null;strokePoints=[]
+ else if(strokePoints.length){publishStrokeBatch(true);activeStrokeMeta=null}
+ drawing=false;activeErase=false;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0
 });
-canvas.parentElement.addEventListener('pointercancel',()=>{if(objectSystem.dragging)objectSystem.releaseGrab();if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeErase=false});
+canvas.parentElement.addEventListener('pointercancel',()=>{if(objectSystem.dragging)objectSystem.releaseGrab();if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0;activeErase=false});
 canvas.parentElement.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
@@ -1021,11 +1040,8 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
 const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)||objectSystem.blocksParticleMove(x1,y1,x2,y2)}
 function stepRopes(){
- // The host is the sole rope-physics authority in multiplayer. Other clients
- // render the host's snapshots and only apply local pointer previews.
- if(!multiplayer?.joined||multiplayer.isHost){
-  physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,airborneParticles,onExtract:i=>snapshotMoves.delete(i),recordMove:recordParticleMove});
- }
+ // All clients predict rope physics locally; host snapshots correct drift.
+ physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,airborneParticles,onExtract:i=>snapshotMoves.delete(i),recordMove:recordParticleMove});
  for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
 }
 function applyLeafblowerImpulse(x,y,dx,dy,radius=46,strength=4.2){
@@ -1297,15 +1313,19 @@ const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,lastPropPublish=0;
  function loop(now){
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
- // Every peer runs the simulation locally for immediate, smooth particle motion.
- // Host snapshots remain authoritative checkpoints that periodically correct drift.
+ // Clients predict locally for responsive motion; host snapshots reconcile drift.
  if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
- cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
- if(multiplayer?.joined&&multiplayer.isHost&&multiplayer.lanMode){
-  if(now-lastWorldPublish>=30000){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
-  if(now-lastRopePublish>=100){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
+ if(multiplayer?.joined&&!multiplayer.isHost){
+  // Interpolate the client's own predicted moves, not the host's stale move list.
+  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
+ }else cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
+ if(multiplayer?.joined&&multiplayer.isHost){
+  const syncInterval=N>100000?1000:N>30000?750:500;
+  remoteSnapshotInterval=syncInterval;
+  if(now-lastWorldPublish>=syncInterval){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
+  if(now-lastRopePublish>=200){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
- if(multiplayer?.joined&&(multiplayer.isHost&&objectSystem.count||objectSystem.dragging)&&now-lastPropPublish>=150){lastPropPublish=now;publishOperation({type:'props',items:objectSystem.serialize()})}
+ if(multiplayer?.joined&&multiplayer.isHost&&now-lastPropPublish>=300){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -1313,8 +1333,8 @@ requestAnimationFrame(loop);
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size})});
-document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
-document.querySelector('#step').onclick=()=>{if(!running){tick();rebuildCellInterpolation();cellRenderAlpha=0;render()}};
+document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED';publishOperation({type:'simulation',running})};
+document.querySelector('#step').onclick=()=>{if(!running){if(multiplayer?.joined&&!multiplayer.isHost)publishOperation({type:'simulationStep'});else{tick();rebuildCellInterpolation();cellRenderAlpha=0;render();publishOperation({type:'simulationStep'})}}};
 document.querySelector('#clear').onclick=()=>{cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);movingParticles.length=0;airborneParticles.length=0;snapshotMoves.clear();movingDestinations.fill(0);moveByDestination.fill(-1);visualParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear();publishOperation({type:'clear'});render();log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
 
@@ -1338,41 +1358,6 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeOnlineMo
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeOnlineModal(m)}));
 
 let multiplayerLoading=null;
-let usageStatus=null;
-function renderUsage(status){
- usageStatus=status;
- const daily=status?.daily||{};
- const monthly=status?.monthly||{};
- const dailyValue=document.querySelector('#dailyUsageValue');
- const dailyBar=document.querySelector('#dailyUsageBar');
- const dailyMessage=document.querySelector('#dailyUsageMessage');
- const monthlyValue=document.querySelector('#monthlyUsageValue');
- const monthlyBar=document.querySelector('#monthlyUsageBar');
- const monthlyMessage=document.querySelector('#monthlyUsageMessage');
- if(!dailyValue||!dailyBar||!dailyMessage||!monthlyValue||!monthlyBar||!monthlyMessage)return;
- const dailyPercent=Math.max(0,Math.min(100,Number(daily.percent)||0));
- const monthlyPercent=Math.max(0,Math.min(100,Number(monthly.percent)||0));
- dailyValue.textContent=dailyPercent+'% / 90%';
- dailyBar.style.width=dailyPercent+'%';
- dailyBar.classList.toggle('warning',dailyPercent>=75&&!daily.blocked);
- dailyBar.classList.toggle('blocked',!!daily.blocked);
- dailyMessage.textContent=daily.blocked
-  ? 'Online is disabled because estimated daily downloads reached the 90% safety limit.'
-  : 'Daily allowance: 360 MB. Online locks at 324 MB estimated.';
- monthlyValue.textContent=monthlyPercent+'% / 90%';
- monthlyBar.style.width=monthlyPercent+'%';
- monthlyBar.classList.toggle('warning',monthlyPercent>=75&&!monthly.blocked);
- monthlyBar.classList.toggle('blocked',!!monthly.blocked);
- monthlyMessage.textContent=monthly.blocked
-  ? 'Online is disabled because estimated monthly downloads reached the 90% safety limit.'
-  : 'Monthly allowance: 10 GB. Online locks at 9 GB estimated.';
- const blocked=!!status?.blocked;
- document.querySelector('#createLobby').disabled=blocked;
- document.querySelector('#join').disabled=blocked;
- document.querySelector('#roomCode').disabled=blocked;
- document.querySelectorAll('#lobbyGallery .lobby-join').forEach(button=>button.disabled=blocked);
-}
-
 const pendingJoinRequests=new Map();
 function queueJoinRequest(request){
  if(!request?.key)return;
@@ -1396,47 +1381,27 @@ function renderJoinRequests(){
   row.append(label,actions);list.append(row);
  }
 }
-function getConnectionConfig(){
- const config={...firebaseConfig};
- if(!document.querySelector('#customServerMode')?.checked)return config;
- const raw=String(document.querySelector('#customServerAddress')?.value||'').trim();
- if(!raw)throw new Error('Paste your Firebase config declaration.');
- let custom,source=raw;
- // Accept Firebase's copied JavaScript format as well as plain JSON.
- source=source.replace(/^\s*(?:const|let|var)\s+firebaseConfig\s*=\s*/,'').replace(/;\s*$/,'');
- source=source.replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g,'$1"$2":').replace(/,\s*([}\]])/g,'$1');
- try{custom=JSON.parse(source)}catch{throw new Error('Invalid Firebase config. Paste the complete const firebaseConfig = { ... }; block from Firebase Project settings.')}
- if(!custom||typeof custom!=='object'||Array.isArray(custom))throw new Error('Firebase config must be an object.');
- for(const key of ['apiKey','authDomain','databaseURL','projectId','appId'])if(typeof custom[key]!=='string'||!custom[key].trim())throw new Error('Firebase config is missing the required "'+key+'" field.');
- let database;
- try{database=new URL(custom.databaseURL)}catch{throw new Error('The databaseURL in your Firebase config is not a valid URL.')}
- if(database.protocol!=='https:'||!(database.hostname==='firebaseio.com'||database.hostname.endsWith('.firebaseio.com')||database.hostname==='firebasedatabase.app'||database.hostname.endsWith('.firebasedatabase.app')))throw new Error('databaseURL must be an HTTPS Firebase Realtime Database URL.');
- custom.databaseURL=database.href.replace(/\/$/,'');
- return custom;
-}
-async function connectFirebase(config){
- config=getConnectionConfig();
- if(!multiplayer){
-  if(!multiplayerLoading){
-   multiplayerLoading=(async()=>{
-    const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;
-    multiplayer=createMultiplayer({
-     onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
-     getWorld:()=>serialize(),
-     getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
-     onLeafblowers:people=>{const now=performance.now();for(const [id,state] of Object.entries(people||{})){if(id===playerId)continue;const data=state?.leafblower;if(!data)continue;if(data.active&&[data.x,data.y,data.dx,data.dy].every(Number.isFinite)){const current=remoteLeafblowers[id];if(current){current.targetX=data.x;current.targetY=data.y;current.targetDx=data.dx;current.targetDy=data.dy;current.receivedAt=now;current.active=true}else remoteLeafblowers[id]={x:data.x,y:data.y,dx:data.dx,dy:data.dy,targetX:data.x,targetY:data.y,targetDx:data.dx,targetDy:data.dy,receivedAt:now,active:true}}else if(remoteLeafblowers[id])remoteLeafblowers[id].active=false}},
-     onPlayers:renderPlayers,
-     onJoinRequest:request=>queueJoinRequest(request),
-     onCursors:people=>{remoteCursorTargets={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&Number.isFinite(p.x)&&Number.isFinite(p.y))remoteCursorTargets[id]={x:p.x,y:p.y,color:p.color||'#ffffff',name:p.name||'Guest'}}}
-    });
-   })().catch(error=>{multiplayerLoading=null;throw error});
+async function connectPhoton(){
+  if(!multiplayer){
+   if(!multiplayerLoading){
+    multiplayerLoading=(async()=>{
+     const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;
+     multiplayer=createMultiplayer({
+      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
+      getWorld:()=>serialize(),
+      getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
+      getProps:()=>objectSystem.serialize(),
+      onPlayers:renderPlayers,
+      onJoinRequest:request=>queueJoinRequest(request)
+     });
+    })().catch(error=>{multiplayerLoading=null;throw error});
+   }
+   await multiplayerLoading;
   }
-  await multiplayerLoading;
- }
- playerId=await multiplayer.connect(config);
- return playerId;
+  playerId=await multiplayer.connect();
+  return playerId;
 }
-// Firebase is initialized only after the user selects Online.
+// Photon connects only after the user selects Online.
 function updateCurrentRoomUI(){
  const section=document.querySelector('#currentRoomSection'),code=document.querySelector('#currentRoomCode');
  if(!section||!code)return;
@@ -1456,26 +1421,30 @@ document.querySelector('#copyRoomCode').onclick=async()=>{
   setTimeout(()=>{button.title='Copy room code';button.setAttribute('aria-label','Copy room code')},1200);
  }catch(error){log('Could not copy room code: '+error.message)}
 };
-const customServerToggle=document.querySelector('#customServerMode');
-const customServerSettings=document.querySelector('#customServerSettings');
-function updateCustomServerUI(){
- customServerSettings.hidden=!customServerToggle.checked;
-}
-customServerToggle.addEventListener('change',updateCustomServerUI);
-updateCustomServerUI();
-document.querySelector('#customServerHint').textContent='Paste the complete const firebaseConfig = { ... }; block copied from Firebase Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.';
+document.querySelector('#leaveRoom').onclick=async()=>{
+ const button=document.querySelector('#leaveRoom');button.disabled=true;
+ try{
+  await multiplayer?.leaveRoom();
+  room='';
+  pendingJoinRequests.clear();renderJoinRequests();updateCurrentRoomUI();
+  document.querySelector('#roomLabel').textContent='ROOM · LOCAL';
+  document.querySelector('#playerCount').textContent='0 online';
+  log('Left the server. Your local experiment is still open.');
+ }catch(error){log('Could not leave server: '+error.message)}
+ finally{button.disabled=false}
+};
 document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
  try{
-  await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error(usage.daily.blocked?'Online is disabled: daily bandwidth usage has reached 90%.':'Online is disabled: monthly bandwidth usage has reached 90%.');
-  room=await multiplayer.createLobby({name:playerName,color:playerColor},{lan:document.querySelector('#lanMode').checked});
+  await connectPhoton();
+  
+  room=await multiplayer.createLobby({name:playerName,color:playerColor});
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
   closeOnlineModal(document.querySelector('#roomModal'));
-  log('Created server '+room+' — you are the host'+(multiplayer.lanMode?' using direct LAN multiplayer':''));
+  log('Created server '+room+' — you are the host'+' using Photon relay');
  }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
  finally{button.disabled=false;button.textContent='+ Create server'}
 };
@@ -1483,8 +1452,8 @@ document.querySelector('#createLobby').onclick=async()=>{
 let stopLobbyGallery=null;
 async function openLobbyGallery(){
  try{
-  await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);
+  await connectPhoton();
+  
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
   updateCurrentRoomUI();
@@ -1493,7 +1462,7 @@ async function openLobbyGallery(){
 }
 function renderLobbyGallery(lobbies){
  const gallery=document.querySelector('#lobbyGallery');
- document.querySelector('#lobbyCapacity').textContent=lobbies.length+' / 20 active servers';
+ document.querySelector('#lobbyCapacity').textContent=lobbies.length+' servers listed';
  gallery.replaceChildren();
  if(!lobbies.length){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No active servers yet. Create one to become the host.';gallery.append(empty);return}
  for(const lobby of lobbies){
@@ -1502,9 +1471,9 @@ function renderLobbyGallery(lobbies){
   const number=document.createElement('span');number.className='lobby-number';number.textContent=lobby.room;
   const count=document.createElement('span');count.className='lobby-count';count.textContent=(lobby.players||0)+' online';
   top.append(number,count);
-  const host=document.createElement('div');host.className='lobby-host';host.textContent=(lobby.transport==='webrtc'?'LAN DIRECT · HOST · ':'HOST · ');
+  const host=document.createElement('div');host.className='lobby-host';host.textContent='HOST · ';
   const hostName=document.createElement('strong');hostName.textContent=lobby.hostName||'Unknown';host.append(hostName);
-  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=!!usageStatus?.blocked;
+  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=false;
   join.onclick=async()=>{
    join.disabled=true;join.textContent='Request sent…';
    try{await requestAndJoinRoom(lobby.room);closeOnlineModal(document.querySelector('#roomModal'))}
@@ -1517,10 +1486,10 @@ async function requestAndJoinRoom(code){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Choose a lobby first');return}
  try{
-  await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
+  await connectPhoton();
+  
   log('Sending join request to '+clean+'…');
-  const approved=await multiplayer.requestJoin(clean,{name:playerName});
+  const approved=await multiplayer.requestJoin(clean,{name:playerName,color:playerColor});
   if(!approved)throw new Error('The host declined your request');
   await joinRoom(clean,true);
  }catch(error){log('Could not join lobby: '+error.message);throw error}
@@ -1530,7 +1499,7 @@ function encodeCells(data){let raw='';for(let i=0;i<data.length;i+=0x8000)raw+=S
 function decodeCells(value,packed=false,rle=false){if(Array.isArray(value))return Uint8Array.from(value);const raw=atob(value);if(rle){const out=new Uint8Array(N);let offset=0;for(let i=0;i+1<raw.length;i+=2){const count=raw.charCodeAt(i),material=raw.charCodeAt(i+1);if(!count||offset+count>N)throw new Error('Invalid compressed world snapshot');out.fill(material,offset,offset+count);offset+=count}if(offset!==N)throw new Error('Incomplete compressed world snapshot');return out}if(packed){const out=new Uint8Array(raw.length*2);for(let i=0;i<raw.length;i++){const byte=raw.charCodeAt(i);out[i*2]=byte&15;out[i*2+1]=byte>>4}return out}const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
 function encodeMaterialField(values,scale=1){const bytes=new Uint8Array(values.length);for(let i=0;i<values.length;i++)bytes[i]=Math.max(0,Math.min(255,Math.round(values[i]*scale)));let raw='';for(let i=0;i<bytes.length;i+=0x8000)raw+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(raw)}
 function decodeMaterialField(value,target,scale=1){if(typeof value!=='string')return;try{const raw=atob(value);if(raw.length!==target.length)return;for(let i=0;i<raw.length;i++)target[i]=raw.charCodeAt(i)/scale}catch{}}
-function serialize(){const moves=Array.from(snapshotMoves.values(),p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]);snapshotMoves.clear();return{width:W,height:H,canvasSize,cells:encodeCells(cells),packed:false,moves,airborne:airborneParticles.slice(0,5000).map(p=>[p.x,p.y,p.vx,p.vy,p.material,p.wetness,p.heat,p.fuel,p.burn,p.age,p.corrosion]),props:objectSystem.serialize(),materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},gravity,ambient,updatedAt:Date.now(),by:playerId}}
+function serialize(){const moves=Array.from(snapshotMoves.values(),p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]);snapshotMoves.clear();return{width:W,height:H,canvasSize,cells:encodeCells(cells),packed:false,moves,airborne:airborneParticles.slice(0,5000).map(p=>[p.x,p.y,p.vx,p.vy,p.material,p.wetness,p.heat,p.fuel,p.burn,p.age,p.corrosion]),props:objectSystem.serialize(),materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},gravity,ambient,running,updatedAt:Date.now(),by:playerId}}
 function applyRopeState(data){
  if(!data||data.by===playerId||!Array.isArray(data.ropes))return;
  const next=[];
@@ -1553,19 +1522,19 @@ function applyRopeState(data){
  }
  ropes=next;
 }
-function applyWorld(data){if(!data||data.by===playerId)return true;if(drawing||ropeDrag)return false;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed,!!data.rle)}catch(e){return false}if(incoming.length!==N)return false;lastRemoteWorldAt++;remoteSnapshotReceivedAt=performance.now();remoteApplying=true;cells.set(incoming);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles=Array.isArray(data.airborne)?data.airborne.slice(0,5000).filter(p=>Array.isArray(p)&&p.length>=5&&p.slice(0,5).every(Number.isFinite)&&p[4]>0&&p[4]<=16&&p[0]>=0&&p[0]<W&&p[1]>=0&&p[1]<H).map(p=>({x:p[0],y:p[1],vx:p[2],vy:p[3],material:p[4],wetness:p[5]||0,heat:p[6]||0,fuel:p[7]||0,burn:p[8]||0,age:p[9]||0,corrosion:p[10]||0,sleep:0})):[];movingParticles=Array.isArray(data.moves)?data.moves.slice(0, W*H).filter(p=>Array.isArray(p)&&p.length>=5&&p.every(Number.isFinite)&&inside(p[0],p[1])&&inside(p[2],p[3])&&p[4]>0&&p[4]<=16).map(p=>({fromX:p[0],fromY:p[1],toX:p[2],toY:p[3],toIndex:idx(p[2],p[3]),material:p[4]})):[];moveByDestination.fill(-1);rebuildCellInterpolation();if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.props))objectSystem.restore(data.props);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false;return true}
+function applyWorld(data){if(!data||data.by===playerId)return true;const snapshotAt=Number.isFinite(data.updatedAt)?data.updatedAt:0;if(snapshotAt&&snapshotAt<=lastAppliedSnapshotAt)return false;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed,!!data.rle)}catch(e){return false}if(incoming.length!==N)return false;if(snapshotAt)lastAppliedSnapshotAt=snapshotAt;lastRemoteWorldAt++;remoteSnapshotReceivedAt=performance.now();remoteSnapshotInterval=N>100000?1000:N>30000?750:500;remoteApplying=true;const now=performance.now(),isPredicting=multiplayer?.joined&&!multiplayer.isHost;for(let i=0;i<N;i++){const protectedEdit=protectedStrokeCells.get(i);if(protectedEdit&&protectedEdit.until>now){incoming[i]=protectedEdit.material;continue}if(protectedEdit)protectedStrokeCells.delete(i);if(isPredicting&&movingDestinations[i]&&cells[i]!==M.EMPTY){incoming[i]=cells[i];continue}if(incoming[i]===M.EMPTY){particleVelocityX[i]=0;particleVelocityY[i]=0}}cells.set(incoming);airborneParticles=Array.isArray(data.airborne)?data.airborne.slice(0,5000).filter(p=>Array.isArray(p)&&p.length>=5&&p.slice(0,5).every(Number.isFinite)&&p[4]>0&&p[4]<=16&&p[0]>=0&&p[0]<W&&p[1]>=0&&p[1]<H).map(p=>({x:p[0],y:p[1],vx:p[2],vy:p[3],material:p[4],wetness:p[5]||0,heat:p[6]||0,fuel:p[7]||0,burn:p[8]||0,age:p[9]||0,corrosion:p[10]||0,sleep:0})):[];movingParticles=multiplayer?.joined&&!multiplayer.isHost?[]:(Array.isArray(data.moves)?data.moves.slice(0,W*H).filter(p=>Array.isArray(p)&&p.length>=5&&p.every(Number.isFinite)&&inside(p[0],p[1])&&inside(p[2],p[3])&&p[4]>0&&p[4]<=16).map(p=>({fromX:p[0],fromY:p[1],toX:p[2],toY:p[3],toIndex:idx(p[2],p[3]),material:p[4]})):[]);moveByDestination.fill(-1);rebuildCellInterpolation();if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.props))objectSystem.restore(data.props);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;if(typeof data.running==='boolean'){running=data.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'}document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false;return true}
 async function joinRoom(code,approved=false){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
  try{
-  await connectFirebase(firebaseConfig);
+  await connectPhoton();
   if(!multiplayer)throw new Error('Multiplayer failed to initialize');
-  lastRemoteWorldAt=0;lastWorldPublish=0;
+  lastRemoteWorldAt=0;lastAppliedSnapshotAt=0;lastWorldPublish=0;
   await multiplayer.joinRoom(clean,{name:playerName,color:playerColor},approved,false);room=clean;
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
-  log('Joined room '+room+(multiplayer.lanMode?' — direct LAN connection starting':' — shared world synchronization active'));
+  log('Joined room '+room+' — Photon world synchronization active');
  }catch(e){log('Could not join room: '+e.message);alert('Could not join room: '+e.message)}
 }
 function publishOperation(operation){lastOperationAppliedAt=performance.now();multiplayer?.publishOperation(operation)}
@@ -1581,7 +1550,7 @@ function renderPlayers(people){
   d.append(av,nm,you);el.append(d);
  }
 }
-function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='props'||op.type==='propAdd'||op.type==='propDelete'){objectSystem.apply(op)}else if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear()}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.ox=node.x;node.oy=node.y;node.dragMoved=true;node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
+function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='props'||op.type==='propAdd'||op.type==='propDelete'){objectSystem.apply(op)}else if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear()}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='simulation'&&typeof op.running==='boolean'){running=op.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'}else if(op.type==='simulationStep'){if(multiplayer?.isHost&&!running){tick();rebuildCellInterpolation();cellRenderAlpha=0}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.ox=node.x;node.oy=node.y;node.dragMoved=true;node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
 let localCursor=null;
 canvas.parentElement.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;localCursor=p});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');
@@ -1603,24 +1572,42 @@ else window.addEventListener('resize',fitCanvasToShell);
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 document.querySelector('#playerColor').value=playerColor;
-document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;localStorage.setItem('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
-document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;localStorage.setItem('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
+document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;offlineWriteSetting('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
+document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;offlineWriteSetting('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
 updateTemperature();
 // Trigger offline bundle rebuild for swept rope collision handling.
 
-})();
-</script>
-<script id="pixelphyx-offline-updater">
-(async()=>{
-  const latestUrl='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Website/offline.html';
-  try{
-    const response=await fetch(latestUrl+'?t='+Date.now(),{cache:'no-store'});
-    if(!response.ok)return;
-    const latestHtml=await response.text();
-    const latestBuild=latestHtml.match(/<meta\s+name=["']pixelphyx-offline-build["']\s+content=["']([^"']+)["']/i)?.[1];
-    const currentBuild=document.querySelector('meta[name="pixelphyx-offline-build"]')?.content;
-    if(latestBuild&&currentBuild&&latestBuild!==currentBuild){document.open();document.write(latestHtml);document.close()}
-  }catch(error){console.info('PixelPhyx is running from the available offline copy.',error)}
+
+// Local world files preserve pixels, material state, props, ropes and simulation settings.
+const saveWorldButton=document.querySelector('#saveWorld');
+const loadWorldButton=document.querySelector('#loadWorld');
+const loadWorldFile=document.querySelector('#loadWorldFile');
+saveWorldButton.addEventListener('click',()=>{
+ const snapshot=serialize();
+ snapshot.format='pixelphyx-world';snapshot.version=1;
+ snapshot.ropes=ropes.map(rope=>({id:rope.id,points:rope.points.map(p=>[p.x,p.y,!!p.anchor])}));
+ const blob=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download='pixelphyx-world.json';link.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+loadWorldButton.addEventListener('click',()=>loadWorldFile.click());
+loadWorldFile.addEventListener('change',async()=>{
+ const file=loadWorldFile.files?.[0];if(!file)return;
+ try{
+  if(file.size>12*1024*1024)throw new Error('World file is too large (12 MB maximum).');
+  const snapshot=JSON.parse(await file.text());
+  if(snapshot?.format!=='pixelphyx-world'||snapshot.version!==1||typeof snapshot.cells!=='string')throw new Error('This is not a supported PixelPhyx world file.');
+  const imported={...snapshot,by:'offline-file',updatedAt:Date.now()+1};
+  if(!applyWorld(imported))throw new Error('The world data could not be loaded.');
+  applyRopeState({by:'offline-file',ropes:Array.isArray(snapshot.ropes)?snapshot.ropes:[]});
+  running=snapshot.running!==false;
+  document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Play';
+  render();log('World loaded from '+file.name);
+ }catch(error){alert('Could not load world: '+error.message);log('World load failed: '+error.message)}
+ finally{loadWorldFile.value=''}
+});
+
 })();
 </script>
 </body>
