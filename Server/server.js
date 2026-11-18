@@ -18,7 +18,14 @@ const settings = {
   lobbyCount: Math.max(1, Math.min(100, Number(config.server?.lobby_count) || 20)),
   name: String(config.server?.name || 'PixelPhyx Server').slice(0, 48),
   publicAddress: String(config.server?.public_address || '').trim(),
-  heartbeatMs: Math.max(5000, Number(config.network?.heartbeat_ms) || 15000)
+  heartbeatMs: Math.max(5000, Number(config.network?.heartbeat_ms) || 15000),
+  snapshotIntervalMs: Math.max(100, Math.min(5000, Number(config.network?.snapshot_interval_ms) || 400)),
+  ropeUpdateIntervalMs: Math.max(20, Math.min(1000, Number(config.network?.rope_update_interval_ms) || 50)),
+  cursorUpdates: config.network?.cursor_updates !== false,
+  cursorUpdateIntervalMs: Math.max(20, Math.min(500, Number(config.network?.cursor_update_interval_ms) || 40)),
+  predictionEnabled: config.network?.prediction_enabled === true,
+  maxPayloadBytes: Math.max(65536, Math.min(32 * 1024 * 1024, Number(config.network?.max_payload_bytes) || 8 * 1024 * 1024)),
+  maxBufferedBytes: Math.max(65536, Math.min(64 * 1024 * 1024, Number(config.network?.max_buffered_bytes) || 16 * 1024 * 1024))
 };
 
 const rooms = new Map();
@@ -26,7 +33,9 @@ const clients = new Map();
 let nextPlayerNumber = 1;
 
 function send(socket, type, data = {}) {
-  if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type, ...data }));
+  if (socket.readyState !== WebSocket.OPEN || socket.bufferedAmount > settings.maxBufferedBytes) return false;
+  socket.send(JSON.stringify({ type, ...data }));
+  return true;
 }
 function safeName(value) {
   return String(value || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
@@ -140,6 +149,27 @@ function handle(client, message) {
     }
     case 'event':
       if (!room) return;
+      if (Number(message.code) === 4) {
+        if (!settings.cursorUpdates || !client.approved) return;
+        const cursor = message.data || {};
+        if (cursor.active === false) {
+          sendEvent(room, client, { code: 4, data: { active: false }, reliable: false });
+          return;
+        }
+        if (!Number.isFinite(cursor.x) || !Number.isFinite(cursor.y) ||
+            cursor.x < 0 || cursor.y < 0 || cursor.x > 100000 || cursor.y > 100000) return;
+        sendEvent(room, client, {
+          code: 4,
+          data: {
+            x: cursor.x, y: cursor.y,
+            color: /^#[0-9a-f]{6}$/i.test(cursor.color || '') ? cursor.color : '#65d6ad',
+            name: safeName(cursor.name),
+            active: true
+          },
+          reliable: false
+        });
+        return;
+      }
       if (Number(message.code) === 6 && client.id === room.hostId) {
         const targetNumber = Array.isArray(message.targetPlayers) ? Number(message.targetPlayers[0]) : 0;
         const target = [...room.players.values()].find(player => player.number === targetNumber);
@@ -180,7 +210,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
   res.end('PixelPhyx multiplayer server is running. Connect your game client using WebSocket path /pixelphyx.');
 });
-const wss = new WebSocket.Server({ server, path: '/pixelphyx' });
+const wss = new WebSocket.Server({ server, path: '/pixelphyx', maxPayload: settings.maxPayloadBytes });
 wss.on('connection', socket => {
   const client = { id: crypto.randomUUID(), socket, name: 'Lab guest', color: '#65d6ad', room: null, number: 0, approved: false };
   clients.set(client.id, client);
@@ -190,7 +220,16 @@ wss.on('connection', socket => {
   });
   socket.on('close', () => { removeFromRoom(client); clients.delete(client.id); });
   socket.on('error', () => {});
-  send(socket, 'welcome', { id: client.id, server: settings.name, maxPlayers: settings.maxPlayers, lobbyCount: settings.lobbyCount });
+  send(socket, 'welcome', {
+    id: client.id, server: settings.name, maxPlayers: settings.maxPlayers, lobbyCount: settings.lobbyCount,
+    network: {
+      snapshotIntervalMs: settings.snapshotIntervalMs,
+      ropeUpdateIntervalMs: settings.ropeUpdateIntervalMs,
+      cursorUpdates: settings.cursorUpdates,
+      cursorUpdateIntervalMs: settings.cursorUpdateIntervalMs,
+      predictionEnabled: settings.predictionEnabled
+    }
+  });
   send(socket, 'lobbies', { lobbies: lobbyList() });
 });
 const heartbeat = setInterval(() => {
