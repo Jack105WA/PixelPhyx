@@ -104,19 +104,51 @@ pub fn step_particles(
             let dy:isize=if gas {-1}else{1};
             let ny=y as isize+dy;
             let vertical=if ny>=0&&ny<height as isize {Some(ny as usize*width+x)}else{None};
+
+            // Preserve the original sand-specific settling behavior: sand has a
+            // high but non-guaranteed fall chance, is slowed by moisture, and
+            // only avalanches diagonally when the cell directly below is solid.
+            if m==1 {
+                if let Some(to)=vertical {
+                    if to<len && blocked[i]&2==0 {
+                        let below=cells[to];
+                        let should_fall=matches!(below,2|6)
+                            || (below==0 && random(seed,i,0x5A4D_F411)
+                                < (0.95*(1.0-wet[i]*0.82)*gravity.clamp(0.1,2.0)).clamp(0.04,1.0));
+                        if should_fall && (below==0||matches!(below,2|6)) {
+                            swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
+                            continue;
+                        }
+                        if below!=0 && !matches!(below,2|6) {
+                            let side=if random(seed,i,0x51DE)<0.5 {-1isize}else{1isize};
+                            let nx=x as isize+side;
+                            let diagonal_y=y as isize+1;
+                            if nx>=0&&nx<width as isize&&diagonal_y<height as isize {
+                                let diagonal=diagonal_y as usize*width+nx as usize;
+                                if diagonal<len && matches!(cells[diagonal],0|2|6) && blocked[i]&4==0 {
+                                    swap_cell(cells,updated,i,diagonal,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+
             if let Some(to)=vertical {
-                if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6)))&&blocked[i]&2==0 {
+                if to<len&&cells[to]==0&&blocked[i]&2==0 {
                     swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                     continue;
                 }
             }
-            if !gas && matches!(m,1|2|6|7|11|14|16) {
+            if !gas && matches!(m,2|6|7|11|14|16) {
                 let side=if random(seed,i,0x51DE)<0.5 {-1isize}else{1isize};
                 let nx=x as isize+side;
                 let ny=y as isize+dy;
                 if nx>=0&&nx<width as isize&&ny>=0&&ny<height as isize {
                     let to=ny as usize*width+nx as usize;
-                    if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6)))&&blocked[i]&4==0 {
+                    if to<len&&cells[to]==0&&blocked[i]&4==0 {
                         swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                         continue;
                     }
