@@ -166,40 +166,41 @@ pub fn step_particles(
             }
         }
     }
-    // The legacy engine ran a second material-physics pass after its
-    // general particle pass. Sand therefore had a second chance to settle
-    // during each simulation tick. Keep that extra pass sand-only.
-    for y in (0..height-1).rev() {
-        let reverse=random(seed,y,0x5A4D_5EC0)<0.5;
-        for k in 0..width {
-            let x=if reverse {width-1-k}else{k};
-            let i=y*width+x;
-            if i>=len||cells[i]!=1 {continue;}
-            let below=i+width;
-            if below>=len||blocked[i]&2!=0 {continue;}
-            let target=cells[below];
-            if target==2||target==6 {
-                swap_cell(cells,updated,i,below,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
-                continue;
-            }
-            if target==0 {
-                let chance=(0.95*(1.0-wet[i]*0.82)*gravity.clamp(0.1,2.0)).clamp(0.04,1.0);
-                if random(seed,i,0x5A4D_F411)<chance {
+    // Sand receives three additional settling passes per simulation tick.
+    // This preserves its faster-than-liquid behavior while leaving other
+    // materials on the normal single movement pass.
+    for pass in 0..3 {
+        let pass_seed=seed.wrapping_add(pass*0x9E37_79B9);
+            let reverse=random(pass_seed,y,0x5A4D_5EC0)<0.5;
+            for k in 0..width {
+                let x=if reverse {width-1-k}else{k};
+                let i=y*width+x;
+                if i>=len||cells[i]!=1 {continue;}
+                let below=i+width;
+                if below>=len||blocked[i]&2!=0 {continue;}
+                let target=cells[below];
+                if target==2||target==6 {
                     swap_cell(cells,updated,i,below,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                     continue;
                 }
-            } else {
-                let side=if random(seed,i,0x51DE_2)<0.5 {-1isize}else{1isize};
-                let nx=x as isize+side;
-                let ny=y as isize+1;
-                if nx>=0&&nx<width as isize&&ny<height as isize {
-                    let diagonal=ny as usize*width+nx as usize;
-                    if diagonal<len&&matches!(cells[diagonal],0|2|6)&&blocked[i]&4==0 {
-                        swap_cell(cells,updated,i,diagonal,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
+                if target==0 {
+                    let chance=(0.95*(1.0-wet[i]*0.82)*gravity.clamp(0.1,2.0)).clamp(0.04,1.0);
+                    if random(pass_seed,i,0x5A4D_F411)<chance {
+                        swap_cell(cells,updated,i,below,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
+                        continue;
+                    }
+                } else {
+                    let side=if random(pass_seed,i,0x51DE_2)<0.5 {-1isize}else{1isize};
+                    let nx=x as isize+side;
+                    let ny=y as isize+1;
+                    if nx>=0&&nx<width as isize&&ny<height as isize {
+                        let diagonal=ny as usize*width+nx as usize;
+                        if diagonal<len&&matches!(cells[diagonal],0|2|6)&&blocked[i]&4==0 {
+                            swap_cell(cells,updated,i,diagonal,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
+                        }
                     }
                 }
             }
-        }
     }
     moves
 }
