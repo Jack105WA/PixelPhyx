@@ -4,6 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const os = require('node:os');
 const WebSocket = require('ws');
 const yaml = require('js-yaml');
 
@@ -65,6 +66,7 @@ function removeFromRoom(client) {
       const next = room.players.values().next().value;
       room.hostId = next.id;
       next.approved = true;
+      const promoted = clients.get(next.id); if (promoted) promoted.approved = true;
       for (const p of room.players.values()) send(p.socket, 'host-changed', { hostId: room.hostId });
     }
     for (const p of room.players.values()) send(p.socket, 'player-left', { playerNumber: client.number });
@@ -203,7 +205,9 @@ server.listen(settings.port, settings.host, () => {
   console.log('  ----------------');
   console.log('  Bind:       ' + settings.host);
   console.log('  Port:       ' + settings.port);
+  const addresses = Object.values(os.networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal).map(item => item.address);
   console.log('  Local URL:  http://localhost:' + settings.port);
+  if (addresses.length) for (const address of addresses) console.log('  LAN URL:    http://' + address + ':' + settings.port);
   console.log('  WebSocket:  ws://localhost:' + settings.port + '/pixelphyx');
   console.log('  Max players per lobby: ' + settings.maxPlayers);
   console.log('  Lobby limit: ' + settings.lobbyCount);
