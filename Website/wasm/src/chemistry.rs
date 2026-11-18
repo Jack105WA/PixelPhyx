@@ -119,12 +119,39 @@ pub fn step_combustion(
     cells: &mut [u8], heat: &mut [f32], wetness: &[f32],
     fuel: &mut [f32], burn: &mut [f32], age: &[u16],
     ambient: f32, width: usize, height: usize,
-) {
+) -> u32 {
     let len = width.saturating_mul(height).min(cells.len()).min(heat.len())
         .min(wetness.len()).min(fuel.len()).min(burn.len()).min(age.len());
+    let mut detonations = 0u32;
     if width == 0 || height == 0 { return; }
 
     for i in 0..len {
+        if cells[i] == 12 {
+            let x=i%width; let y=i/width;
+            let triggered=(y+1<height && cells[i+width]==5)
+                || (x+1<width && cells[i+1]==5)
+                || (x>0 && cells[i-1]==5);
+            if triggered {
+                detonations=detonations.saturating_add(1);
+                for dy in -17isize..=17 {
+                    for dx in -17isize..=17 {
+                        let distance=((dx*dx+dy*dy) as f32).sqrt();
+                        if distance>=17.0 {continue;}
+                        let px=x as isize+dx; let py=y as isize+dy;
+                        if px<0||py<0||px>=width as isize||py>=height as isize {continue;}
+                        let ni=py as usize*width+px as usize;
+                        let seed=0x7A7A_0000u32.wrapping_add((dx+17) as u32*37).wrapping_add((dy+17) as u32*131);
+                        let inner=distance<17.0*(0.4+random01(ni,age[i],seed)*0.35);
+                        if inner {
+                            cells[ni]=if random01(ni,age[i],seed^0x55AA)<0.35 {5} else {0};
+                        } else if cells[ni]!=3 {
+                            cells[ni]=if random01(ni,age[i],seed^0xAA55)<0.4 {5} else {9};
+                        }
+                    }
+                }
+                continue;
+            }
+        }
         let material = cells[i];
         if material == 0 { continue; }
         let x = i % width;
@@ -224,6 +251,8 @@ pub fn step_combustion(
             }
         }
     }
+    detonations
+
 }
 
 fn conductivity(material: u8) -> f32 {
