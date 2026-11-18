@@ -48,7 +48,9 @@ jobs:
         run: wasm-pack build local-server/Website/wasm --target web --release --out-dir ../pkg
       - name: Validate browser JavaScript modules
         run: |
-          for file in production/Website/js/*.js production/Website/js/netcode/*.js production/Website/pkg/*.js local-server/Website/js/*.js local-server/Website/js/netcode/*.js local-server/Website/pkg/*.js; do
+          # Validate the preview branch only. Production is copied into the combined
+          # Pages artifact, but its syntax must not block local-server deployments.
+          for file in local-server/Website/js/*.js local-server/Website/js/netcode/*.js local-server/Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
       - uses: actions/configure-pages@v5
