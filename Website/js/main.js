@@ -281,8 +281,6 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  else if((m===M.SAND||m===M.SALT||m===M.CHARCOAL)&&Math.random()<.000012)emitVisualParticle(x,y,'dust');
  else if(m===M.STEAM&&Math.random()<.000025)emitVisualParticle(x,y,'steam');
  if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
- if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
- if(m===M.WATER&&ambient<0&&Math.random()<Math.min(.04,Math.abs(ambient)/3000)){cells[i]=M.ICE;continue}
  if(ambient>180&&m===M.WATER&&Math.random()<.012){cells[i]=M.STEAM;continue}
  if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
  const gas=m===M.STEAM||m===M.SMOKE||m===M.FIRE,dy=gas?-1:1,ny=y+dy,ni=inside(x,ny)?idx(x,ny):-1;
@@ -291,12 +289,12 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  
  if(m===M.STEAM&&Math.random()<.002)cells[i]=M.WATER;
  if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
- if(m===M.WATER&&ambient>100&&Math.random()<.0005)cells[i]=M.STEAM;
  }
  if(m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
  }}
  stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
  wasmEngine.step_acid_chemistry(cells,materialState.corrosion,materialState.burn,materialState.heat,materialState.wetness,materialState.fuel,materialState.age,W,H);
+ wasmEngine.step_phase_changes(cells,materialState.age,ambient,W,H);
  stepVisualParticles();
 }
 function rebuildCellInterpolation(){
