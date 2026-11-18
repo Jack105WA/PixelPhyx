@@ -281,7 +281,6 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  else if((m===M.SAND||m===M.SALT||m===M.CHARCOAL)&&Math.random()<.000012)emitVisualParticle(x,y,'dust');
  else if(m===M.STEAM&&Math.random()<.000025)emitVisualParticle(x,y,'steam');
  if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
- if(ambient>180&&m===M.WATER&&Math.random()<.012){cells[i]=M.STEAM;continue}
  if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
  const gas=m===M.STEAM||m===M.SMOKE||m===M.FIRE,dy=gas?-1:1,ny=y+dy,ni=inside(x,ny)?idx(x,ny):-1;
  if(ni>=0&&cells[ni]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+.5,ny+.5)){cells[ni]=m;cells[i]=M.EMPTY;recordParticleMove(i,ni,m);updated[ni]=1;i=ni;y=gas?y:y}
