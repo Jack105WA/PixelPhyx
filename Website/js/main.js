@@ -22,19 +22,20 @@ function protectStrokePoint(p){
  const r2=radius*radius,until=performance.now()+1400;
  for(let y=-radius;y<=radius;y++)for(let x=-radius;x<=radius;x++)if(x*x+y*y<=r2){const px=p.x+x,py=p.y+y;if(inside(px,py)){const i=idx(px,py);protectedStrokeCells.set(i,{material:cells[i],until})}}
 }
-function publishStrokeBatch(force=false){
+function publishStrokeBatch(final=false){
  if(!activeStrokeMeta||activeStrokeMeta.material>17||!multiplayer?.joined)return;
- const now=performance.now(),elapsed=now-lastStrokePublishAt;
- if(!force&&elapsed<16){
-  if(!strokePublishTimer)strokePublishTimer=setTimeout(()=>{strokePublishTimer=null;publishStrokeBatch(true)},16-elapsed);
-  return;
- }
  if(strokePublishTimer){clearTimeout(strokePublishTimer);strokePublishTimer=null}
+ // Send each newly drawn segment immediately. Include the previous point so
+ // every remote peer paints the exact segment instead of waiting for release.
  const start=lastPublishedStrokePoint>0?lastPublishedStrokePoint-1:0;
  const points=strokePoints.slice(start);
  if(!points.length)return;
- lastPublishedStrokePoint=strokePoints.length;lastStrokePublishAt=now;
- publishOperation({type:'stroke',points,tool:activeStrokeMeta.tool,material:activeStrokeMeta.material,brush:activeStrokeMeta.brush,erase:activeStrokeMeta.erase});
+ lastPublishedStrokePoint=strokePoints.length;
+ lastStrokePublishAt=performance.now();
+ multiplayer.publishOperation({
+  type:'stroke',points,tool:activeStrokeMeta.tool,material:activeStrokeMeta.material,
+  brush:activeStrokeMeta.brush,erase:activeStrokeMeta.erase
+ },{reliable:final});
 }
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15,CHARCOAL:16,FUSE:17};
 const materials=[
