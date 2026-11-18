@@ -24,7 +24,12 @@ function protectStrokePoint(p){
 }
 function publishStrokeBatch(force=false){
  if(!activeStrokeMeta||activeStrokeMeta.material>17||!multiplayer?.joined)return;
- const now=performance.now();if(!force&&now-lastStrokePublishAt<16)return;
+ const now=performance.now(),elapsed=now-lastStrokePublishAt;
+ if(!force&&elapsed<16){
+  if(!strokePublishTimer)strokePublishTimer=setTimeout(()=>{strokePublishTimer=null;publishStrokeBatch(true)},16-elapsed);
+  return;
+ }
+ if(strokePublishTimer){clearTimeout(strokePublishTimer);strokePublishTimer=null}
  const start=lastPublishedStrokePoint>0?lastPublishedStrokePoint-1:0;
  const points=strokePoints.slice(start);
  if(!points.length)return;
@@ -57,7 +62,7 @@ let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),movementB
 let snapshotMoves=new Map();
 let temperatureUnit='C',lastAirTemperatureUpdate=0;
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
-let strokePoints=[],lastCursorPoint=null,activeErase=false;
+let strokePoints=[],lastCursorPoint=null,activeErase=false,strokePublishTimer=null;
 let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=500,lastAppliedSnapshotAt=0,lastOperationAppliedAt=0,remoteLeafblowers={},lastRopePublish=0;
 const protectedStrokeCells=new Map();let activeStrokeMeta=null,lastStrokePublishAt=0,lastPublishedStrokePoint=0;
 let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
@@ -184,7 +189,7 @@ canvas.parentElement.addEventListener('pointerup',e=>{
  else if(strokePoints.length){publishStrokeBatch(true);activeStrokeMeta=null}
  drawing=false;activeErase=false;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0
 });
-canvas.parentElement.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0;activeErase=false});
+canvas.parentElement.addEventListener('pointercancel',()=>{if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}if(strokePublishTimer){clearTimeout(strokePublishTimer);strokePublishTimer=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0;activeErase=false});
 canvas.parentElement.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
