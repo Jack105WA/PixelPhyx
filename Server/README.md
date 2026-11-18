@@ -1,57 +1,18 @@
 # PixelPhyx Multiplayer Server
 
-This folder contains only the dedicated multiplayer relay server. It does **not** host, download, or bundle the PixelPhyx website/game client.
+The server serves the PixelPhyx game page and starts one invisible headless Chrome simulation for each lobby. The hidden simulation becomes the authoritative room host; normal players connect as clients.
 
 ## Start
+Keep the `Website` folder beside `Server` (the repository layout already does this), then run `Start Server.bat`.
 
-Run `Start Server.bat`. It checks for server updates, installs the small Node.js dependencies if needed, and starts the WebSocket server.
+Requirements: Node.js 20+ and Google Chrome or Chromium installed on the server PC. For a non-standard Chrome location, set `PIXELPHYX_CHROME_PATH` to its executable.
 
-Node.js 20 or newer is required: https://nodejs.org/
+Open `http://localhost:3000/` to play. The WebSocket endpoint is `/pixelphyx`. Creating a lobby starts a separate headless Chrome process with an isolated profile and an authenticated simulation session.
 
-## Connect
-
-Open the PixelPhyx game client separately (for example, from GitHub Pages or another static web host). Select **Online**, enter the server IP/hostname, and press **Connect to server**.
-
-The default port is `3000`. The WebSocket endpoint is `/pixelphyx`.
-
-- Same PC: `127.0.0.1:3000`
-- Local network: `192.168.x.x:3000`
-- Internet: `YOUR-PUBLIC-IP:3000`
-
-Forward the configured port as **TCP** to the hosting PC's LAN IP in your router. Allow Node.js through Windows Firewall on Private networks.
-
-A game client loaded over HTTPS needs a secure WebSocket (WSS) endpoint. A plain server started by this folder uses WS; put it behind a TLS reverse proxy for HTTPS clients.
+## Remote players
+Players open the server's public IP/hostname on port 3000, then select Online. Forward TCP port 3000 to the hosting PC and allow Node.js through Windows Firewall. HTTPS deployments require a TLS reverse proxy and WSS.
 
 ## Configuration
+Edit `config.yml`: `server.bind`, `server.port`, `server.max_players`, `server.lobby_count`; and `network.snapshot_interval_ms`, `network.rope_update_interval_ms`, `network.cursor_updates`, `network.cursor_update_interval_ms`, `network.snapshot_chunk_bytes`, `network.max_snapshot_bytes`, `network.max_payload_bytes`, `network.max_buffered_bytes`.
 
-Edit `config.yml`:
-
-- `bind`: normally keep `0.0.0.0`.
-- `port`: TCP port to listen on.
-- `max_players`: players allowed in each lobby.
-- `lobby_count`: maximum number of active lobbies.
-- `public_address`: optional public hostname/IP note.
-- `network.snapshot_interval_ms`: full compressed world snapshot cadence (default 400 ms).
-- `network.rope_update_interval_ms`: rope position update cadence (default 50 ms).
-- `network.cursor_updates`: enable or disable original multiplayer mouse cursors.
-- `network.cursor_update_interval_ms`: cursor update cadence (default 40 ms).
-- `network.prediction_enabled`: enable client-side movement/edit prediction; off by default so snapshots stay authoritative.
-- `network.snapshot_chunk_bytes`: snapshot WebSocket chunk size (default 24 KB).
-- `network.max_snapshot_bytes`: maximum compressed snapshot transfer size (default 8 MB).
-- `network.max_payload_bytes`: maximum individual WebSocket message size (default 8 MB).
-- `network.max_buffered_bytes`: stop queueing more data when a client's outgoing socket buffer exceeds this amount (default 16 MB).
-
-Lower update intervals improve responsiveness but increase bandwidth. The defaults prioritize frequent synchronization while keeping snapshot data compressed and chunked. Restart the server after editing the configuration.
-
-The server keeps rooms and player state in memory. Worlds are not saved to disk.
-
-
-### Port already in use
-
-If the server reports that port 3000 is already in use, another application or an existing PixelPhyx server is already listening on it. Do not start a second copy. Check the process with:
-
-```bat
-netstat -ano | findstr :3000
-```
-
-The final number on the matching `LISTENING` line is the process ID. Find it in Task Manager, or stop that process if you know it is safe to close. Alternatively, change `server.port` in `config.yml` and use that same port in your router forwarding and game client address.
+The site is served from the sibling `Website` folder. Room state is held in memory and is not saved to disk.
