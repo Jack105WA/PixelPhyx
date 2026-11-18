@@ -4,7 +4,7 @@ const { packOperation, unpackOperation, encodeTransfer, decodeTransfer } =
 
 export const EVENTS = {
   OP: 1, SNAPSHOT: 2, ROPES: 3, CURSOR: 4,
-  JOIN_REQUEST: 5, JOIN_REPLY: 6, SYNC_REQUEST: 7
+  JOIN_REQUEST: 5, JOIN_REPLY: 6, SYNC_REQUEST: 7, STROKE: 8
 };
 
 export function createServerSync(state) {
@@ -151,8 +151,33 @@ export function createServerSync(state) {
     }
   }
 
+  function handleStroke(senderNumber, operation) {
+    if (!operation || operation.type !== 'stroke' || !rememberOperation(operation.operationId)) return;
+    const masterNumber = room()?.masterClientNumber;
+    if (state.isHost() && senderNumber !== masterNumber) {
+      if (!state.isApproved(senderNumber)) return;
+      const decoded = unpackOperation(operation);
+      if (!decoded) return;
+      const revision = ++operationRevision;
+      state.callbacks.onOperation?.(decoded);
+      const recipients = state.targets(senderNumber);
+      if (recipients.length) send(EVENTS.STROKE, { ...operation, revision }, {
+        reliable: true, channel: 0, targetPlayers: recipients
+      });
+      return;
+    }
+    if (!state.isHost() && senderNumber === masterNumber) {
+      const revision = Number.isInteger(operation.revision) ? operation.revision : lastAppliedOperationRevision + 1;
+      if (revision <= lastAppliedOperationRevision) return;
+      lastAppliedOperationRevision = revision;
+      const decoded = unpackOperation(operation);
+      if (decoded) state.callbacks.onOperation?.(decoded);
+    }
+  }
+
   function setup() {
     state.client.onEvent(EVENTS.OP, ({ senderNumber, data }) => handleOperation(senderNumber, data));
+    state.client.onEvent(EVENTS.STROKE, ({ senderNumber, data }) => handleStroke(senderNumber, data));
     state.client.onEvent(EVENTS.SNAPSHOT, ({ senderNumber, data }) => receiveSnapshot(senderNumber, data));
     state.client.onEvent(EVENTS.ROPES, ({ senderNumber, data }) => {
       if (senderNumber === room()?.masterClientNumber && Array.isArray(data?.ropes)) {
@@ -192,6 +217,28 @@ export function createServerSync(state) {
       });
     } else {
       send(EVENTS.OP, payload, { reliable, channel: 0, receivers: 'masterClient' });
+    }
+  }
+
+  function publishStroke(operation, options = {}) {
+    if (!room() || operation?.type !== 'stroke') return;
+    const payload = packOperation({
+      ...operation,
+      operationId: crypto.randomUUID(),
+      by: state.playerId,
+      createdAt: Date.now()
+    });
+    rememberOperation(payload.operationId);
+    if (state.isHost()) {
+      payload.revision = ++operationRevision;
+      const recipients = state.targets();
+      if (recipients.length) send(EVENTS.STROKE, payload, {
+        reliable: options.reliable !== false, channel: 0, targetPlayers: recipients
+      });
+    } else {
+      send(EVENTS.STROKE, payload, {
+        reliable: options.reliable !== false, channel: 0, receivers: 'masterClient'
+      });
     }
   }
 
@@ -251,5 +298,5 @@ export function createServerSync(state) {
     pendingSnapshot = null;
   }
 
-  return { setup, requestSnapshot, queueSnapshot, publishOperation, publishWorld, publishRopes, publishCursor, dispose };
+  return { setup, requestSnapshot, queueSnapshot, publishOperation, publishStroke, publishWorld, publishRopes, publishCursor, dispose };
 }
