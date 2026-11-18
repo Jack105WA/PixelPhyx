@@ -93,9 +93,9 @@ function recordParticleMove(from,to,material,transferVelocity=true){
  }
 }
 function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
-function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx*xx+yy*yy<=r*r)put(x+xx,y+yy,m)}
-function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
-function canvasPoint(e){const r=canvasShell.getBoundingClientRect();if(!r.width||!r.height)return{x:-1,y:-1};return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
+function circle(x,y,r,m){wasmEngine.paint_segment(cells,x,y,x,y,r,m,W,H)}
+function drawLine(x0,y0,x1,y1,m,r=0){wasmEngine.paint_segment(cells,x0,y0,x1,y1,r,m,W,H)}
+function canvasPoint(e){const r=canvasShell.getBoundingClientRect();const p=wasmEngine.map_pointer(e.clientX,e.clientY,r.left,r.top,r.width,r.height,W,H);return{x:p[0],y:p[1]}}
 let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null;
 function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
  if(tool==='rope'||tool==='grab')return;
