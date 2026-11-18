@@ -96,7 +96,7 @@ function openCustomMaterialEditor(existing=null){
  <div class="control"><label>State</label><select name="state"><option value="solid">Solid</option><option value="liquid">Liquid</option><option value="gas">Gas</option></select></div>
  <div class="control full"><label>Properties</label><div class="custom-properties"><label><input type="checkbox" name="flammable"> Flammable</label><label><input type="checkbox" name="affectedByGravity"> Affected by gravity</label></div></div>
  <div class="control full"><label>Particles</label><div class="custom-particle-picker"><select id="customParticleChoice"><option value="">Select a particle…</option></select><button class="btn" type="button" id="addCustomParticle">Add particle</button></div><div id="customParticleList" class="custom-particle-list"></div></div></div>
- <div class="dialog-actions"><button class="btn ghost" type="button" data-cancel>Cancel</button><button class="btn primary" type="submit"></button></div>';
+ <div class="dialog-actions"><button class="btn ghost" type="button" data-cancel>Cancel</button><button class="btn primary" type="submit"></button></div>`;
  const heading=dialog.querySelector('h2');
  heading.textContent=existing?'Edit Material':'Create Material';
  dialog.querySelector('button[type="submit"]').textContent=existing?'Save Changes':'Create Material';
