@@ -790,7 +790,10 @@ function render(){
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=8;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0;
+const fpsHud=document.querySelector('#fpsHud');
  function loop(now){
+  fpsCount++;
+  if(now-fpsAt>=500){if(fpsHud)fpsHud.textContent=Math.round(fpsCount*1000/(now-fpsAt))+' FPS';fpsCount=0;fpsAt=now;}
   if(now-lastAirTemperatureUpdate>=250){lastAirTemperatureUpdate=now;updateCurrentAirTemperature()}
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
  // Multiplayer uses a single authoritative simulation: only the host advances physics.
