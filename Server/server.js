@@ -204,6 +204,11 @@ function removeFromRoom(client) {
       const promoted = clients.get(next.id); if (promoted) promoted.approved = true;
       for (const p of room.players.values()) send(p.socket, 'host-changed', { hostId: room.hostId });
     }
+    if (room.approvalHostId === client.id) {
+      const nextOwner = [...room.players.values()].find(player => !player.isSimulation);
+      room.approvalHostId = nextOwner?.id || room.hostId;
+      for (const p of room.players.values()) send(p.socket, 'approval-owner-changed', { approvalHostId: room.approvalHostId });
+    }
     for (const p of room.players.values()) send(p.socket, 'player-left', { playerNumber: client.number });
     sendRoster(room);
   }
@@ -215,7 +220,8 @@ function sendEvent(room, sender, event) {
   for (const player of room.players.values()) {
     if (player.id === sender.id) continue;
     if (targets && !targets.has(player.number)) continue;
-    if (receiver === 'masterClient' && player.id !== room.hostId) continue;
+    const intendedReceiver = Number(event.code) === 5 ? (room.approvalHostId || room.hostId) : room.hostId;
+    if (receiver === 'masterClient' && player.id !== intendedReceiver) continue;
     if (receiver === 'others' || receiver === 'all' || receiver === 'masterClient' || targets) {
       send(player.socket, 'event', {
         senderNumber: sender.number, code: Number(event.code),
@@ -269,8 +275,9 @@ function handle(client, message) {
       const player = { id: client.id, number: nextPlayerNumber++, socket: client.socket, name: safeName(message.name), color: message.color || '#65d6ad', approved: true };
       client.approved = true;
       const created = { name, hostId: client.id, hostName: player.name, maxPlayers: settings.maxPlayers, players: new Map([[client.id, player]]), simulationToken: crypto.randomBytes(32).toString('hex') };
+      created.approvalHostId = client.id;
       rooms.set(name, created); client.room = name; client.number = player.number;
-      send(client.socket, 'room-joined', { room: name, isHost: true, number: player.number, players: roomRoster(created) });
+      send(client.socket, 'room-joined', { room: name, isHost: true, isRoomOwner: true, number: player.number, players: roomRoster(created) });
       broadcastLobbies();
       launchSimulation(created).catch(error => {
         console.error('Could not start simulation for ' + name + ':', error.message);
@@ -293,7 +300,7 @@ function handle(client, message) {
       if(client.room)throw new Error('Simulation is already assigned to a room.');
       const player={id:client.id,number:nextPlayerNumber++,socket:client.socket,name:'Server Simulation',color:'#8b9cff',approved:true,isSimulation:true};
       client.room=target.name;client.number=player.number;client.approved=true;client.isSimulation=true;target.players.set(client.id,player);target.hostId=client.id;target.simulationClientId=client.id;
-      send(client.socket,'room-joined',{room:target.name,isHost:true,number:player.number,players:roomRoster(target)});
+      send(client.socket,'room-joined',{room:target.name,isHost:true,isRoomOwner:false,number:player.number,players:roomRoster(target)});
       for(const p of target.players.values())if(p.id!==client.id)send(p.socket,'host-changed',{hostId:client.id});
       sendRoster(target);broadcastLobbies();break;
     }
@@ -306,7 +313,7 @@ function handle(client, message) {
       const player = { id: client.id, number: nextPlayerNumber++, socket: client.socket, name: safeName(message.name), color: message.color || '#65d6ad', approved: false };
       client.approved = false;
       target.players.set(client.id, player); client.room = target.name; client.number = player.number;
-      send(client.socket, 'room-joined', { room: target.name, isHost: false, number: player.number, players: roomRoster(target) });
+      send(client.socket, 'room-joined', { room: target.name, isHost: false, isRoomOwner: client.id === target.approvalHostId, number: player.number, players: roomRoster(target) });
       for (const p of target.players.values()) if (p.id !== client.id) send(p.socket, 'player-joined', { player: { number: player.number, name: player.name, color: player.color, clientId: player.id, approved: false } });
       sendRoster(target); broadcastLobbies(); break;
     }
@@ -333,25 +340,21 @@ function handle(client, message) {
       if (Number(message.code) === 4) {
         if (!settings.cursorUpdates || !client.approved) return;
         const cursor = message.data || {};
-        if (cursor.active === false) {
-          sendEvent(room, client, { code: 4, data: { active: false }, reliable: false });
-          return;
+        if (cursor.active !== false && (!Number.isFinite(cursor.x) || !Number.isFinite(cursor.y) ||
+            cursor.x < 0 || cursor.y < 0 || cursor.x > 100000 || cursor.y > 100000)) return;
+        const data = cursor.active === false ? { active: false } : {
+          x: cursor.x, y: cursor.y,
+          color: /^#[0-9a-f]{6}$/i.test(cursor.color || '') ? cursor.color : '#65d6ad',
+          name: safeName(cursor.name), active: true
+        };
+        for (const player of room.players.values()) {
+          if (player.id !== client.id && player.approved) {
+            send(player.socket, 'event', { senderNumber: client.number, code: 4, data, reliable: false });
+          }
         }
-        if (!Number.isFinite(cursor.x) || !Number.isFinite(cursor.y) ||
-            cursor.x < 0 || cursor.y < 0 || cursor.x > 100000 || cursor.y > 100000) return;
-        sendEvent(room, client, {
-          code: 4,
-          data: {
-            x: cursor.x, y: cursor.y,
-            color: /^#[0-9a-f]{6}$/i.test(cursor.color || '') ? cursor.color : '#65d6ad',
-            name: safeName(cursor.name),
-            active: true
-          },
-          reliable: false
-        });
         return;
       }
-      if (Number(message.code) === 6 && client.id === room.hostId) {
+      if (Number(message.code) === 6 && client.id === (room.approvalHostId || room.hostId)) {
         const targetNumber = Array.isArray(message.targetPlayers) ? Number(message.targetPlayers[0]) : 0;
         const target = [...room.players.values()].find(player => player.number === targetNumber);
         if (!target || target.id === client.id) return;
