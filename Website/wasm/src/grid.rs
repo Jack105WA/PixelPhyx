@@ -61,11 +61,11 @@ pub fn step_particles(
     cells:&mut [u8], updated:&mut [u8], vx:&mut [f32], vy:&mut [f32],
     wet:&mut [f32], heat:&mut [f32], heat_inputs:&mut [f32],
     fuel:&mut [f32], burn:&mut [f32], age:&mut [u16], corrosion:&mut [f32],
-    width:usize,height:usize,gravity:f32,seed:u32,
+    blocked:&[u8], width:usize,height:usize,gravity:f32,seed:u32,
 )->Vec<u32>{
     let len=width.saturating_mul(height).min(cells.len()).min(updated.len())
         .min(vx.len()).min(vy.len()).min(wet.len()).min(heat.len())
-        .min(heat_inputs.len()).min(fuel.len()).min(burn.len()).min(age.len()).min(corrosion.len());
+        .min(heat_inputs.len()).min(fuel.len()).min(burn.len()).min(age.len()).min(corrosion.len()).min(blocked.len());
     if width==0||height<2||len==0{return Vec::new();}
     let mut moves=Vec::new();
     prepare_velocity(&cells[..len],&mut vx[..len],&mut vy[..len],gravity);
@@ -81,7 +81,7 @@ pub fn step_particles(
         let tx=x+sx;let ty=y+sy;
         if tx>=0&&ty>=0&&tx<width as isize&&ty<height as isize {
             let to=ty as usize*width+tx as usize;
-            if to<len&&cells[to]==0 {
+            if to<len&&cells[to]==0&&blocked[i]&1==0 {
                 swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                 vx[to]*=0.94;vy[to]*=0.94;continue;
             }
@@ -105,7 +105,7 @@ pub fn step_particles(
             let ny=y as isize+dy;
             let vertical=if ny>=0&&ny<height as isize {Some(ny as usize*width+x)}else{None};
             if let Some(to)=vertical {
-                if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6))) {
+                if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6)))&&blocked[i]&2==0 {
                     swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                     continue;
                 }
@@ -116,7 +116,7 @@ pub fn step_particles(
                 let ny=y as isize+dy;
                 if nx>=0&&nx<width as isize&&ny>=0&&ny<height as isize {
                     let to=ny as usize*width+nx as usize;
-                    if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6))) {
+                    if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6)))&&blocked[i]&4==0 {
                         swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                         continue;
                     }
@@ -125,7 +125,7 @@ pub fn step_particles(
                     let nx=x as isize+side;
                     if nx>=0&&nx<width as isize {
                         let to=y*width+nx as usize;
-                        if to<len&&cells[to]==0&&random(seed,i,0x51DE_2)<0.4 {
+                        if to<len&&cells[to]==0&&random(seed,i,0x51DE_2)<0.4&&blocked[i]&8==0 {
                             swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                         }
                     }
