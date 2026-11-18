@@ -54,9 +54,12 @@ jobs:
           cp production/Offline/*.html _site/Offline/
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: pixelphyx-pages
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: pixelphyx-pages
 
   build-offline:
     name: Build offline edition
