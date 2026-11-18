@@ -1,0 +1,28 @@
+# PixelPhyx dedicated server configuration
+server:
+  name: "PixelPhyx Server"
+  # 0.0.0.0 listens on all network adapters.
+  bind: "0.0.0.0"
+  port: 3000
+  max_players: 16
+  # Maximum number of simultaneously listed/hosted lobbies.
+  lobby_count: 20
+  # Optional public hostname or IP for reference. Leave blank for LAN.
+  public_address: ""
+
+network:
+  heartbeat_ms: 15000
+  # Full compressed world state refresh interval. Lower values sync more often.
+  snapshot_interval_ms: 400
+  # Rope position refresh interval.
+  rope_update_interval_ms: 50
+  # Restore the original live multiplayer mouse cursors.
+  cursor_updates: true
+  cursor_update_interval_ms: 40
+  # Clients normally apply authoritative state without local movement prediction.
+  prediction_enabled: false
+  # Per-WebSocket message limit and maximum queued outgoing data per client.
+  snapshot_chunk_bytes: 24576
+  max_snapshot_bytes: 8388608
+  max_payload_bytes: 8388608
+  max_buffered_bytes: 16777216

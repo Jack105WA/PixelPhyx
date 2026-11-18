@@ -1,5 +1,5 @@
-const CHUNK_BYTES = 12 * 1024;
-const MAX_TRANSFER_BYTES = 2 * 1024 * 1024;
+const DEFAULT_CHUNK_BYTES = 24 * 1024;
+const DEFAULT_MAX_TRANSFER_BYTES = 8 * 1024 * 1024;
 
 export function packOperation(operation) {
   if (operation?.type !== 'stroke' || !Array.isArray(operation.points)) return operation;
@@ -46,7 +46,9 @@ async function transform(bytes, StreamType) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-export async function encodeTransfer(value) {
+export async function encodeTransfer(value, options = {}) {
+  const chunkBytes = Math.max(4096, Number(options.chunkBytes) || DEFAULT_CHUNK_BYTES);
+  const maxTransferBytes = Math.max(1024 * 1024, Number(options.maxTransferBytes) || DEFAULT_MAX_TRANSFER_BYTES);
   const source = new TextEncoder().encode(JSON.stringify(value));
   let bytes = source;
   let compressed = false;
@@ -59,11 +61,11 @@ export async function encodeTransfer(value) {
       }
     } catch {}
   }
-  if (bytes.byteLength > MAX_TRANSFER_BYTES) {
-    throw new Error('World snapshot exceeds the 2 MB safety limit.');
+  if (bytes.byteLength > maxTransferBytes) {
+    throw new Error('World snapshot exceeds the configured safety limit.');
   }
   const id = crypto.randomUUID();
-  const total = Math.ceil(bytes.byteLength / CHUNK_BYTES);
+  const total = Math.ceil(bytes.byteLength / chunkBytes);
   const chunks = [];
   for (let index = 0; index < total; index++) {
     chunks.push({
@@ -71,15 +73,16 @@ export async function encodeTransfer(value) {
       index,
       total,
       compressed,
-      bytes: bytes.slice(index * CHUNK_BYTES, Math.min(bytes.byteLength, (index + 1) * CHUNK_BYTES))
+      bytes: bytes.slice(index * chunkBytes, Math.min(bytes.byteLength, (index + 1) * chunkBytes))
     });
   }
   return chunks;
 }
 
-export async function decodeTransfer(parts, compressed) {
+export async function decodeTransfer(parts, compressed, options = {}) {
+  const maxTransferBytes = Math.max(1024 * 1024, Number(options.maxTransferBytes) || DEFAULT_MAX_TRANSFER_BYTES);
   const size = parts.reduce((sum, part) => sum + part.byteLength, 0);
-  if (!size || size > MAX_TRANSFER_BYTES) throw new Error('Invalid snapshot size.');
+  if (!size || size > maxTransferBytes) throw new Error('Invalid snapshot size.');
   const joined = new Uint8Array(size);
   let offset = 0;
   for (const part of parts) {
@@ -88,9 +91,9 @@ export async function decodeTransfer(parts, compressed) {
   }
   let bytes = joined;
   if (compressed) {
-    if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot decompress Photon snapshots.');
+    if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot decompress server snapshots.');
     bytes = await transform(joined, DecompressionStream);
   }
-  if (bytes.byteLength > MAX_TRANSFER_BYTES) throw new Error('Decompressed snapshot exceeds the 2 MB safety limit.');
+  if (bytes.byteLength > maxTransferBytes) throw new Error('Decompressed snapshot exceeds the configured safety limit.');
   return JSON.parse(new TextDecoder().decode(bytes));
 }

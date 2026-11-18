@@ -1,7 +1,7 @@
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const { EVENTS } = await import('./photon-sync.js?v=' + encodeURIComponent(cacheVersion));
+const { EVENTS } = await import('./ws-sync.js?v=' + encodeURIComponent(cacheVersion));
 
-export function createPhotonRooms(state, sync) {
+export function createServerRooms(state, sync) {
   let pendingApproval = null, roomListOff = null;
   const pendingRequests = new Map();
   const client = () => state.client;
@@ -15,14 +15,14 @@ export function createPhotonRooms(state, sync) {
         room: entry.name,
         players: entry.playerCount,
         hostName: entry.customProperties?.hostName || 'Unknown',
-        transport: 'photon'
+        transport: 'local server'
       }));
     state.callbacks.onLobbyList?.(lobbies);
   }
 
   function setup() {
     client().onEvent(EVENTS.JOIN_REQUEST, ({ senderNumber, data }) => {
-      if (!state.isHost() || !data || senderNumber === client().localPlayer.number) return;
+      if (!state.isRoomOwner() || !data || senderNumber === client().localPlayer.number) return;
       pendingRequests.set(String(senderNumber), { senderNumber, createdAt: Date.now() });
       state.callbacks.onJoinRequest?.({
         key: String(senderNumber), room: state.roomName,
@@ -69,7 +69,7 @@ export function createPhotonRooms(state, sync) {
       }
       state.roster();
       if (active.isMasterClient) {
-        state.log('Photon elected this player as the new room host.');
+        state.log('Local server elected this player as the new room host.');
         sync.queueSnapshot(state.targets());
       } else {
         sync.requestSnapshot();
@@ -79,7 +79,7 @@ export function createPhotonRooms(state, sync) {
   }
 
   async function createLobby(identity = {}) {
-    if (!client()?.isConnected) throw new Error('Connect to Photon before creating a server.');
+    if (!client()?.isConnected) throw new Error('Connect to the local server before creating a server.');
     if (room()) throw new Error('Leave your current server before creating another.');
     const code = 'PX-' + crypto.randomUUID().replaceAll('-', '').slice(0, 7).toUpperCase();
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
@@ -92,7 +92,7 @@ export function createPhotonRooms(state, sync) {
     state.approvedPlayers.clear();
     state.setLocalIdentity(identity, true);
     state.report('online', 'ROOM HOST');
-    state.log('Created Photon server ' + state.roomName + '.');
+    state.log('Created local server ' + state.roomName + '.');
     const world = state.callbacks.getWorld?.();
     if (world) sync.publishWorld(world);
     const ropes = state.callbacks.getRopes?.();
@@ -101,7 +101,7 @@ export function createPhotonRooms(state, sync) {
   }
 
   async function joinRoom(code, identity = {}, isApproved = false) {
-    if (!client()?.isConnected) throw new Error('Connect to Photon before joining a server.');
+    if (!client()?.isConnected) throw new Error('Connect to the local server before joining a server.');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a server code.');
     if (room()?.name === nextRoom) {
@@ -117,7 +117,7 @@ export function createPhotonRooms(state, sync) {
     state.setLocalIdentity(identity, isApproved);
     if (isApproved) sync.requestSnapshot();
     state.report('online', 'JOINED ROOM');
-    state.log('Joined Photon server ' + state.roomName +
+    state.log('Joined local server ' + state.roomName +
       (isApproved ? '.' : ' — waiting for host approval.'));
   }
 
@@ -149,7 +149,7 @@ export function createPhotonRooms(state, sync) {
   }
 
   async function respondToJoinRequest(key, isApproved) {
-    if (!state.isHost()) throw new Error('Only the room host can approve join requests.');
+    if (!state.isRoomOwner()) throw new Error('Only the room owner can approve join requests.');
     const request = pendingRequests.get(String(key));
     if (!request) throw new Error('That join request is no longer active.');
     pendingRequests.delete(String(key));
@@ -160,7 +160,7 @@ export function createPhotonRooms(state, sync) {
     if (!sent) {
       if (isApproved) state.approvedPlayers.delete(request.senderNumber);
       pendingRequests.set(String(key), request);
-      throw new Error('Photon could not deliver the approval response.');
+      throw new Error('Local server could not deliver the approval response.');
     }
     state.roster();
     state.log((isApproved ? 'Approved' : 'Declined') + ' player #' + request.senderNumber + '.');
@@ -173,7 +173,7 @@ export function createPhotonRooms(state, sync) {
       state.log('Live server browsing pauses while you are inside a room. Leave the server to refresh the lobby.');
     } else if (client() && !client().isInLobby) {
       client().joinLobby().then(publishLobbyList)
-        .catch(error => state.log('Could not join Photon lobby: ' + error.message));
+        .catch(error => state.log('Could not join local server lobby: ' + error.message));
     }
     roomListOff?.();
     roomListOff = client()?.on('roomListUpdated', publishLobbyList) || null;
@@ -201,8 +201,8 @@ export function createPhotonRooms(state, sync) {
       try { await client().joinLobby(); }
       catch (error) { state.log('Lobby reconnect failed: ' + error.message); }
     }
-    state.report('online', 'PHOTON ONLINE');
-    state.log('Left the Photon server.');
+    state.report('online', 'LOCAL SERVER ONLINE');
+    state.log('Left the local server.');
   }
 
   return { setup, createLobby, joinRoom, requestJoin, respondToJoinRequest, watchLobbies, leaveRoom };

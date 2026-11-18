@@ -1,0 +1,51 @@
+name: Build browser WASM engine
+
+on:
+  push:
+    branches:
+      - local-server
+    paths:
+      - "Website/wasm/**"
+      - ".github/workflows/build-wasm.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pixelphyx-wasm-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: local-server
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Build browser engine
+        run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
+
+      - name: Publish generated browser files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo 'Generated package contents:'
+          find Website/pkg -maxdepth 2 -type f -printf '%p %s bytes\\n' || true
+          git add -f Website/pkg
+          if git diff --cached --quiet; then
+            echo "WASM output is already current."
+          else
+            git commit -m "Build browser WASM engine"
+            git push origin HEAD:local-server
+          fi
