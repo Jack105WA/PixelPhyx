@@ -123,7 +123,7 @@ pub fn step_combustion(
     let len = width.saturating_mul(height).min(cells.len()).min(heat.len())
         .min(wetness.len()).min(fuel.len()).min(burn.len()).min(age.len());
     let mut detonations = 0u32;
-    if width == 0 || height == 0 { return; }
+    if width == 0 || height == 0 { return 0; }
 
     for i in 0..len {
         if cells[i] == 12 {
