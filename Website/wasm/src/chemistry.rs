@@ -270,21 +270,52 @@ pub fn step_combustion(
                 if burn[i] <= 0.0 { ignite(heat, fuel, burn, i, material); }
                 burn[i] += 1.0;
                 heat[i] = heat[i].max(520.0);
-                // When this segment finishes, ignite every directly connected
-                // fuse segment. This lets the burn climb vertical sections and
-                // follow bends without depending on row-major scan direction.
+                // Follow one continuous path instead of igniting every
+                // touching segment. fuel stores the direction this segment was
+                // entered from: 1=right, 2=up, 3=down, 4=left.
                 if burn[i] >= 8.0 {
-                    let neighbors = [
-                        if y > 0 { Some(i - width) } else { None },
-                        if x + 1 < width { Some(i + 1) } else { None },
-                        if y + 1 < height { Some(i + width) } else { None },
-                        if x > 0 { Some(i - 1) } else { None },
-                    ];
-                    for next in neighbors.into_iter().flatten() {
+                    let incoming = if fuel[i] >= 10.0 {
+                        (fuel[i] as u8).saturating_sub(10)
+                    } else { 0 };
+                    let candidates: [Option<(usize, u8)>; 4] = match incoming {
+                        1 => [
+                            if x + 1 < width { Some((i + 1, 1)) } else { None },
+                            if y > 0 { Some((i - width, 2)) } else { None },
+                            if y + 1 < height { Some((i + width, 3)) } else { None },
+                            if x > 0 { Some((i - 1, 4)) } else { None },
+                        ],
+                        2 => [
+                            if y > 0 { Some((i - width, 2)) } else { None },
+                            if x + 1 < width { Some((i + 1, 1)) } else { None },
+                            if x > 0 { Some((i - 1, 4)) } else { None },
+                            if y + 1 < height { Some((i + width, 3)) } else { None },
+                        ],
+                        3 => [
+                            if y + 1 < height { Some((i + width, 3)) } else { None },
+                            if x + 1 < width { Some((i + 1, 1)) } else { None },
+                            if x > 0 { Some((i - 1, 4)) } else { None },
+                            if y > 0 { Some((i - width, 2)) } else { None },
+                        ],
+                        4 => [
+                            if x > 0 { Some((i - 1, 4)) } else { None },
+                            if y > 0 { Some((i - width, 2)) } else { None },
+                            if y + 1 < height { Some((i + width, 3)) } else { None },
+                            if x + 1 < width { Some((i + 1, 1)) } else { None },
+                        ],
+                        _ => [
+                            if x + 1 < width { Some((i + 1, 1)) } else { None },
+                            if y > 0 { Some((i - width, 2)) } else { None },
+                            if y + 1 < height { Some((i + width, 3)) } else { None },
+                            if x > 0 { Some((i - 1, 4)) } else { None },
+                        ],
+                    };
+                    for candidate in candidates.into_iter().flatten() {
+                        let (next, direction) = candidate;
                         if cells[next] == 17 && burn[next] <= 0.0 {
-                            fuel[next] = material_fuel(17);
+                            fuel[next] = 10.0 + direction as f32;
                             burn[next] = 1.0;
                             heat[next] = 900.0;
+                            break;
                         }
                     }
                     cells[i] = 9;
