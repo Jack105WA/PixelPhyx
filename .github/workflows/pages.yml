@@ -49,6 +49,8 @@ jobs:
         run: |
           mkdir -p _site
           cp -a production/Website/. _site/
+          mkdir -p _site/Offline
+          cp production/Offline/*.html _site/Offline/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
@@ -76,13 +78,13 @@ jobs:
         run: node Offline/build-offline.mjs
       - name: Commit generated offline edition
         run: |
-          if [ -z "$(git status --porcelain -- Website/offline.html)" ]; then
-            echo "Website/offline.html is already up to date."
+          if [ -z "$(git status --porcelain -- Offline/offline.html)" ]; then
+            echo "Offline/offline.html is already up to date."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+Jack105WA@users.noreply.github.com"
-          git add Website/offline.html
+          git add Offline/offline.html
           git commit -m "[skip ci] Build offline edition"
           git push

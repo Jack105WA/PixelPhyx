@@ -1612,7 +1612,7 @@ updateTemperature();
 </script>
 <script id="pixelphyx-offline-updater">
 (async()=>{
-  const latestUrl='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Website/offline.html';
+  const latestUrl='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Offline/offline.html';
   try{
     const response=await fetch(latestUrl+'?t='+Date.now(),{cache:'no-store'});
     if(!response.ok)return;

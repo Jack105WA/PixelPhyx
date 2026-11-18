@@ -33,7 +33,7 @@ const mainStart = mainSource.replace(
 );
 if (mainStart === mainSource) throw new Error('Could not remove module imports from main.js.');
 const offlineMain = mainStart.replace(
-  "const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));",
+  "const {createMultiplayer}=await import('./netcode/multiplayer.js?v='+encodeURIComponent(cacheVersion));",
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
 );
 if (offlineMain === mainStart) throw new Error('Could not replace multiplayer import.');
@@ -84,8 +84,5 @@ builtHtml = builtHtml
   .replace('cursor:none', 'cursor:crosshair')
   .replace('const canvasLayers=[canvas,localCursorCanvas,cursorNamesCanvas];', 'const canvasLayers=[canvas,particleInterpolationCanvas,localCursorCanvas,cursorNamesCanvas];')
   .replace(/<script>\s*\(\(\s*\)\s*=>\s*\{[\s\S]*?<\/script>\s*/, '');
-await Promise.all([
-  writeFile(offlineDir + 'offline.html', builtHtml, 'utf8'),
-  writeFile(websiteDir + 'offline.html', builtHtml, 'utf8')
-]);
-console.log('Built offline.html with the unified physics engine.');
+await writeFile(offlineDir + 'offline.html', builtHtml, 'utf8');
+console.log('Built Offline/offline.html with the unified physics engine.');

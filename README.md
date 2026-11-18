@@ -68,8 +68,10 @@ The workflow in .github/workflows/pages.yml:
 ## Repository layout
 
 - Website/ contains the browser game and published site.
-- Website/js/ contains the browser-side game, simulation integration, multiplayer, and UI modules.
+- Website/js/ contains the browser-side game, simulation integration, and UI modules.
+- Website/js/netcode/ contains Photon multiplayer transport, room, synchronization, and codec modules.
 - Website/wasm/ contains the Rust source for the WebAssembly engine.
+- Offline/offline.html is the generated standalone offline edition.
+- Offline/PixelPhyx-Offline.html loads the latest standalone build.
 - Offline/build-offline.mjs builds the standalone offline edition.
 - .github/workflows/ contains GitHub Actions automation.
-- Server/ contains backend and configuration files retained in the repository.

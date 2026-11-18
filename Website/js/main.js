@@ -528,7 +528,7 @@ async function connectPhoton(){
   if(!multiplayer){
    if(!multiplayerLoading){
     multiplayerLoading=(async()=>{
-     const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
+     const {createMultiplayer}=await import('./netcode/multiplayer.js?v='+encodeURIComponent(cacheVersion));
      multiplayer=createMultiplayer({
       onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
       getWorld:()=>serialize(),
