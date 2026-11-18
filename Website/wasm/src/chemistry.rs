@@ -17,6 +17,7 @@ pub fn step_acid(
 
     for i in 0..len {
         if cells[i] != 7 { continue; } // Acid
+        let x = i % width;
         let y = i / width;
         if age[i] > 1800 {
             cells[i] = 0;
@@ -85,7 +86,6 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: us
     let melt = (ambient / 14000.0).clamp(0.0, 0.10);
     let evaporation = ((ambient - 100.0) / 18000.0).clamp(0.0, 0.05);
     for i in 0..len {
-        let x = i % width;
         let y = i / width;
         match cells[i] {
             2 if random01(i, age[i], 0xA341_316C) < freeze => cells[i] = 10,
