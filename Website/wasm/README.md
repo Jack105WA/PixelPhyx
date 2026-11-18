@@ -19,7 +19,8 @@ wasm-pack build Website/wasm --target web --release --out-dir ../pkg
 | Rigid bodies and collisions | Rust/WASM |
 | Canvas pixel rendering | Rust/WASM |
 | Rendering effects and compositing | Rust/WASM |
-| Input handling | Rust/WASM |
+| Input coordinate mapping and brush rasterization | Rust/WASM |
+| Browser pointer events and tool/UI orchestration | JavaScript |
 | UI and menus | TypeScript |
 
 ## Migration progress
@@ -29,6 +30,7 @@ wasm-pack build Website/wasm --target web --release --out-dir ../pkg
 - **Material reactions and chemistry:** migrated to the consolidated `step_chemistry` WASM entry point. It owns acid corrosion, water phase changes, salt dissolution, steam/smoke transitions, fire and lava reactions, fuel consumption, ignition, TNT detonation, moisture transfer, air convection, and thermal conduction.
 - **JavaScript material module:** reduced to sand displacement, which belongs to the particle movement migration rather than chemistry.
 - **Build validation:** `wasm-pack build` and JavaScript module syntax validation passed in GitHub Actions on the `photon-wasm` branch.
-- **Not yet migrated:** rope-to-particle impulse/contact handling, airborne-particle rope collisions, rope-aware particle movement checks, rigid-body collision parity, input ownership, and the TypeScript UI. The existing `World` API is still a foundation for those systems, not a completed replacement.
+- **Input mapping and brush rasterization:** Rust/WASM converts pointer coordinates into world-grid positions and applies circular brushes and Bresenham line strokes directly to the material grid. JavaScript retains browser pointer events, pointer capture, tool selection, object/rope dragging, and UI orchestration.
+- **Not yet migrated:** rope-to-particle impulse/contact handling, airborne-particle rope collisions, rope-aware particle movement checks, remaining rigid-body/grid collision parity, and TypeScript UI. The existing `World` API is still a foundation for those systems, not a completed replacement.
 
 The runtime calls chemistry once per simulation tick to avoid repeated JavaScript/WASM boundary crossings and unnecessary typed-array transfers.
