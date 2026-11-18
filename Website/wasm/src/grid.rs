@@ -82,7 +82,6 @@ pub fn step_particles(
         if tx>=0&&ty>=0&&tx<width as isize&&ty<height as isize {
             let to=ty as usize*width+tx as usize;
             if to<len&&cells[to]==0 {
-                let material=cells[i];
                 swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                 vx[to]*=0.94;vy[to]*=0.94;continue;
             }
