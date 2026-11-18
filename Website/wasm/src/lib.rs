@@ -24,7 +24,7 @@ pub fn count_particles(cells: &[u8]) -> u32 {
 /// Executes all material chemistry and thermal kernels in one WASM boundary crossing.
 #[wasm_bindgen]
 pub fn step_chemistry(
-    cells: &mut [u8], wetness: &mut [f32], heat: &mut [f32],
+    cells: &mut [u8], wetness: &mut [f32], heat: &mut [f32], heat_inputs: &mut [f32],
     air: &mut [f32], next_air: &mut [f32], fuel: &mut [f32],
     burn: &mut [f32], age: &mut [u16], corrosion: &mut [f32],
     ambient: f32, width: u32, height: u32,
@@ -32,6 +32,13 @@ pub fn step_chemistry(
     let w = width as usize;
     let h = height as usize;
     chemistry::step_material_thermal(cells, wetness, heat, air, next_air, fuel, burn, age, corrosion, ambient, w, h);
+    let input_len = cells.len().min(heat.len()).min(heat_inputs.len());
+    for i in 0..input_len {
+        if heat_inputs[i] > 0.0 {
+            heat[i] = (heat[i] + heat_inputs[i]).min(1600.0);
+            heat_inputs[i] = 0.0;
+        }
+    }
     chemistry::step_acid(cells, corrosion, burn, heat, wetness, fuel, age, w, h);
     let detonations = chemistry::step_combustion(cells, heat, wetness, fuel, burn, age, ambient, w, h);
     chemistry::step_phase_changes(cells, age, ambient, w, h);
