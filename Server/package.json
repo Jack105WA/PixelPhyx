@@ -1,6 +1,6 @@
 {
   "name": "pixelphyx-local-server",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Self-hosted PixelPhyx multiplayer server",
   "main": "server.js",
