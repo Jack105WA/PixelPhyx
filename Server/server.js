@@ -330,9 +330,10 @@ function handle(client, message) {
     }
     case 'join-request': {
       if (!room) throw new Error('Join a server before requesting approval.');
-      const host = room.players.get(room.hostId);
-      if (!host) throw new Error('The server host is unavailable.');
-      send(host.socket, 'join-request', { senderNumber: client.number, data: { clientId: client.id, name: client.name } });
+      const owner = room.players.get(room.approvalHostId || room.hostId);
+      if (!owner || owner.isSimulation) throw new Error('The room owner is unavailable.');
+      if (client.approved) return;
+      send(owner.socket, 'join-request', { senderNumber: client.number, data: { clientId: client.id, name: client.name } });
       break;
     }
     case 'event':
@@ -377,8 +378,11 @@ function handle(client, message) {
       break;
     case 'sync-request':
       if (!room) return;
+      if (!client.approved || client.isSimulation) return;
       const host = room.players.get(room.hostId);
-      if (host && host.id !== client.id) send(host.socket, 'event', { senderNumber: client.number, code: 7, data: { clientId: client.id }, reliable: true });
+      if (host && host.id !== client.id && host.isSimulation) {
+        send(host.socket, 'event', { senderNumber: client.number, code: 7, data: { clientId: client.id }, reliable: true });
+      }
       break;
     case 'ping': send(client.socket, 'pong'); break;
     case 'list': send(client.socket, 'lobbies', { lobbies: lobbyList() }); break;
