@@ -177,21 +177,21 @@ export function createServerSync(state) {
     });
   }
 
-  function publishOperation(operation) {
+  function publishOperation(operation, options = {}) {
     if (!room() || !operation) return;
+    const reliable = options.reliable !== false;
     const payload = packOperation({ ...operation, operationId: crypto.randomUUID(), by: state.playerId, createdAt: Date.now() });
-    // Register the operation before sending it. The originating client has
-    // already applied its edit locally, so any host echo must be discarded
-    // by operation ID rather than relying on the sender identity.
+    // The drawing origin applies its own stroke locally. Remote peers receive
+    // each segment immediately; the stroke-ending segment is reliable.
     rememberOperation(payload.operationId);
     if (state.isHost()) {
       payload.revision = ++operationRevision;
       const recipients = state.targets();
       if (recipients.length) send(EVENTS.OP, payload, {
-        reliable: true, channel: 0, targetPlayers: recipients
+        reliable, channel: 0, targetPlayers: recipients
       });
     } else {
-      send(EVENTS.OP, payload, { reliable: true, channel: 0, receivers: 'masterClient' });
+      send(EVENTS.OP, payload, { reliable, channel: 0, receivers: 'masterClient' });
     }
   }
 
