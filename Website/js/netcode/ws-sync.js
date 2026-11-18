@@ -43,7 +43,8 @@ export function createServerSync(state) {
       sentAt: Date.now()
     };
     if (!payload.world) return;
-    const chunks = await encodeTransfer(payload);
+    const network = state.client?.serverInfo?.network || {};
+    const chunks = await encodeTransfer(payload, { chunkBytes: network.snapshotChunkBytes, maxTransferBytes: network.maxSnapshotBytes });
     for (const chunk of chunks) {
       if (!room() || !state.isHost()) return;
       if (!send(EVENTS.SNAPSHOT, chunk, { reliable: true, channel: 1, targetPlayers })) {
@@ -98,7 +99,8 @@ export function createServerSync(state) {
     transfers.delete(chunk.id);
     clearTimeout(transfer.timer);
     try {
-      const snapshot = await decodeTransfer(transfer.parts, transfer.compressed);
+      const network = state.client?.serverInfo?.network || {};
+      const snapshot = await decodeTransfer(transfer.parts, transfer.compressed, { maxTransferBytes: network.maxSnapshotBytes });
       if (snapshot.world) {
         const revision = Number.isInteger(snapshot.world.operationRevision) ? snapshot.world.operationRevision : 0;
         if (revision >= lastAppliedOperationRevision) {
