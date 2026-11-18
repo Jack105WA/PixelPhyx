@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
+const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
 const yaml = require('js-yaml');
 
@@ -30,9 +31,56 @@ const settings = {
   maxBufferedBytes: Math.max(65536, Math.min(64 * 1024 * 1024, Number(config.network?.max_buffered_bytes) || 16 * 1024 * 1024))
 };
 
+const WEBSITE_ROOT = path.resolve(ROOT, '..', 'Website');
+const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2','.txt':'text/plain; charset=utf-8'};
+const simulations = new Map();
 const rooms = new Map();
 const clients = new Map();
 let nextPlayerNumber = 1;
+
+
+function findChrome() {
+  const candidates = [process.env.PIXELPHYX_CHROME_PATH, process.env.CHROME_PATH,
+    process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES,'Google/Chrome/Application/chrome.exe'),
+    process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)'],'Google/Chrome/Application/chrome.exe'),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA,'Google/Chrome/Application/chrome.exe'),
+    '/usr/bin/google-chrome','/usr/bin/chromium','/usr/bin/chromium-browser',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].filter(Boolean);
+  return candidates.find(file => fs.existsSync(file)) || null;
+}
+function closeSimulation(name) {
+  const entry = simulations.get(name); if (!entry) return;
+  simulations.delete(name); try { entry.process.kill(); } catch {}
+  try { fs.rmSync(entry.profile,{recursive:true,force:true}); } catch {}
+}
+async function launchSimulation(room) {
+  const chrome=findChrome();
+  if(!chrome) throw new Error('Google Chrome or Chromium was not found. Install Chrome or set PIXELPHYX_CHROME_PATH.');
+  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'pixelphyx-sim-'));
+  const child=spawn(chrome,['--headless=new','--disable-gpu','--disable-background-networking','--disable-default-apps','--disable-extensions','--no-first-run','--no-default-browser-check','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{stdio:'ignore',windowsHide:true});
+  const entry={process:child,profile}; simulations.set(room.name,entry);
+  child.once('exit',()=>{
+    if(simulations.get(room.name)===entry){
+      simulations.delete(room.name); const active=rooms.get(room.name);
+      if(active){for(const p of active.players.values()){const peer=clients.get(p.id);if(peer){peer.room=null;peer.approved=false;send(peer.socket,'room-left',{reason:'The server simulation stopped.'});}}rooms.delete(room.name);broadcastLobbies();}
+    }
+    try{fs.rmSync(profile,{recursive:true,force:true});}catch{}
+  });
+  const portFile=path.join(profile,'DevToolsActivePort'); let port=0;
+  for(let i=0;i<100;i++){if(child.exitCode!==null)throw new Error('Chrome exited before its debugging endpoint started.');try{port=Number(fs.readFileSync(portFile,'utf8').split(/\r?\n/)[0]);}catch{}if(port>0)break;await new Promise(resolve=>setTimeout(resolve,100));}
+  if(!port){closeSimulation(room.name);throw new Error('Chrome did not start its headless debugging endpoint.');}
+  const targetUrl='http://127.0.0.1:'+settings.port+'/?pixelphyx-sim='+encodeURIComponent(room.simulationToken)+'&room='+encodeURIComponent(room.name);
+  const response=await fetch('http://127.0.0.1:'+port+'/json/new?'+encodeURIComponent(targetUrl),{method:'PUT'});
+  if(!response.ok){closeSimulation(room.name);throw new Error('Chrome could not open the simulation page ('+response.status+').');}
+  entry.target=await response.json();
+}
+function serveGame(res,pathname){
+  let relative;try{relative=decodeURIComponent(pathname==='/'?'/index.html':pathname).replace(/^\/+/, '');}catch{res.writeHead(400);return res.end('Bad request');}
+  const file=path.resolve(WEBSITE_ROOT,relative);
+  if(file!==WEBSITE_ROOT&&!file.startsWith(WEBSITE_ROOT+path.sep)){res.writeHead(403);return res.end('Forbidden');}
+  fs.stat(file,(error,stat)=>{if(error||!stat.isFile()){res.writeHead(404,{'content-type':'text/plain; charset=utf-8'});return res.end('Not found');}
+    res.writeHead(200,{'content-type':MIME[path.extname(file).toLowerCase()]||'application/octet-stream','cache-control':path.extname(file)==='.html'?'no-store':'public, max-age=300'});fs.createReadStream(file).pipe(res);});
+}
 
 function send(socket, type, data = {}) {
   if (socket.readyState !== WebSocket.OPEN || socket.bufferedAmount > settings.maxBufferedBytes) return false;
@@ -44,7 +92,7 @@ function safeName(value) {
 }
 function lobbyList() {
   return [...rooms.values()].filter(room => room.players.size > 0).slice(0, settings.lobbyCount)
-    .map(room => ({ room: room.name, players: room.players.size, maxPlayers: room.maxPlayers, hostName: room.hostName, transport: 'local' }));
+    .map(room => ({ room: room.name, players: [...room.players.values()].filter(p => !p.isSimulation).length, maxPlayers: room.maxPlayers, hostName: room.hostName, transport: 'local' }));
 }
 function broadcastLobbies() {
   const lobbies = lobbyList();
@@ -70,7 +118,7 @@ function removeFromRoom(client) {
   if (!room) { client.room = null; return; }
   room.players.delete(client.id);
   client.room = null;
-  if (room.players.size === 0) rooms.delete(room.name);
+  if (client.isSimulation) { closeSimulation(room.name); for (const p of room.players.values()) { const peer=clients.get(p.id); if(peer){peer.room=null;peer.approved=false;send(peer.socket,'room-left',{reason:'The server simulation stopped.'});} } rooms.delete(room.name); broadcastLobbies(); return; }\n  if (room.players.size === 0) { rooms.delete(room.name); closeSimulation(room.name); }
   else {
     if (room.hostId === client.id) {
       const next = room.players.values().next().value;
@@ -148,11 +196,11 @@ function handle(client, message) {
       send(client.socket, 'room-joined', { room: name, isHost: true, number: player.number, players: roomRoster(created) });
       broadcastLobbies(); break;
     }
-    case 'join-room': {
+    case 'simulation-join': {\n      const target=rooms.get(String(message.room||'').toUpperCase());\n      if(!target||typeof message.token!=='string'||message.token.length!==64||message.token!==target.simulationToken)throw new Error('Simulation authentication failed.');\n      if(client.room)throw new Error('Simulation is already assigned to a room.');\n      const player={id:client.id,number:nextPlayerNumber++,socket:client.socket,name:'Server Simulation',color:'#8b9cff',approved:true,isSimulation:true};\n      client.room=target.name;client.number=player.number;client.approved=true;client.isSimulation=true;target.players.set(client.id,player);target.hostId=client.id;target.simulationClientId=client.id;\n      send(client.socket,'room-joined',{room:target.name,isHost:true,number:player.number,players:roomRoster(target)});\n      for(const p of target.players.values())if(p.id!==client.id)send(p.socket,'host-changed',{hostId:client.id});\n      sendRoster(target);broadcastLobbies();break;\n    }\n    case 'join-room': {
       if (room) throw new Error('Leave your current server before joining another.');
       const target = rooms.get(String(message.room || '').toUpperCase());
       if (!target) throw new Error('Server not found. Check the server code and address.');
-      if (target.players.size >= target.maxPlayers) throw new Error('This server is full.');
+      if ([...target.players.values()].filter(p=>!p.isSimulation).length >= target.maxPlayers) throw new Error('This server is full.');
       if (target.players.has(client.id)) throw new Error('You are already in this server.');
       const player = { id: client.id, number: nextPlayerNumber++, socket: client.socket, name: safeName(message.name), color: message.color || '#65d6ad', approved: false };
       client.approved = false;
@@ -299,7 +347,7 @@ server.listen(settings.port, settings.host, () => {
   console.log('  Bind:       ' + settings.host);
   console.log('  Port:       ' + settings.port);
   const addresses = Object.values(os.networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal).map(item => item.address);
-  console.log('  WebSocket:  ws://localhost:' + settings.port + '/pixelphyx');
+  console.log('  Game:       http://localhost:' + settings.port + '/');\n  console.log('  WebSocket:  ws://localhost:' + settings.port + '/pixelphyx');
   for (const address of addresses) console.log('  LAN URL:    ws://' + address + ':' + settings.port + '/pixelphyx');
   console.log('  Max players per lobby: ' + settings.maxPlayers);
   console.log('  Lobby limit: ' + settings.lobbyCount);
@@ -309,7 +357,7 @@ server.listen(settings.port, settings.host, () => {
 });
 function shutdown() {
   clearInterval(heartbeat);
-  for (const client of clients.values()) { send(client.socket, 'server-shutdown'); client.socket.close(); }
+  for (const room of rooms.values()) closeSimulation(room.name);\n  for (const client of clients.values()) { send(client.socket, 'server-shutdown'); client.socket.close(); }
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();
 }
