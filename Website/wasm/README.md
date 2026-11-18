@@ -1,21 +1,29 @@
 # PixelPhyx Rust/WASM engine
 
-This branch is the isolated Rust/WebAssembly migration of the Photon test build.
+This branch is an offline engine migration. It does not use Photon, room transport, player presence, or multiplayer synchronization in the new engine API.
 
 ## Build
-
-Install Rust with the `wasm32-unknown-unknown` target and `wasm-pack`, then run:
 
 ```sh
 wasm-pack build Website/wasm --target web --release --out-dir ../pkg
 ```
 
-Generated `Website/pkg/` files are build artifacts and are not committed. The browser entrypoint imports the generated package through `Website/js/wasm-engine.js`.
+## Ownership target
 
-## Current migration boundary
+| System | Implementation |
+|---|---|
+| Physics simulation | Rust/WASM |
+| Material reactions and chemistry | Rust/WASM |
+| Particle movement and collisions | Rust/WASM |
+| Ropes and constraints | Rust/WASM |
+| Rigid bodies and collisions | Rust/WASM |
+| Canvas pixel rendering | Rust/WASM |
+| Rendering effects and compositing | Rust/WASM |
+| Input handling | Rust/WASM |
+| UI and menus | TypeScript |
 
-- Rust/WASM owns particle velocity preparation and base RGBA pixel shading.
-- JavaScript still owns pointer input, Photon transport, rope collision queries, chemistry/material reactions, rigid bodies, interpolation, visual effects, and Canvas 2D compositing.
-- Existing world/material IDs and Photon serialization remain unchanged.
+## Current status
 
-This is an incremental port, not yet a full Rust replacement. Next stages: move the complete cellular/material solver, ropes and rigid bodies, then remaining canvas-side effects. Keep Photon networking and UI orchestration in JavaScript.
+The new `World` WASM API provides simulation state, configurable material properties and reaction pairs, grid particle movement, basic axis-aligned rigid-body integration/collision, pointer-driven brush input, and RGBA frame generation.
+
+This is an engine foundation, not a completed parity port. Existing material IDs/reaction rules, complete rope endpoint solving, robust rigid-body geometry, visual effects/compositing, and the current UI still need to be migrated and validated before replacing the existing runtime. The UI is not yet converted to TypeScript. The existing page/runtime may still contain online UI or transport code; those files have not yet been removed.
