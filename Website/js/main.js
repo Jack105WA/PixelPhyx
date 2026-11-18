@@ -87,7 +87,7 @@ function openCustomMaterialEditor(existing=null){
  const modal=document.createElement('div');modal.className='modal open';const dialog=document.createElement('form');dialog.className='dialog custom-material-dialog';
  const m=existing||{name:'',icon:'',color:'#b58cff',type:'Metallic',state:'solid',density:1,flammable:false,affectedByGravity:true,particles:[]};
  const particleChoices=getCustomParticleChoices(existing?.id);
- dialog.innerHTML='<h2></h2><div class="custom-form-grid">
+ dialog.innerHTML=`<h2></h2><div class="custom-form-grid">
  <div class="control full"><label>Name</label><input name="name" type="text" maxlength="24" required></div>
  <div class="control"><label>Icon <span class="muted">Optional</span></label><input name="icon" type="text" maxlength="4"></div>
  <div class="control"><label>Color</label><input name="color" type="color"></div>
