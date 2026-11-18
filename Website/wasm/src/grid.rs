@@ -28,8 +28,9 @@ pub fn prepare_velocity(cells: &[u8], velocity_x: &mut [f32], velocity_y: &mut [
 }
 
 
-fn random(seed: u32, index: usize, salt: u32) -> f32 {
-    let mut value=seed ^ (index as u32).wrapping_mul(0x9E37_79B9) ^ salt;
+// Deterministic, non-cryptographic simulation noise; the stream tag separates effects.
+fn random(seed: u32, index: usize, stream_tag: u32) -> f32 {
+    let mut value=seed ^ (index as u32).wrapping_mul(0x9E37_79B9) ^ stream_tag;
     value^=value>>16; value=value.wrapping_mul(0x7FEB_352D);
     value^=value>>15; value=value.wrapping_mul(0x846C_A68B);
     value^=value>>16;
