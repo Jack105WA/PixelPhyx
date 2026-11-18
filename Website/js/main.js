@@ -751,4 +751,5 @@ document.querySelector('#playerColor').value=playerColor;
 document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;localStorage.setItem('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
 document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;localStorage.setItem('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
 updateTemperature();
+if(new URLSearchParams(location.search).get('join')==='1')setTimeout(()=>document.querySelector('#roomBtn')?.click(),0);
 // Trigger offline bundle rebuild for swept rope collision handling.
