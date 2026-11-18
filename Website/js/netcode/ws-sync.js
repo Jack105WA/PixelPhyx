@@ -205,14 +205,15 @@ export function createServerSync(state) {
     if (!room()) return;
     const network = state.client?.serverInfo?.network || {};
     if (network.cursorUpdates === false) return;
+    if (!cursor) {
+      send(EVENTS.CURSOR, { active: false }, { reliable: false });
+      lastCursorAt = performance.now();
+      return;
+    }
     const now = performance.now();
     const interval = Math.max(20, Number(network.cursorUpdateIntervalMs) || 40);
     if (now - lastCursorAt < interval) return;
     lastCursorAt = now;
-    if (!cursor) {
-      send(EVENTS.CURSOR, { active: false }, { reliable: false });
-      return;
-    }
     if (!Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) return;
     send(EVENTS.CURSOR, {
       active: true, x: cursor.x, y: cursor.y,
