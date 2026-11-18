@@ -8,9 +8,7 @@ Production: https://jack105wa.github.io/PixelPhyx/
 
 Photon test preview: https://jack105wa.github.io/PixelPhyx/photon-test/
 
-Photon WASM preview: https://jack105wa.github.io/PixelPhyx/photon-wasm/
-
-The Photon previews are isolated from production. The WASM preview runs the migrated simulation engine compiled from Rust to WebAssembly.
+The Photon test preview is isolated from production. The production game runs its simulation engine compiled from Rust to WebAssembly.
 
 ## Play offline
 
@@ -48,7 +46,7 @@ Photon uses secure WebSockets and Photon Cloud relay. It does not provide direct
 
 ## Rust and WebAssembly
 
-The Photon WASM branch moves performance-sensitive simulation and pixel-processing systems into Rust compiled to browser WebAssembly:
+The production Rust/WASM engine moves performance-sensitive simulation and pixel-processing systems into Rust compiled to browser WebAssembly:
 
 - Physics force integration and particle movement/collisions.
 - Material reactions, chemistry, and heat simulation.
@@ -68,7 +66,7 @@ The workflow in .github/workflows/pages.yml:
 - Publishes main as the production site root.
 - Publishes server-migrate under /server-migrate/.
 - Publishes photon-test under /photon-test/.
-- Builds the Rust/WASM package and publishes photon-wasm under /photon-wasm/.
+- Builds the Rust/WASM package from main and includes it in the production site.
 - Rebuilds the standalone offline edition on main.
 
 ## Repository layout
