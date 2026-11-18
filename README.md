@@ -1,6 +1,6 @@
 # PixelPhyx
 
-PixelPhyx is a browser-based 2D pixel physics and chemistry sandbox featuring falling particles, liquids, gases, material reactions, explosions, ropes, rigid-body props, and multiplayer.
+PixelPhyx is a browser-based 2D pixel physics and chemistry sandbox featuring falling particles, liquids, gases, material reactions, explosions, ropes, and multiplayer.
 
 ## Play online
 
@@ -18,7 +18,7 @@ The offline edition is generated from Website/ by Offline/build-offline.mjs. Loc
 
 Multiplayer uses Photon Realtime Core 6 for browser connections, room discovery, room membership, and reliable gameplay events. The room's Photon master client is the physics authority; other clients render interpolated world snapshots instead of simulating a separate copy of the particle world.
 
-Drawing, erasing, material placement, ropes, props, settings, pause/resume, and single-step requests are relayed through the room host. Room hosts approve join requests, and Photon transfers master-client ownership if the host leaves. World snapshots are compressed and chunked; ropes use small, frequent state updates, and prop state is sent only when it changes.
+Drawing, erasing, material placement, ropes, settings, pause/resume, and single-step requests are relayed through the room host. Room hosts approve join requests, and Photon transfers master-client ownership if the host leaves. World snapshots are compressed and chunked; ropes use small, frequent state updates,.
 
 Photon uses secure WebSockets and Photon Cloud relay. It does not provide direct LAN peer-to-peer transport. The App ID in browser code is a public application identifier, not a secret. Usage, CCU limits, and billing are controlled in the [Photon Dashboard](https://dashboard.photonengine.com/).
 
@@ -27,8 +27,7 @@ Photon uses secure WebSockets and Photon Cloud relay. It does not provide direct
 - **Draw:** place the selected material.
 - **Line:** drag to draw a straight material line.
 - **Rope:** drag to create a rope; right-click to delete.
-- **Props:** spawn cars, buckets, balls, crates, and barrels.
-- **Grab:** drag rope points or props.
+- **Grab:** drag rope points.
 - **Erase:** remove particles.
 - **Box:** place a block of the selected material.
 - **Blast:** place TNT and ignite it with fire.
@@ -48,7 +47,7 @@ The production Rust/WASM engine moves performance-sensitive simulation and pixel
 
 - Physics force integration and particle movement/collisions.
 - Material reactions, chemistry, and heat simulation.
-- Rope constraints and rigid-body collision solving.
+- Rope constraints and rope constraint solving.
 - Canvas pixel rendering and rendering effects compositing.
 - Input coordinate mapping and brush rasterization.
 
