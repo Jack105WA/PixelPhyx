@@ -258,24 +258,6 @@ wss.on('error', error => {
   }
   console.error('WebSocket server error:', error.message || error);
 });
-server.on('error', error => {
-  if (error.code === 'EADDRINUSE') {
-    console.error('');
-    console.error('  ERROR: Port ' + settings.port + ' is already in use.');
-    console.error('  Another server or application is already listening on this port.');
-    console.error('  If PixelPhyx is already running, use that existing server window.');
-    console.error('  Otherwise, run: netstat -ano | findstr :' + settings.port);
-    console.error('  Stop the process using that port, or change server.port in config.yml');
-    console.error('  and update your router port forwarding and game server address.');
-    console.error('');
-    clearInterval(heartbeat);
-    process.exitCode = 1;
-    return;
-  }
-  console.error('HTTP server error:', error.message || error);
-  clearInterval(heartbeat);
-  process.exitCode = 1;
-});
 server.listen(settings.port, settings.host, () => {
   console.log('');
   console.log('  PixelPhyx Server');
