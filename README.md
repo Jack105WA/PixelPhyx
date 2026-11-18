@@ -16,19 +16,20 @@ The offline edition is generated from Website/ by Offline/build-offline.mjs. Loc
 
 ## Self-hosted multiplayer
 
-Photon has been removed. Multiplayer now uses a self-hosted WebSocket server in `Server/`.
+Photon has been removed. Multiplayer uses a self-hosted WebSocket relay in `Server/`. The relay is separate from the game website and does not host or download client files.
 
-1. Download the repository's `Server/` folder (or the source ZIP).
+1. Download the repository's `Server/` folder.
 2. Install Node.js 20 or newer.
 3. Run `Start Server.bat`.
-4. Open the LAN URL printed in the server console, such as `http://192.168.1.20:3000`.
-5. Players on the same network open that same address. For internet access, forward the configured TCP port to the host PC and share its public IP address.
+4. Keep the server running. It prints the WebSocket port in the console.
+5. Open the game client separately from GitHub Pages or another static web host. Select **Online**, enter the host's LAN IP (or public IP for internet play), and press **Connect to server**.
+6. For internet access, forward the configured TCP port (default `3000`) to the host PC and share its public IP address.
 
-The server serves the game locally and hosts room discovery, lobby capacity, player membership, join approvals, and gameplay message delivery. The room host remains the physics authority; if the host disconnects, authority moves to another connected player.
+The relay handles lobby discovery, lobby limits, player membership, join approvals, and gameplay message delivery. The room host remains the physics authority; if the host disconnects, authority moves to another connected player.
 
-Edit `Server/config.yml` to set the server name, bind address, port, maximum players per lobby, and maximum active lobby count. The launcher checks for updates and refreshes the local game files when the server release changes. It does not overwrite config.yml.
+Edit `Server/config.yml` to set the server name, bind address, port, maximum players per lobby, and maximum active lobby count. The launcher only updates server files and does not download, bundle, or host the game website. It does not overwrite config.yml.
 
-Worlds are currently held in memory and are not persisted after a server restart. Custom materials remain excluded from multiplayer.
+A client loaded over HTTPS requires a WSS endpoint; configure a TLS reverse proxy in front of the server for secure WebSockets. Worlds are held in memory and are not persisted after a server restart. Custom materials remain excluded from multiplayer.
 
 ## Controls
 
