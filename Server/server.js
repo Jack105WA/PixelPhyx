@@ -118,6 +118,15 @@ function removeFromRoom(client) {
   if (!room) { client.room = null; return; }
   room.players.delete(client.id);
   client.room = null;
+  if (!client.isSimulation && [...room.players.values()].every(player => player.isSimulation)) {
+    const simulationPlayer = [...room.players.values()].find(player => player.isSimulation);
+    const simulationClient = simulationPlayer ? clients.get(simulationPlayer.id) : null;
+    if (simulationClient) { simulationClient.room = null; simulationClient.socket.close(); }
+    closeSimulation(room.name);
+    rooms.delete(room.name);
+    broadcastLobbies();
+    return;
+  }
   if (client.isSimulation) { closeSimulation(room.name); for (const p of room.players.values()) { const peer=clients.get(p.id); if(peer){peer.room=null;peer.approved=false;send(peer.socket,'room-left',{reason:'The server simulation stopped.'});} } rooms.delete(room.name); broadcastLobbies(); return; }
   if (room.players.size === 0) { rooms.delete(room.name); closeSimulation(room.name); }
   else {
