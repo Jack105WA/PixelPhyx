@@ -99,55 +99,6 @@ export function stepMaterialPhysics({cells,width,height,ambient,gravity,ropes,ro
   const i=index(x,y),m=cells[i];if(!m)continue;
   const p=PROPERTIES[m]||{};
   age[i]=Math.min(65535,age[i]+1);
-  if(m===M.FIRE){
-   heat[i]=Math.max(heat[i],700+Math.random()*250);
-   const lifetime=100+Math.random()*100;
-   burn[i]+=1;
-   if(burn[i]>lifetime){cells[i]=M.SMOKE;heat[i]=120;burn[i]=0;continue}
-   for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1],[-1,-1],[1,-1]]){
-    const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
-    const ni=index(nx,ny),target=cells[ni],tp=PROPERTIES[target];
-    if(target===M.WATER||target===M.ICE){
-     if(Math.random()<.22){cells[i]=M.STEAM;heat[i]=0;burn[i]=0;break}
-     continue;
-    }
-    if(tp?.flammability){
-     const moisture=wet[ni]||0;
-     const chance=(target===M.OIL ? .62 : target===M.PLANT ? .38 : target===M.WOOD ? .28 : .12)*(1-moisture*.94);
-     heat[ni]=Math.min(1600,heat[ni]+(target===M.OIL?85:target===M.WOOD?55:target===M.PLANT?45:28));
-     if(heat[ni]>(tp.ignition||200)&&Math.random()<chance)ignite(cells,s,ni,target);
-    }
-   }
-   if(Math.random()<.006){cells[i]=M.SMOKE;heat[i]=0;burn[i]=0;}
-   continue;
-  }
-  if(m===M.LAVA){
-   heat[i]=Math.max(heat[i],850);
-   for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){
-    const nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;
-    const ni=index(nx,ny),other=cells[ni];
-    if(other===M.WATER||other===M.ICE){cells[i]=M.STONE;cells[ni]=M.STEAM;heat[ni]=180;break}
-    if(PROPERTIES[other]?.flammability){heat[ni]=Math.min(1600,heat[ni]+(other===M.OIL?100:other===M.WOOD?70:55));if(heat[ni]>(PROPERTIES[other].ignition||200)&&Math.random()<(other===M.OIL?.58:other===M.PLANT?.35:.24))ignite(cells,s,ni,other)}
-   }
-  }
-  if(m===M.WOOD||m===M.PLANT||m===M.OIL||m===M.TNT){
-   if(heat[i]>0){
-    const cooling=(m===M.WOOD?1.2:m===M.PLANT?2.4:.7)+(wet[i]*8);
-    heat[i]=Math.max(ambient,heat[i]-cooling);
-   }
-   if(heat[i]>(p.ignition||220)&&Math.random()<(m===M.TNT?.22:m===M.OIL?.16:m===M.PLANT?.12:.075)*(1-(wet[i]||0)*.94))ignite(cells,s,i,m);
-   if(burn[i]>0){
-    burn[i]+=1;
-    const consume=(m===M.WOOD?.003:m===M.PLANT?.012:m===M.OIL?.025:.018)*(1-(wet[i]||0)*.8);
-    fuel[i]=Math.max(0,(fuel[i]||p.fuel||1)-consume);
-    if(fuel[i]<=0){
-     if(m===M.WOOD){cells[i]=M.CHARCOAL;heat[i]=0;burn[i]=0;fuel[i]=0}
-     else if(m===M.PLANT){cells[i]=Math.random()<.55?M.EMPTY:M.SMOKE;heat[i]=0;burn[i]=0}
-     else if(m===M.TNT){cells[i]=M.FIRE;heat[i]=650;burn[i]=0}
-     else {cells[i]=M.FIRE;heat[i]=650;burn[i]=0}
-    }
-   }
-  }
   if(m===M.SALT&&get(x,y+1)===M.WATER&&Math.random()<.04)cells[i]=M.EMPTY;
   if(m===M.STEAM&&Math.random()<.003)cells[i]=M.WATER;
   if(m===M.SMOKE&&Math.random()<.002)cells[i]=M.EMPTY;
