@@ -166,7 +166,6 @@ export function createMultiplayer(callbacks = {}) {
     publishOperation: sync.publishOperation,
     publishWorld: sync.publishWorld,
     publishRopes: sync.publishRopes,
-    publishProps: sync.publishProps,
     publishLeafblower: () => {},
     updateCursor: () => {},
     updateIdentity: (name, color) => {
