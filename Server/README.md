@@ -31,5 +31,16 @@ Edit `config.yml`:
 - `max_players`: players allowed in each lobby.
 - `lobby_count`: maximum number of active lobbies.
 - `public_address`: optional public hostname/IP note.
+- `network.snapshot_interval_ms`: full compressed world snapshot cadence (default 400 ms).
+- `network.rope_update_interval_ms`: rope position update cadence (default 50 ms).
+- `network.cursor_updates`: enable or disable original multiplayer mouse cursors.
+- `network.cursor_update_interval_ms`: cursor update cadence (default 40 ms).
+- `network.prediction_enabled`: enable client-side movement/edit prediction; off by default so snapshots stay authoritative.
+- `network.snapshot_chunk_bytes`: snapshot WebSocket chunk size (default 24 KB).
+- `network.max_snapshot_bytes`: maximum compressed snapshot transfer size (default 8 MB).
+- `network.max_payload_bytes`: maximum individual WebSocket message size (default 8 MB).
+- `network.max_buffered_bytes`: stop queueing more data when a client's outgoing socket buffer exceeds this amount (default 16 MB).
+
+Lower update intervals improve responsiveness but increase bandwidth. The defaults prioritize frequent synchronization while keeping snapshot data compressed and chunked. Restart the server after editing the configuration.
 
 The server keeps rooms and player state in memory. Worlds are not saved to disk.
