@@ -1,12 +1,14 @@
 # PixelPhyx Multiplayer Server
 
-The server downloads the current game website from the `local-server` branch into `Server/Website` on first startup and refreshes it when the website changes. It serves that local copy and starts one isolated headless browser session for each lobby. The hidden simulation is the authoritative room host.
+The server downloads the current game website from the `main` branch (`Website/`) into `Server/Website` on first startup and refreshes it when the website changes. It serves that local copy and starts one isolated headless browser session for each lobby. The hidden simulation is the authoritative room host.
 
 ## Start
 
 Run `Start Server.bat`. An internet connection is needed the first time so the server can download the website files and install Node dependencies. Website downloads are cached; unchanged files are not downloaded again.
 
-Requirements: Node.js 20+ and an installed supported browser. The browser WASM engine is precompiled by GitHub Actions and downloaded with the website. This PC does not need Rust, Cargo, wasm-pack, a C/C++ compiler, or a local build toolchain. The server's npm packages are installed automatically by the launcher.\n\nIf your browser is installed somewhere non-standard, set `PIXELPHYX_BROWSER_PATH` to its executable path. For an unusual browser build, set `PIXELPHYX_BROWSER_ENGINE=chromium` or `firefox` as well. The old `PIXELPHYX_CHROME_PATH` and `CHROME_PATH` variables remain supported.
+Requirements: Node.js 20+ and an installed supported browser. The browser WASM engine is precompiled by GitHub Actions on `main` and downloaded with the website. This PC does not need Rust, Cargo, wasm-pack, a C/C++ compiler, or a local build toolchain. The server's npm packages are installed automatically by the launcher.
+
+If your browser is installed somewhere non-standard, set `PIXELPHYX_BROWSER_PATH` to its executable path. For an unusual browser build, set `PIXELPHYX_BROWSER_ENGINE=chromium` or `firefox` as well. The old `PIXELPHYX_CHROME_PATH` and `CHROME_PATH` variables remain supported.
 
 Open `http://localhost:3000/` to play. The WebSocket endpoint is `/pixelphyx`. Creating a lobby starts a separate headless browser profile and an authenticated simulation session.
 
