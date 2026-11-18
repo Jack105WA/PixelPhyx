@@ -43,7 +43,7 @@ const gameScript = [
   '(async()=>{',
   `const wasmGlue=await import(${JSON.stringify(wasmGlueUrl)});`,
   `const wasmBytes=Uint8Array.from(atob('${wasmBase64}'),c=>c.charCodeAt(0));`,
-  'await wasmGlue.default(wasmBytes);',
+  'await wasmGlue.default(wasmBytes.buffer);',
   'async function createWasmEngine(){return Object.freeze({prepare_velocity:wasmGlue.prepare_velocity,render_cells:wasmGlue.render_cells,render_frame:wasmGlue.render_frame,render_composited_frame:wasmGlue.render_composited_frame,count_particles:wasmGlue.count_particles,step_chemistry:wasmGlue.step_chemistry,step_particles:wasmGlue.step_particles,step_ropes:wasmGlue.step_ropes,step_rigid_bodies:wasmGlue.step_rigid_bodies,map_pointer:wasmGlue.map_pointer,paint_segment:wasmGlue.paint_segment})}',
   'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
   'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
