@@ -86,7 +86,7 @@ function createClient() {
             const players = (message.players || []).map(p => ({ number: p.number, name: p.name, isMasterClient: !!p.isHost,
               customProperties: { clientId: p.clientId, name: p.name, color: p.color, approved: p.approved } }));
             const host = players.find(p => p.isMasterClient);
-            client.room = { name: message.room, isMasterClient: !!message.isHost, masterClientNumber: host?.number || message.number,
+            client.room = { name: message.room, isMasterClient: !!message.isHost, isRoomOwner: !!message.isRoomOwner, masterClientNumber: host?.number || message.number,
               players, getPlayer(number) { return this.players.find(p => p.number === number) || null; } };
             client.localPlayer = client.room.getPlayer(message.number);
             client.emit('playerJoined'); client.resolveWait('room-joined', message); return;
@@ -105,7 +105,9 @@ function createClient() {
             }
           } else if (message.type === 'player-joined') client.emit('playerJoined', message);
           else if (message.type === 'player-left') client.emit('playerLeft', { playerNumber: message.playerNumber });
-          else if (message.type === 'host-changed') {
+          else if (message.type === 'approval-owner-changed') {
+            if (client.room) client.room.isRoomOwner = client.localPlayer?.customProperties.clientId === message.approvalHostId;
+          } else if (message.type === 'host-changed') {
             if (client.room) {
               const old = client.room.masterClientNumber;
               client.room.masterClientNumber = client.room.players.find(p => p.customProperties.clientId === message.hostId)?.number || old;
@@ -160,6 +162,7 @@ export function createMultiplayer(callbacks = {}) {
     log: message => callbacks.onLog?.(message)
   };
   state.isHost = () => !!state.client?.room?.isMasterClient;
+  state.isRoomOwner = () => !!state.client?.room?.isRoomOwner;
   state.isApproved = number => number === state.client?.localPlayer?.number || state.approvedPlayers.has(number) || !!state.client?.room?.getPlayer(number)?.customProperties?.approved;
   state.targets = except => (state.client?.room?.players || []).filter(p => p.number !== state.client.localPlayer.number && p.number !== except && state.isApproved(p.number)).map(p => p.number);
   state.roster = () => {
