@@ -31,7 +31,7 @@ const settings = {
   maxBufferedBytes: Math.max(65536, Math.min(64 * 1024 * 1024, Number(config.network?.max_buffered_bytes) || 16 * 1024 * 1024))
 };
 
-const WEBSITE_ROOT = path.resolve(ROOT, '..', 'Website');
+const WEBSITE_ROOT = fs.existsSync(path.join(ROOT, 'Website', 'index.html')) ? path.join(ROOT, 'Website') : path.resolve(ROOT, '..', 'Website');
 const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2','.txt':'text/plain; charset=utf-8'};
 const simulations = new Map();
 const rooms = new Map();
@@ -73,6 +73,13 @@ async function launchSimulation(room) {
   const response=await fetch('http://127.0.0.1:'+port+'/json/new?'+encodeURIComponent(targetUrl),{method:'PUT'});
   if(!response.ok){closeSimulation(room.name);throw new Error('Chrome could not open the simulation page ('+response.status+').');}
   entry.target=await response.json();
+  for(let i=0;i<60;i++){
+    if(room.simulationClientId)return;
+    if(rooms.get(room.name)!==room)throw new Error('Lobby closed before its simulation connected.');
+    await new Promise(resolve=>setTimeout(resolve,500));
+  }
+  closeSimulation(room.name);
+  throw new Error('The hidden game page did not connect within 30 seconds. Check the game WASM files and server logs.');
 }
 function serveGame(res,pathname){
   let relative;try{relative=decodeURIComponent(pathname==='/'?'/index.html':pathname).replace(/^\/+/, '');}catch{res.writeHead(400);return res.end('Bad request');}
