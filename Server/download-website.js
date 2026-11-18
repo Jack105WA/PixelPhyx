@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
-const { spawnSync } = require('node:child_process');
 
 const REPOSITORY = 'Jack105WA/PixelPhyx';
 const BRANCH = 'local-server';
@@ -108,15 +107,7 @@ async function downloadWebsite(destination) {
   const wasmJs = path.join(destination, 'pkg', 'pixelphyx_wasm.js');
   const wasmBinary = path.join(destination, 'pkg', 'pixelphyx_wasm_bg.wasm');
   if (!fs.existsSync(wasmJs) || !fs.existsSync(wasmBinary)) {
-    console.log('Preparing the Rust WebAssembly build tools (one-time setup)...');
-    const tools = await ensureWasmPack();
-    run(tools.wasmPack, ['build', 'Website/wasm', '--target', 'web', '--release', '--out-dir', '../pkg'], {
-      cwd: path.resolve(destination, '..', '..'),
-      env: tools.env
-    });
-    if (!fs.existsSync(wasmJs) || !fs.existsSync(wasmBinary)) {
-      throw new Error('The WebAssembly build completed without producing the required files in ' + path.join(destination, 'pkg') + '.');
-    }
+    throw new Error('The precompiled PixelPhyx WASM engine is not available on GitHub yet. No Rust or wasm-pack installation is needed on this PC. Wait for the repository WASM build to finish, then restart the server.');
   }
 
   fs.writeFileSync(marker, websiteVersion + '\n');
