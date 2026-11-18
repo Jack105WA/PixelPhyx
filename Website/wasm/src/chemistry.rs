@@ -116,6 +116,41 @@ fn ignite(heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32], i: usize, materi
     heat[i] = heat[i].max(material_ignition(material).max(100.0));
 }
 
+// Capture fuse ignition before the particle movement pass can move a flame away.
+pub fn prime_fuse_ignition(
+    cells: &[u8], heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32],
+    width: usize, height: usize,
+) {
+    let len = width.saturating_mul(height).min(cells.len())
+        .min(heat.len()).min(fuel.len()).min(burn.len());
+    if width == 0 || height == 0 { return; }
+
+    for i in 0..len {
+        if cells[i] != 17 || burn[i] > 0.0 { continue; }
+        let x = i % width;
+        let y = i / width;
+        let mut touching_fire = false;
+        for dy in -1isize..=1 {
+            for dx in -1isize..=1 {
+                if dx == 0 && dy == 0 { continue; }
+                let nx = x as isize + dx;
+                let ny = y as isize + dy;
+                if nx < 0 || ny < 0 || nx >= width as isize || ny >= height as isize { continue; }
+                if cells[ny as usize * width + nx as usize] == 5 {
+                    touching_fire = true;
+                    break;
+                }
+            }
+            if touching_fire { break; }
+        }
+        if touching_fire {
+            fuel[i] = material_fuel(17);
+            burn[i] = 1.0;
+            heat[i] = heat[i].max(900.0);
+        }
+    }
+}
+
 pub fn step_combustion(
     cells: &mut [u8], heat: &mut [f32], wetness: &[f32],
     fuel: &mut [f32], burn: &mut [f32], age: &[u16],
