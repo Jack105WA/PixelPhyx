@@ -774,7 +774,7 @@ else window.addEventListener('resize',fitCanvasToShell);
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 const serverAddressInput=document.querySelector('#serverAddress');
-if(serverAddressInput){serverAddressInput.value=localStorage.getItem('pixelphyx-server-address')||'';serverAddressInput.addEventListener('change',e=>{const value=e.target.value.trim().replace(/\\/$/,'');if(value)localStorage.setItem('pixelphyx-server-address',value);else localStorage.removeItem('pixelphyx-server-address');if(multiplayer){multiplayer.disconnect();multiplayer=null;multiplayerLoading=null;}})}
+if(serverAddressInput)serverAddressInput.value=localStorage.getItem('pixelphyx-server-address')||'';
 document.querySelector('#playerColor').value=playerColor;
 document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;localStorage.setItem('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
 document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;localStorage.setItem('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
