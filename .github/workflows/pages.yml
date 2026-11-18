@@ -1,7 +1,7 @@
 name: PixelPhyx workflows
 on:
   push:
-    branches: [main, server-migrate, photon-test]
+    branches: [main, server-migrate, photon-test, photon-wasm]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,6 @@ permissions:
   pages: write
   id-token: write
 
-# Publish production plus isolated development previews, including Photon.
 concurrency:
   group: github-pages
   cancel-in-progress: true
@@ -58,13 +57,30 @@ jobs:
           ref: photon-test
           path: photon-test
 
+      - name: Check out Photon WASM branch
+        uses: actions/checkout@v4
+        with:
+          ref: photon-wasm
+          path: photon-wasm
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - name: Build optimized Photon WebAssembly package
+        run: wasm-pack build photon-wasm/Website/wasm --target web --release --out-dir ../pkg
+
       - name: Validate Photon JavaScript modules
         run: |
-          for file in photon-test/Website/js/*.js; do
+          for file in photon-test/Website/js/*.js photon-wasm/Website/js/*.js photon-wasm/Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
 
@@ -72,10 +88,11 @@ jobs:
 
       - name: Assemble combined Pages site
         run: |
-          mkdir -p _site/server-migrate _site/photon-test
+          mkdir -p _site/server-migrate _site/photon-test _site/photon-wasm
           cp -a production/Website/. _site/
           cp -a migration/Website/. _site/server-migrate/
           cp -a photon-test/Website/. _site/photon-test/
+          cp -a photon-wasm/Website/. _site/photon-wasm/
 
       - uses: actions/upload-pages-artifact@v3
         with:
