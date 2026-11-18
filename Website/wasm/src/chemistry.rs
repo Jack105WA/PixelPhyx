@@ -67,3 +67,30 @@ pub fn step_acid(
         }
     }
 }
+
+fn random01(index: usize, age: u16, salt: u32) -> f32 {
+    let mut x = (index as u32).wrapping_mul(0x9E37_79B9)
+        ^ (age as u32).wrapping_mul(0x85EB_CA6B) ^ salt;
+    x ^= x >> 16;
+    x = x.wrapping_mul(0x7FEB_352D);
+    x ^= x >> 15;
+    x = x.wrapping_mul(0x846C_A68B);
+    x ^= x >> 16;
+    (x as f64 / u32::MAX as f64) as f32
+}
+
+pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: usize, height: usize) {
+    let len = width.saturating_mul(height).min(cells.len()).min(age.len());
+    if width == 0 || height == 0 { return; }
+    let freeze = (-ambient / 9000.0).clamp(0.0, 0.12);
+    let melt = (ambient / 14000.0).clamp(0.0, 0.10);
+    let evaporation = ((ambient - 100.0) / 18000.0).clamp(0.0, 0.05);
+    for i in 0..len {
+        match cells[i] {
+            2 if random01(i, age[i], 0xA341_316C) < freeze => cells[i] = 10,
+            10 if random01(i, age[i], 0xC801_3EA4) < melt => cells[i] = 2,
+            2 if random01(i, age[i], 0xAD90_777D) < evaporation => cells[i] = 8,
+            _ => {}
+        }
+    }
+}
