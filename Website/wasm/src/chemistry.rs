@@ -181,6 +181,11 @@ pub fn step_combustion(
                     }
                     continue;
                 }
+                if target == 17 {
+                    // A flame directly touching fuse cord lights that segment reliably.
+                    ignite(heat, fuel, burn, ni, target);
+                    continue;
+                }
                 if flammable(target) {
                     let moisture = wetness[ni].clamp(0.0, 1.0);
                     let chance = (match target { 6=>0.62,13=>0.38,4=>0.28,_=>0.12 }) * (1.0-moisture*0.94);
@@ -203,27 +208,18 @@ pub fn step_combustion(
                 if burn[i] <= 0.0 { ignite(heat, fuel, burn, i, material); }
                 burn[i] += 1.0;
                 heat[i] = heat[i].max(520.0);
-                let neighbors = [
-                    if y > 0 { Some(i-width) } else { None },
-                    if x > 0 { Some(i-1) } else { None },
-                    if x+1 < width { Some(i+1) } else { None },
-                    if y+1 < height { Some(i+width) } else { None },
-                ];
-                for (slot, neighbor) in neighbors.into_iter().enumerate() {
-                    let Some(ni) = neighbor else { continue; };
-                    if cells[ni] == 17 {
-                        heat[ni] = (heat[ni] + 115.0).min(900.0);
-                        if heat[ni] >= material_ignition(17)
-                            && random01(ni, age[ni], 0xF05E_1000 + slot as u32) < 0.42 {
-                            ignite(heat, fuel, burn, ni, 17);
-                        }
+                // Only the next segment to the right can ignite.
+                if x + 1 < width {
+                    let next = i + 1;
+                    if cells[next] == 17 && burn[next] <= 0.0 {
+                        ignite(heat, fuel, burn, next, 17);
                     }
                 }
                 let starting_fuel = if fuel[i] > 0.0 { fuel[i] } else { material_fuel(17) };
-                fuel[i] = (starting_fuel - 0.014).max(0.0);
+                fuel[i] = (starting_fuel - 0.045).max(0.0);
                 if fuel[i] <= 0.0 {
-                    cells[i] = 5;
-                    heat[i] = 650.0;
+                    cells[i] = 9;
+                    heat[i] = 180.0;
                     burn[i] = 0.0;
                     fuel[i] = 0.0;
                 }
