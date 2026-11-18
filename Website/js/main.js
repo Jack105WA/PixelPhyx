@@ -184,9 +184,15 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
 const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)||objectSystem.blocksParticleMove(x1,y1,x2,y2)}
 function stepRopes(){
- // All clients predict rope physics locally; host snapshots correct drift.
+ let total=0;const offsets=[0],lengths=[];
+ for(const rope of ropes){total+=rope.points.length;offsets.push(total);lengths.push(Number.isFinite(rope.length)&&rope.length>0?rope.length:1)}
+ if(total>1){
+  const x=new Float32Array(total),y=new Float32Array(total),px=new Float32Array(total),py=new Float32Array(total),ox=new Float32Array(total),oy=new Float32Array(total),anchors=new Uint8Array(total),drag=new Uint8Array(total);
+  let k=0;for(const rope of ropes)for(const node of rope.points){x[k]=node.x;y[k]=node.y;px[k]=node.px;py[k]=node.py;ox[k]=Number.isFinite(node.ox)?node.ox:node.x;oy[k]=Number.isFinite(node.oy)?node.oy:node.y;anchors[k]=node.anchor?1:0;drag[k]=node.dragMoved?1:0;k++}
+  wasmEngine.step_ropes(x,y,px,py,ox,oy,anchors,drag,new Uint32Array(offsets),new Float32Array(lengths),cells,W,H,gravity);
+  k=0;for(const rope of ropes)for(const node of rope.points){node.x=x[k];node.y=y[k];node.px=px[k];node.py=py[k];node.ox=ox[k];node.oy=oy[k];node.dragMoved=false;k++}
+ }
  physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,airborneParticles,onExtract:i=>snapshotMoves.delete(i),recordMove:recordParticleMove});
- for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
 }
 function applyLeafblowerImpulse(x,y,dx,dy,radius=46,strength=4.2){
  const length=Math.hypot(dx,dy)||1;dx/=length;dy/=length;
