@@ -1,0 +1,14 @@
+# PixelPhyx dedicated server configuration
+server:
+  name: "PixelPhyx Server"
+  # 0.0.0.0 listens on all network adapters.
+  bind: "0.0.0.0"
+  port: 3000
+  max_players: 16
+  # Maximum number of simultaneously listed/hosted lobbies.
+  lobby_count: 20
+  # Optional public hostname or IP for reference. Leave blank for LAN.
+  public_address: ""
+
+network:
+  heartbeat_ms: 15000
