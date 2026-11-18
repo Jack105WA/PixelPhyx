@@ -208,8 +208,8 @@ pub fn step_combustion(
                 if burn[i] <= 0.0 { ignite(heat, fuel, burn, i, material); }
                 burn[i] += 1.0;
                 heat[i] = heat[i].max(520.0);
-                // Only the next segment to the right can ignite.
-                if x + 1 < width {
+                // Let each segment visibly burn before advancing one cell right.
+                if burn[i] >= 3.0 && x + 1 < width {
                     let next = i + 1;
                     if cells[next] == 17 && burn[next] <= 0.0 {
                         ignite(heat, fuel, burn, next, 17);
