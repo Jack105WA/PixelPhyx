@@ -97,24 +97,24 @@ pub fn step_particles(
             if i>=len||cells[i]==0||updated[i]!=0{continue;}
             let m=cells[i];
             let gas=m==8||m==9||m==5;
-            let movable=matches!(m,1|2|3|6|7|11|14|15);
+            let movable=matches!(m,1|2|6|7|11|14|16);
             if !gas&&!movable{continue;}
             let dy:isize=if gas {-1}else{1};
             let ny=y as isize+dy;
             let vertical=if ny>=0&&ny<height as isize {Some(ny as usize*width+x)}else{None};
             if let Some(to)=vertical {
-                if to<len&&cells[to]==0 {
+                if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6))) {
                     swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                     continue;
                 }
             }
-            if !gas && matches!(m,1|2|3|6|7|11|14) {
+            if !gas && matches!(m,1|2|6|7|11|14|16) {
                 let side=if random(seed,i,0x51DE)<0.5 {-1isize}else{1isize};
                 let nx=x as isize+side;
                 let ny=y as isize+dy;
                 if nx>=0&&nx<width as isize&&ny>=0&&ny<height as isize {
                     let to=ny as usize*width+nx as usize;
-                    if to<len&&cells[to]==0 {
+                    if to<len&&(cells[to]==0||(m==1&&matches!(cells[to],2|6))) {
                         swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                         continue;
                     }
