@@ -28,7 +28,7 @@ addressInput.value=localStorage.getItem('pixelphyx-server-address')||'';
 nameInput.value=localStorage.getItem('pixelphyx-player-name')||'';
 document.querySelector('#joinForm').addEventListener('submit',event=>{
  event.preventDefault();
- let address=addressInput.value.trim().replace(/\\/$/,'');
+ let address=addressInput.value.trim().replace(/\/$/,'');
  if(address){
   if(/^https:\/\//i.test(address))address='wss://'+address.slice(8);
   else if(/^http:\/\//i.test(address))address='ws://'+address.slice(7);
