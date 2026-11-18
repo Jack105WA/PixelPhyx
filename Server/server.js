@@ -99,6 +99,36 @@ function sendEvent(room, sender, event) {
     }
   }
 }
+function sendStrokeEvent(room, sender, event) {
+  if (!sender.approved && sender.id !== room.hostId) return;
+  const stroke = event.data;
+  if (!stroke || stroke.type !== 'stroke' ||
+      typeof stroke.pointsPacked !== 'string' ||
+      stroke.pointsPacked.length > 65536 ||
+      !/^[A-Za-z0-9+/]*={0,2}$/.test(stroke.pointsPacked) ||
+      stroke.pointScale !== 4 ||
+      !Number.isInteger(stroke.material) || stroke.material < 0 || stroke.material > 17 ||
+      !Number.isFinite(stroke.brush) || stroke.brush < 1 || stroke.brush > 22 ||
+      !['draw', 'line', 'bomb', 'heat', 'cool', 'erase'].includes(stroke.tool)) return;
+
+  const targets = Array.isArray(event.targetPlayers)
+    ? new Set(event.targetPlayers.map(Number))
+    : null;
+  const receiver = event.receivers || 'all';
+  for (const player of room.players.values()) {
+    if (player.id === sender.id) continue;
+    if (targets && !targets.has(player.number)) continue;
+    if (receiver === 'masterClient' && player.id !== room.hostId) continue;
+    if (receiver !== 'masterClient' && receiver !== 'others' && receiver !== 'all' && !targets) continue;
+    if (player.id !== room.hostId && !player.approved) continue;
+    send(player.socket, 'event', {
+      senderNumber: sender.number,
+      code: 8,
+      data: stroke,
+      reliable: true
+    });
+  }
+}
 function handle(client, message) {
   const room = client.room ? rooms.get(client.room) : null;
   switch (message.type) {
@@ -186,6 +216,10 @@ function handle(client, message) {
       }
       if (!client.approved && client.id !== room.hostId) {
         if (Number(message.code) !== 5) return;
+      }
+      if (Number(message.code) === 8) {
+        sendStrokeEvent(room, client, message);
+        return;
       }
       sendEvent(room, client, message);
       break;
