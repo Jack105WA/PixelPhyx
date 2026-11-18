@@ -4,20 +4,26 @@ import vm from 'node:vm';
 const websiteDir = 'Website/';
 const offlineDir = 'Offline/';
 const read = path => readFile(websiteDir + path, 'utf8');
-const [offlineHtml, mainSource, physicsSource, engineSource, objectsSource, rendererSource] = await Promise.all([
+const [offlineHtml, mainSource, physicsSource, engineSource, objectsSource, rendererSource, uiSource, wasmGlueSource, wasmBinary] = await Promise.all([
   readFile(offlineDir + 'offline.html', 'utf8'),
   read('js/main.js'),
   read('js/material-physics.js'),
   read('js/physics-engine.js'),
   read('js/objects.js'),
-  read('js/object-renderer.js')
+  read('js/object-renderer.js'),
+  read('js/ui.js'),
+  readFile('Website/pkg/pixelphyx_wasm.js', 'utf8'),
+  readFile('Website/pkg/pixelphyx_wasm_bg.wasm')
 ]);
 const stripExports = source => source.replace(/\bexport\s+(?=(?:const|function)\b)/g, '');
 const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
 const renderer = stripExports(rendererSource);
+const ui = stripExports(uiSource);
+const wasmGlueUrl = 'data:text/javascript;base64,' + Buffer.from(wasmGlueSource).toString('base64');
+const wasmBase64 = wasmBinary.toString('base64');
 const objects = stripExports(objectsSource.replace("import {drawObjectBodies} from './object-renderer.js';", ''));
-if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) || /\bexport\s/.test(objects) || /\bexport\s/.test(renderer)) {
+if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) || /\bexport\s/.test(objects) || /\bexport\s/.test(renderer) || /\bexport\s/.test(ui)) {
   throw new Error('Unsupported export syntax in physics modules.');
 }
 
@@ -34,16 +40,24 @@ if (offlineMain === mainStart) throw new Error('Could not replace multiplayer im
 
 const gameScript = [
   '/* Generated from main.js and the physics modules. */',
+  '(async()=>{',
+  `const wasmGlue=await import(${JSON.stringify(wasmGlueUrl)});`,
+  `const wasmBytes=Uint8Array.from(atob('${wasmBase64}'),c=>c.charCodeAt(0));`,
+  'await wasmGlue.default(wasmBytes);',
+  'async function createWasmEngine(){return Object.freeze({prepare_velocity:wasmGlue.prepare_velocity,render_cells:wasmGlue.render_cells,render_frame:wasmGlue.render_frame,render_composited_frame:wasmGlue.render_composited_frame,count_particles:wasmGlue.count_particles,step_chemistry:wasmGlue.step_chemistry,step_particles:wasmGlue.step_particles,step_ropes:wasmGlue.step_ropes,step_rigid_bodies:wasmGlue.step_rigid_bodies,map_pointer:wasmGlue.map_pointer,paint_segment:wasmGlue.paint_segment})}',
   'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
   'const PixelPhyxMaterial=(()=>{', physics, 'return {stepMaterialPhysics,materialState,resetMaterialState};', '})();',
   'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
   'const PixelPhyxRenderer=(()=>{', renderer, 'return {drawObjectBodies};', '})();',
-  'const PixelPhyxObjects=(()=>{const {drawObjectBodies}=PixelPhyxRenderer;', objects, 'return {createObjectSystem};', '})();',
-  '(()=>{const firebaseConfig={};',
+  'const PixelPhyxObjects=(()=>{const {drawObjectBodies}=PixelPhyxRenderer;', objects, 'return {createObjectSystem,setRigidBodyWasmStep};', '})();',
+  'const PixelPhyxUi=(()=>{', ui, 'return {initializeUiShell};', '})();',
+  'const {initializeUiShell}=PixelPhyxUi;',
+  '(async()=>{const firebaseConfig={};',
   'const {stepMaterialPhysics,materialState,resetMaterialState}=PixelPhyxMaterial;',
   'const {createPhysicsEngine}=PixelPhyxEngine;',
   'const {createObjectSystem}=PixelPhyxObjects;',
   offlineMain,
+  '})();',
   '})();'
 ].join('\n');
 
