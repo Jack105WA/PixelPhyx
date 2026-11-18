@@ -139,10 +139,6 @@ function createClient() {
       const result = await client.waitFor('room-joined', () => client.send('simulation-join', { room: roomName, token }));
       return result.room;
     },
-    async connectSimulation(roomName, token) {
-      const result = await client.waitFor('room-joined', () => client.send('simulation-join', { room: roomName, token }));
-      return result.room;
-    },
     async createRoom() {
       const result = await client.waitFor('room-joined', () => client.send('create-room', { name: client.localPlayer?.name || 'Lab guest', color: client.localPlayer?.customProperties?.color || '#65d6ad' }));
       return { name: result.room };
