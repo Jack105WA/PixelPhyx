@@ -37,6 +37,13 @@ jobs:
           for file in Website/js/*.js Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
+      - name: Upload compiled WASM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: photon-wasm-package
+          path: Website/pkg/
+          if-no-files-found: error
+          retention-days: 1
 
   deploy-photon-preview:
     name: Deploy Photon WASM preview
@@ -70,6 +77,12 @@ jobs:
         with:
           ref: photon-wasm
           path: photon-wasm
+
+      - name: Download compiled WASM package
+        uses: actions/download-artifact@v4
+        with:
+          name: photon-wasm-package
+          path: photon-wasm/Website/pkg
 
       - uses: actions/configure-pages@v5
 
