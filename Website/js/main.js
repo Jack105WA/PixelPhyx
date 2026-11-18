@@ -1,10 +1,11 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem, setRigidBodyWasmStep }, { createWasmEngine }] = await Promise.all([
+const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem, setRigidBodyWasmStep }, { createWasmEngine }, { initializeUiShell }] = await Promise.all([
   import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./objects.js?v=${encodeURIComponent(cacheVersion)}`),
-  import(`./wasm-engine.js?v=${encodeURIComponent(cacheVersion)}`)
+  import(`./wasm-engine.js?v=${encodeURIComponent(cacheVersion)}`),
+  import(`./ui.js?v=${encodeURIComponent(cacheVersion)}`)
 ]);
 const wasmEngine = await createWasmEngine();
 setRigidBodyWasmStep(wasmEngine.step_rigid_bodies);
@@ -452,19 +453,11 @@ document.querySelector('#gravity').oninput=e=>{gravity=+e.target.value/10;docume
 document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.querySelector('#speedOut').textContent=speed+'×'};
 document.querySelector('#temperatureControl').oninput=e=>{const value=+e.target.value;ambient=temperatureUnit==='F'?(value-32)*5/9:value;updateTemperature();publishOperation({type:'settings',gravity,ambient})};
 document.querySelector('#temperatureUnit').onclick=()=>{temperatureUnit=temperatureUnit==='C'?'F':'C';updateTemperature()};
-addEventListener('keydown',e=>{
-  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return;
-  if(e.code==='Space'){e.preventDefault();document.querySelector('#play').click()}
- });
-
-const openModal=id=>document.querySelector('#'+id).classList.add('open');
+const {openModal,closeOnlineModal}=initializeUiShell({
+ onToggleSimulation:()=>document.querySelector('#play').click(),
+ onRoomModalClosed:()=>{if(stopLobbyGallery){stopLobbyGallery();stopLobbyGallery=null}}
+});
 document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
-function closeOnlineModal(modal){
- modal.classList.remove('open');
- if(modal.id==='roomModal'&&stopLobbyGallery){stopLobbyGallery();stopLobbyGallery=null}
-}
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeOnlineModal(b.closest('.modal')));
-document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeOnlineModal(m)}));
 
 let multiplayerLoading=null;
 const pendingJoinRequests=new Map();
