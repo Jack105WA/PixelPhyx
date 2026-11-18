@@ -96,9 +96,12 @@ function createClient() {
             if (client.room) {
               client.room.players = Object.entries(message.players || {}).map(([id, p]) => ({ number: p.serverNumber, name: p.name, isMasterClient: !!p.isHost,
                 customProperties: { clientId: id, name: p.name, color: p.color, approved: p.approved } }));
+              const previousHost = client.room.masterClientNumber;
               client.room.masterClientNumber = client.room.players.find(p => p.isMasterClient)?.number || client.room.masterClientNumber;
               client.localPlayer = client.room.getPlayer(client.localPlayer?.number) || client.localPlayer;
+              client.room.isMasterClient = !!client.localPlayer?.isMasterClient;
               client.emit('playerPropertiesChanged');
+              if (previousHost !== client.room.masterClientNumber) client.emit('masterClientChanged');
             }
           } else if (message.type === 'player-joined') client.emit('playerJoined', message);
           else if (message.type === 'player-left') client.emit('playerLeft', { playerNumber: message.playerNumber });
@@ -195,12 +198,7 @@ export function createMultiplayer(callbacks = {}) {
   }
   return {
     connect, createLobby: rooms.createLobby, joinRoom: rooms.joinRoom, requestJoin: rooms.requestJoin,
-    respondToJoinRequest: async (key, approved) => {
-      const playerNumber = Number(key);
-      if (!state.client?.approve(playerNumber, approved)) throw new Error('Could not send the approval response.');
-      if (approved) state.approvedPlayers.add(playerNumber);
-      state.roster();
-    },
+    respondToJoinRequest: rooms.respondToJoinRequest,
     watchLobbies: rooms.watchLobbies, leaveRoom: rooms.leaveRoom, disconnect,
     publishOperation: sync.publishOperation, publishWorld: sync.publishWorld, publishRopes: sync.publishRopes,
     publishLeafblower: () => {}, updateCursor: () => {},
