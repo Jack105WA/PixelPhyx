@@ -94,6 +94,6 @@ export async function decodeTransfer(parts, compressed, options = {}) {
     if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot decompress server snapshots.');
     bytes = await transform(joined, DecompressionStream);
   }
-  if (bytes.byteLength > maxTransferBytes) throw new Error('Decompressed snapshot exceeds the 2 MB safety limit.');
+  if (bytes.byteLength > maxTransferBytes) throw new Error('Decompressed snapshot exceeds the configured safety limit.');
   return JSON.parse(new TextDecoder().decode(bytes));
 }
