@@ -1,6 +1,8 @@
 import {drawObjectBodies} from './object-renderer.js';
 // PixelPhyx rigid-body system. World units are material cells; simulation advances at 60 Hz.
-let wasmStep=()=>{};\nexport function setRigidBodyWasmStep(step){if(typeof step==='function')wasmStep=step}\nexport function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,getAirborne=()=>[],onPublish=()=>{}}){
+let wasmStep=()=>{};
+export function setRigidBodyWasmStep(step){if(typeof step==='function')wasmStep=step}
+export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,getAirborne=()=>[],onPublish=()=>{}}){
  const bodies=[];
  const MAX_BODIES=60, SUBSTEPS=3, SOLVER_PASSES=4;
  let nextId=1,drag=null;
