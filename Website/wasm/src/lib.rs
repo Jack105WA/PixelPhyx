@@ -21,3 +21,8 @@ pub fn count_particles(cells: &[u8]) -> u32 { cells.iter().filter(|&&m| m != 0).
 pub fn step_acid_chemistry(cells: &mut [u8], corrosion: &mut [f32], burn: &mut [f32], heat: &mut [f32], wetness: &mut [f32], fuel: &mut [f32], age: &mut [u16], width: u32, height: u32) {
     chemistry::step_acid(cells, corrosion, burn, heat, wetness, fuel, age, width as usize, height as usize);
 }
+
+#[wasm_bindgen]
+pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: u32, height: u32) {
+    chemistry::step_phase_changes(cells, age, ambient, width as usize, height as usize);
+}
