@@ -554,7 +554,7 @@ function renderJoinRequests(){
   row.append(label,actions);list.append(row);
  }
 }
-async function connectPhoton(){
+async function connectLocalServer(){
   if(!multiplayer){
    if(!multiplayerLoading){
     multiplayerLoading=(async()=>{
@@ -573,7 +573,7 @@ async function connectPhoton(){
   playerId=await multiplayer.connect();
   return playerId;
 }
-// Photon connects only after the user selects Online.
+// local server connects only after the user selects Online.
 function updateCurrentRoomUI(){
  const section=document.querySelector('#currentRoomSection'),code=document.querySelector('#currentRoomCode');
  if(!section||!code)return;
@@ -609,7 +609,7 @@ document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySel
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
  try{
-  await connectPhoton();
+  await connectLocalServer();
   
   room=await multiplayer.createLobby({name:playerName,color:playerColor});
   renderJoinRequests();
@@ -617,7 +617,7 @@ document.querySelector('#createLobby').onclick=async()=>{
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
   closeOnlineModal(document.querySelector('#roomModal'));
-  log('Created server '+room+' — you are the host'+' using Photon relay');
+  log('Created server '+room+' — you are the host'+' using local server relay');
  }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
  finally{button.disabled=false;button.textContent='+ Create server'}
 };
@@ -625,7 +625,7 @@ document.querySelector('#createLobby').onclick=async()=>{
 let stopLobbyGallery=null;
 async function openLobbyGallery(){
  try{
-  await connectPhoton();
+  await connectLocalServer();
   
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
@@ -659,7 +659,7 @@ async function requestAndJoinRoom(code){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Choose a lobby first');return}
  try{
-  await connectPhoton();
+  await connectLocalServer();
   
   log('Sending join request to '+clean+'…');
   const approved=await multiplayer.requestJoin(clean,{name:playerName,color:playerColor});
@@ -700,7 +700,7 @@ async function joinRoom(code,approved=false){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
  try{
-  await connectPhoton();
+  await connectLocalServer();
   if(!multiplayer)throw new Error('Multiplayer failed to initialize');
   lastRemoteWorldAt=0;lastAppliedSnapshotAt=0;lastWorldPublish=0;
   await multiplayer.joinRoom(clean,{name:playerName,color:playerColor},approved,false);room=clean;
@@ -708,7 +708,7 @@ async function joinRoom(code,approved=false){
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
-  log('Joined room '+room+' — Photon world synchronization active');
+  log('Joined room '+room+' — local server world synchronization active');
  }catch(e){log('Could not join room: '+e.message);alert('Could not join room: '+e.message)}
 }
 function publishOperation(operation){lastOperationAppliedAt=performance.now();multiplayer?.publishOperation(operation)}
@@ -745,6 +745,8 @@ if(typeof ResizeObserver!=='undefined')new ResizeObserver(fitCanvasToShell).obse
 else window.addEventListener('resize',fitCanvasToShell);
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
+const serverAddressInput=document.querySelector('#serverAddress');
+if(serverAddressInput){serverAddressInput.value=localStorage.getItem('pixelphyx-server-address')||'';serverAddressInput.addEventListener('change',e=>{const value=e.target.value.trim().replace(/\\/$/,'');if(value)localStorage.setItem('pixelphyx-server-address',value);else localStorage.removeItem('pixelphyx-server-address');if(multiplayer){multiplayer.disconnect();multiplayer=null;multiplayerLoading=null;}})}
 document.querySelector('#playerColor').value=playerColor;
 document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;localStorage.setItem('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
 document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;localStorage.setItem('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
