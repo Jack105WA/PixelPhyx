@@ -624,15 +624,43 @@ document.querySelector('#createLobby').onclick=async()=>{
 
 let stopLobbyGallery=null;
 async function openLobbyGallery(){
+ updateCurrentRoomUI();
+ openModal('roomModal');
+ document.querySelector('#lobbyGallery').innerHTML='<div class="lobby-empty">Enter a server IP or address, then connect.</div>';
+ document.querySelector('#lobbyCapacity').textContent='Not connected';
+}
+async function connectToEnteredServer(){
+ const input=document.querySelector('#serverAddress');
+ const button=document.querySelector('#connectServer');
+ const raw=input.value.trim();
+ if(!raw){alert('Enter the server IP address first.');input.focus();return}
+ let address=raw;
+ if(/^https:\/\//i.test(address))address='wss://'+address.slice(8);
+ else if(/^http:\/\//i.test(address))address='ws://'+address.slice(7);
+ else if(!/^wss?:\/\//i.test(address))address='ws://'+address;
+ try{
+  const parsed=new URL(address);
+  if(!['ws:','wss:'].includes(parsed.protocol))throw new Error();
+  if(!parsed.port)parsed.port='3000';
+  parsed.pathname='';
+  parsed.search='';
+  parsed.hash='';
+  address=parsed.origin;
+ }catch{alert('Enter a valid IP or address, for example 192.168.1.25:3000');input.focus();return}
+ const previous=localStorage.getItem('pixelphyx-server-address')||'';
+ if(previous!==address&&multiplayer){await multiplayer.disconnect();multiplayer=null;multiplayerLoading=null}
+ localStorage.setItem('pixelphyx-server-address',address);
+ button.disabled=true;button.textContent='Connecting…';
  try{
   await connectLocalServer();
-  
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
   updateCurrentRoomUI();
-  openModal('roomModal');
- }catch(error){alert('Could not load lobbies: '+error.message)}
+  log('Connected to '+address);
+ }catch(error){alert('Could not connect to '+address+': '+error.message)}
+ finally{button.disabled=false;button.textContent='Connect to server'}
 }
+document.querySelector('#connectServer').onclick=connectToEnteredServer;
 function renderLobbyGallery(lobbies){
  const gallery=document.querySelector('#lobbyGallery');
  document.querySelector('#lobbyCapacity').textContent=lobbies.length+' servers listed';
