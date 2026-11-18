@@ -65,6 +65,14 @@ function findBrowser() {
     { executable:'/Applications/Brave Browser.app/Contents/MacOS/Brave Browser', engine:'chromium', name:'Brave' },
     { executable:'/Applications/Firefox.app/Contents/MacOS/firefox', engine:'firefox', name:'Firefox' }
   ].filter(Boolean);
+  const pathBrowsers = (process.env.PATH || '').split(path.delimiter).filter(Boolean).flatMap(directory =>
+    ['chrome.exe','msedge.exe','brave.exe','vivaldi.exe','opera.exe','firefox.exe','google-chrome','chromium','chromium-browser','brave-browser','firefox'].map(file => {
+      const lower = file.toLowerCase();
+      const engine = lower.includes('firefox') ? 'firefox' : 'chromium';
+      return { executable:path.join(directory,file), engine, name:lower.includes('edge') ? 'Microsoft Edge' : lower.includes('brave') ? 'Brave' : lower.includes('vivaldi') ? 'Vivaldi' : lower.includes('opera') ? 'Opera' : lower.includes('firefox') ? 'Firefox' : lower.includes('chromium') ? 'Chromium' : 'Chrome' };
+    })
+  );
+  candidates.push(...pathBrowsers);
   return candidates.find(candidate => fs.existsSync(candidate.executable)) || null;
 }
 function closeSimulation(name) {
