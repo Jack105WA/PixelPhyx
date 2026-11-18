@@ -103,10 +103,10 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: us
 }
 
 fn material_ignition(material: u8) -> f32 {
-    match material { 4 => 270.0, 6 | 12 => 180.0, 13 => 90.0, 16 => 520.0, _ => 0.0 }
+    match material { 4 => 270.0, 6 | 12 => 180.0, 13 => 90.0, 16 => 520.0, 17 => 85.0, _ => 0.0 }
 }
 fn material_fuel(material: u8) -> f32 {
-    match material { 4 | 6 | 12 => 1.0, 13 => 0.65, 16 => 0.12, _ => 0.0 }
+    match material { 4 | 6 | 12 => 1.0, 13 => 0.65, 16 => 0.12, 17 => 0.34, _ => 0.0 }
 }
 fn flammable(material: u8) -> bool { material_fuel(material) > 0.0 }
 fn ignite(heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32], i: usize, material: u8) {
@@ -194,6 +194,39 @@ pub fn step_combustion(
             }
             if random01(i, age[i], 0xF1AE_3000) < 0.006 {
                 cells[i] = 9; heat[i] = 0.0; burn[i] = 0.0;
+            }
+            continue;
+        }
+
+        if material == 17 { // Fuse cord burns progressively along connected segments.
+            if heat[i] > material_ignition(material) || burn[i] > 0.0 {
+                if burn[i] <= 0.0 { ignite(heat, fuel, burn, i, material); }
+                burn[i] += 1.0;
+                heat[i] = heat[i].max(520.0);
+                let neighbors = [
+                    if y > 0 { Some(i-width) } else { None },
+                    if x > 0 { Some(i-1) } else { None },
+                    if x+1 < width { Some(i+1) } else { None },
+                    if y+1 < height { Some(i+width) } else { None },
+                ];
+                for (slot, neighbor) in neighbors.into_iter().enumerate() {
+                    let Some(ni) = neighbor else { continue; };
+                    if cells[ni] == 17 {
+                        heat[ni] = (heat[ni] + 115.0).min(900.0);
+                        if heat[ni] >= material_ignition(17)
+                            && random01(ni, age[ni], 0xF05E_1000 + slot as u32) < 0.42 {
+                            ignite(heat, fuel, burn, ni, 17);
+                        }
+                    }
+                }
+                let starting_fuel = if fuel[i] > 0.0 { fuel[i] } else { material_fuel(17) };
+                fuel[i] = (starting_fuel - 0.014).max(0.0);
+                if fuel[i] <= 0.0 {
+                    cells[i] = 5;
+                    heat[i] = 650.0;
+                    burn[i] = 0.0;
+                    fuel[i] = 0.0;
+                }
             }
             continue;
         }
@@ -354,7 +387,7 @@ pub fn step_material_thermal(
         }
         let ignition=material_ignition(material);
         if flammable(material) && heat[i] > (if ignition > 0.0 { ignition } else { 220.0 }) {
-            let chance=(match material {4=>0.018,13=>0.025,6=>0.04,12=>0.025,_=>0.008})
+            let chance=(match material {4=>0.018,13=>0.025,6=>0.04,12=>0.025,17=>0.12,_=>0.008})
                 *(1.0-wetness[i].clamp(0.0,1.0)*0.94);
             if random01(i,age[i],0xA17E_1000)<chance {
                 ignite(heat,fuel,burn,i,material);
