@@ -24,6 +24,8 @@ const settings = {
   cursorUpdates: config.network?.cursor_updates !== false,
   cursorUpdateIntervalMs: Math.max(20, Math.min(500, Number(config.network?.cursor_update_interval_ms) || 40)),
   predictionEnabled: config.network?.prediction_enabled === true,
+  snapshotChunkBytes: Math.max(4096, Math.min(64 * 1024, Number(config.network?.snapshot_chunk_bytes) || 24 * 1024)),
+  maxSnapshotBytes: Math.max(1024 * 1024, Math.min(32 * 1024 * 1024, Number(config.network?.max_snapshot_bytes) || 8 * 1024 * 1024)),
   maxPayloadBytes: Math.max(65536, Math.min(32 * 1024 * 1024, Number(config.network?.max_payload_bytes) || 8 * 1024 * 1024)),
   maxBufferedBytes: Math.max(65536, Math.min(64 * 1024 * 1024, Number(config.network?.max_buffered_bytes) || 16 * 1024 * 1024))
 };
@@ -227,7 +229,9 @@ wss.on('connection', socket => {
       ropeUpdateIntervalMs: settings.ropeUpdateIntervalMs,
       cursorUpdates: settings.cursorUpdates,
       cursorUpdateIntervalMs: settings.cursorUpdateIntervalMs,
-      predictionEnabled: settings.predictionEnabled
+      predictionEnabled: settings.predictionEnabled,
+      snapshotChunkBytes: settings.snapshotChunkBytes,
+      maxSnapshotBytes: settings.maxSnapshotBytes
     }
   });
   send(socket, 'lobbies', { lobbies: lobbyList() });
