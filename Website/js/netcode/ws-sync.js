@@ -3,13 +3,13 @@ const { packOperation, unpackOperation, encodeTransfer, decodeTransfer } =
   await import('./ws-codec.js?v=' + encodeURIComponent(cacheVersion));
 
 export const EVENTS = {
-  OP: 1, SNAPSHOT: 2, ROPES: 3,
+  OP: 1, SNAPSHOT: 2, ROPES: 3, CURSOR: 4,
   JOIN_REQUEST: 5, JOIN_REPLY: 6, SYNC_REQUEST: 7
 };
 
 export function createServerSync(state) {
   const transfers = new Map();
-  let lastRopesAt = 0, lastRopesSignature = '', lastWorldSignature = '';
+  let lastRopesAt = 0, lastRopesSignature = '', lastWorldSignature = '', lastCursorAt = 0;
   let snapshotBusy = false, pendingSnapshot = null;
   // One authoritative sequence orders reliable edits against slower full snapshots.
   let operationRevision = 0, lastAppliedOperationRevision = 0;
@@ -148,6 +148,16 @@ export function createServerSync(state) {
         state.callbacks.onRopes?.(data);
       }
     });
+    state.client.onEvent(EVENTS.CURSOR, ({ senderNumber, data }) => {
+      const player = room()?.getPlayer(senderNumber);
+      const id = player?.customProperties?.clientId || String(senderNumber);
+      if (id === state.playerId) return;
+      state.callbacks.onCursor?.({
+        id, active: data?.active !== false,
+        x: data?.x, y: data?.y,
+        color: data?.color, name: data?.name
+      });
+    });
   }
 
   function requestSnapshot() {
@@ -189,6 +199,26 @@ export function createServerSync(state) {
     queueSnapshot(state.targets());
   }
 
+  function publishCursor(cursor, color, name) {
+    if (!room()) return;
+    const network = state.client?.serverInfo?.network || {};
+    if (network.cursorUpdates === false) return;
+    const now = performance.now();
+    const interval = Math.max(20, Number(network.cursorUpdateIntervalMs) || 40);
+    if (now - lastCursorAt < interval) return;
+    lastCursorAt = now;
+    if (!cursor) {
+      send(EVENTS.CURSOR, { active: false }, { reliable: false });
+      return;
+    }
+    if (!Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) return;
+    send(EVENTS.CURSOR, {
+      active: true, x: cursor.x, y: cursor.y,
+      color: /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#65d6ad',
+      name: String(name || 'Lab guest').slice(0, 20)
+    }, { reliable: false });
+  }
+
   function publishRopes(ropes) {
     if (!state.isHost() || !Array.isArray(ropes)) return;
     const now = performance.now();
@@ -209,5 +239,5 @@ export function createServerSync(state) {
     pendingSnapshot = null;
   }
 
-  return { setup, requestSnapshot, queueSnapshot, publishOperation, publishWorld, publishRopes, dispose };
+  return { setup, requestSnapshot, queueSnapshot, publishOperation, publishWorld, publishRopes, publishCursor, dispose };
 }
