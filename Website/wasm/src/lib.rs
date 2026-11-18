@@ -53,9 +53,9 @@ pub fn step_particles(
     cells:&mut [u8], updated:&mut [u8], vx:&mut [f32], vy:&mut [f32],
     wet:&mut [f32], heat:&mut [f32], heat_inputs:&mut [f32],
     fuel:&mut [f32], burn:&mut [f32], age:&mut [u16], corrosion:&mut [f32],
-    width:u32,height:u32,gravity:f32,seed:u32,
+    blocked:&[u8], width:u32,height:u32,gravity:f32,seed:u32,
 )->Vec<u32>{
-    grid::step_particles(cells,updated,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,width as usize,height as usize,gravity,seed)
+    grid::step_particles(cells,updated,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,blocked,width as usize,height as usize,gravity,seed)
 }
 
 #[wasm_bindgen]
