@@ -1,6 +1,6 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ stepMaterialPhysics, materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem }, { createWasmEngine }] = await Promise.all([
+const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem }, { createWasmEngine }] = await Promise.all([
   import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./objects.js?v=${encodeURIComponent(cacheVersion)}`),
@@ -57,7 +57,7 @@ const materials=[
 ];
 const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 const colorLut=new Uint8Array(colors.flat());
-let cells=new Uint8Array(N),updated=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
+let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let snapshotMoves=new Map();
 let temperatureUnit='C';
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
@@ -85,9 +85,9 @@ function resizeCanvas(size){
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
 }
-function recordParticleMove(from,to,material){
+function recordParticleMove(from,to,material,transferVelocity=true){
  const carried=snapshotMoves.get(from);
- const velocityX=particleVelocityX[from],velocityY=particleVelocityY[from];particleVelocityX[from]=0;particleVelocityY[from]=0;particleVelocityX[to]=velocityX;particleVelocityY[to]=velocityY;
+ if(transferVelocity){const velocityX=particleVelocityX[from],velocityY=particleVelocityY[from];particleVelocityX[from]=0;particleVelocityY[from]=0;particleVelocityX[to]=velocityX;particleVelocityY[to]=velocityY;}
  if(carried&&carried.material===material){snapshotMoves.delete(from);carried.toX=to%W;carried.toY=(to/W)|0;snapshotMoves.set(to,carried)}
  else snapshotMoves.set(to,{fromX:from%W,fromY:(from/W)|0,toX:to%W,toY:(to/W)|0,material});
  const previous=moveByDestination[from];
@@ -270,23 +270,18 @@ function drawVisualParticles(){
  }
  ctx.globalAlpha=1;
 }
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);wasmEngine.prepare_velocity(cells,particleVelocityX,particleVelocityY,gravity);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx;particleVelocityY[i]=vy}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
- if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
- else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
- else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
- else if(m===M.WATER&&Math.random()<.000018)emitVisualParticle(x,y,'splash');
- else if(m===M.ACID&&Math.random()<.000035)emitVisualParticle(x,y,'acid');
- else if((m===M.SAND||m===M.SALT||m===M.CHARCOAL)&&Math.random()<.000012)emitVisualParticle(x,y,'dust');
- else if(m===M.STEAM&&Math.random()<.000025)emitVisualParticle(x,y,'steam');
- if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
- const gas=m===M.STEAM||m===M.SMOKE||m===M.FIRE,dy=gas?-1:1,ny=y+dy,ni=inside(x,ny)?idx(x,ny):-1;
- if(ni>=0&&cells[ni]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+.5,ny+.5)){cells[ni]=m;cells[i]=M.EMPTY;recordParticleMove(i,ni,m);updated[ni]=1;i=ni;y=gas?y:y}
- else if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+dy+.5)){cells[side]=m;cells[i]=M.EMPTY;recordParticleMove(i,side,m);updated[side]=1}else if((m===M.WATER||m===M.OIL||m===M.ACID)&&at(x+d,y)===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+.5)&&Math.random()<.4){const sideIndex=idx(x+d,y);cells[sideIndex]=m;cells[i]=M.EMPTY;recordParticleMove(i,sideIndex,m)}}
- 
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();const moveTriples=wasmEngine.step_particles(cells,updated,particleVelocityX,particleVelocityY,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,W,H,gravity,++simulationTick);
+ for(let move=0;move+2<moveTriples.length;move+=3)recordParticleMove(moveTriples[move],moveTriples[move+1],moveTriples[move+2],false);
+ for(let i=0;i<N;i++){const m=cells[i];if(!m)continue;const x=i%W,y=(i/W)|0;
+  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
+  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
+  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
+  else if(m===M.WATER&&Math.random()<.000018)emitVisualParticle(x,y,'splash');
+  else if(m===M.ACID&&Math.random()<.000035)emitVisualParticle(x,y,'acid');
+  else if((m===M.SAND||m===M.SALT||m===M.CHARCOAL)&&Math.random()<.000012)emitVisualParticle(x,y,'dust');
+  else if(m===M.STEAM&&Math.random()<.000025)emitVisualParticle(x,y,'steam');
  }
- }}
- stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
- const detonations=wasmEngine.step_chemistry(cells,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.airHeat,materialState.airNext,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,ambient,W,H);
+  const detonations=wasmEngine.step_chemistry(cells,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.airHeat,materialState.airNext,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,ambient,W,H);
  if(detonations)log('TNT detonation!');
  stepVisualParticles();
 }
