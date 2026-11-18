@@ -200,7 +200,7 @@ export function createMultiplayer(callbacks = {}) {
     connect, createLobby: rooms.createLobby, joinRoom: rooms.joinRoom, requestJoin: rooms.requestJoin,
     respondToJoinRequest: rooms.respondToJoinRequest,
     watchLobbies: rooms.watchLobbies, leaveRoom: rooms.leaveRoom, disconnect,
-    publishOperation: sync.publishOperation, publishWorld: sync.publishWorld, publishRopes: sync.publishRopes,
+    publishOperation: sync.publishOperation, publishStroke: sync.publishStroke, publishWorld: sync.publishWorld, publishRopes: sync.publishRopes,
     publishLeafblower: () => {}, updateCursor: (position, color, name) => sync.publishCursor(position, color, name),
     updateIdentity: (name, color) => { if (state.client?.room) state.setLocalIdentity({ name, color }, state.isApproved(state.client.localPlayer.number)); },
     get joined() { return !!state.client?.room; }, get isHost() { return state.isHost(); },
