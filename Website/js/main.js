@@ -294,6 +294,7 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  }}
  stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
  wasmEngine.step_acid_chemistry(cells,materialState.corrosion,materialState.burn,materialState.heat,materialState.wetness,materialState.fuel,materialState.age,W,H);
+ wasmEngine.step_combustion(cells,materialState.heat,materialState.wetness,materialState.fuel,materialState.burn,materialState.age,ambient,W,H);
  wasmEngine.step_phase_changes(cells,materialState.age,ambient,W,H);
  stepVisualParticles();
 }
