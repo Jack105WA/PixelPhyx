@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10151e">
+<title>Photon Network Test — PixelPhyx</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1118;--panel:#151c27;--line:#2b394d;--text:#edf3fb;--muted:#91a1b7;--mint:#83e4bd;--orange:#ffb86a;--red:#ff7777}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -30%,#23364a 0,transparent 55%),var(--bg);color:var(--text);font:14px Inter,system-ui,sans-serif;padding:28px}
+main{max-width:760px;margin:0 auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:22px}h1{font-size:20px;margin:0}.sub{color:var(--muted);font-size:12px;margin-top:7px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin:12px 0}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}input,button{font:inherit;border-radius:8px;padding:10px 12px}input{min-width:0;flex:1;background:#0e151f;border:1px solid var(--line);color:var(--text)}button{border:1px solid var(--line);background:#202b3a;color:var(--text);font-weight:700;cursor:pointer}button.primary{background:#276c56;border-color:#398d70}button:disabled{opacity:.45;cursor:not-allowed}.status{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font:12px monospace}.dot{width:8px;height:8px;border-radius:50%;background:#758397}.status.online .dot{background:var(--mint)}.status.error .dot{background:var(--red)}.label{font-size:11px;color:var(--muted);margin-bottom:8px}.log{height:260px;overflow:auto;background:#0b1018;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.6 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.hint{color:var(--muted);font-size:12px;line-height:1.6}.room{font:14px monospace;color:var(--mint)}a{color:var(--mint)}@media(max-width:560px){body{padding:16px}.panel{padding:14px}}
+</style>
+</head>
+<body>
+<main>
+ <div class="top"><div><h1>PixelPhyx · Photon Test</h1><div class="sub">Isolated Realtime Core connection test. The existing Firebase multiplayer remains unchanged.</div></div><a href="./">Back to PixelPhyx</a></div>
+ <section class="panel">
+  <div class="row" style="justify-content:space-between"><div class="status" id="status"><span class="dot"></span><span id="statusText">Disconnected</span></div><span class="hint">Photon Realtime Core 6</span></div>
+  <p class="hint">Connect to Photon Cloud, create or join a room, then open this page in a second tab and join the same room to test event delivery.</p>
+  <div class="row"><button class="primary" id="connect">Connect to Photon</button><button id="disconnect" disabled>Disconnect</button></div>
+ </section>
+ <section class="panel">
+  <div class="label">Room code</div>
+  <div class="row"><input id="roomCode" maxlength="32" placeholder="Enter a room code or generate one"><button id="create" disabled>Create room</button><button id="join" disabled>Join room</button></div>
+  <p class="hint">Room names are case-sensitive. Share the same code with the second browser tab.</p>
+  <div class="room" id="roomLabel">No room joined</div>
+ </section>
+ <section class="panel">
+  <div class="label">Network event test</div>
+  <div class="row"><button class="primary" id="send" disabled>Send test event</button><span class="hint" id="players">0 players</span></div>
+  <p class="hint">This verifies Photon room messaging only. Pixel and physics synchronization will be connected after the transport test is confirmed.</p>
+ </section>
+ <section class="panel"><div class="label">Connection log</div><div class="log" id="log" aria-live="polite">Photon test ready.</div></section>
+</main>
+<script type="module" src="./js/photon-test.js"></script>
+</body>
+</html>

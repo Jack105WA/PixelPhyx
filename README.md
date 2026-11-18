@@ -1,58 +1,81 @@
 # PixelPhyx
 
-Pixelphyx is a online 2D Physics Simulator featuring multiplayer, Simulated Reactions and more!
+PixelPhyx is a browser-based 2D pixel physics and chemistry sandbox featuring falling particles, liquids, gases, material reactions, explosions, ropes, rigid-body props, and multiplayer.
 
 ## Play online
 
-After GitHub Pages finishes deploying, open:
+Production: https://jack105wa.github.io/PixelPhyx/
 
-**https://jack105wa.github.io/PixelPhyx/**
+Photon test preview: https://jack105wa.github.io/PixelPhyx/photon-test/
+
+Photon WASM preview: https://jack105wa.github.io/PixelPhyx/photon-wasm/
+
+The Photon previews are isolated from production. The WASM preview runs the migrated simulation engine compiled from Rust to WebAssembly.
 
 ## Play offline
 
-https://github.com/Jack105WA/PixelPhyx/latest /Download the Html File
+Download the standalone HTML edition from the [latest GitHub release](https://github.com/Jack105WA/PixelPhyx/releases/latest).
 
-The site is published from the contents of `Website/` at the Pages site root, so public URLs do not include `/Website/`. The game also runs locally from a web server. Firebase's browser SDK is loaded from Google's CDN, so an internet connection is required for online play.
+The offline edition is generated from Website/ by Offline/build-offline.mjs. Local offline play does not require the online multiplayer services.
 
 ## Multiplayer
 
-1. Click **Multiplayer** or enter a room code in the Multiplayer panel.
-2. Click **Join room**.
-3. Send the exact same room code to your friends.
-4. They open the deployed game and join that room. The game connects automatically.
+The Photon preview uses Photon Realtime Core 6 for browser connections, room discovery, room membership, and reliable gameplay events. The room's Photon master client is the physics authority; other clients render interpolated world snapshots instead of simulating a separate copy of the particle world.
 
-Everyone in a room shares the same particle world and rope structures. Player presence is removed automatically when a connection closes.
+Drawing, erasing, material placement, ropes, props, settings, pause/resume, and single-step requests are relayed through the room host. Room hosts approve join requests, and Photon transfers master-client ownership if the host leaves. World snapshots are compressed and chunked; ropes use small, frequent state updates, and prop state is sent only when it changes.
+
+Photon uses secure WebSockets and Photon Cloud relay. It does not provide direct LAN peer-to-peer transport. The App ID in browser code is a public application identifier, not a secret. Usage, CCU limits, and billing are controlled in the [Photon Dashboard](https://dashboard.photonengine.com/).
 
 ## Controls
 
 - **Draw:** place the selected material.
 - **Line:** drag to draw a straight material line.
-- **Rope:** click and drag from one anchor point to another. The rope sags and reacts to gravity using a Verlet constraint solver.
-- **Props:** spawn cars, buckets, balls, crates, and barrels from the Props panel. They have rigid-body gravity, collisions, rotation, bouncing, and crash deformation.
-- **Grab:** select Grab and drag a prop from the exact point you click. The prop hangs from that point and can swing or rotate as you move it.
+- **Rope:** drag to create a rope; right-click to delete.
+- **Props:** spawn cars, buckets, balls, crates, and barrels.
+- **Grab:** drag rope points or props.
 - **Erase:** remove particles.
 - **Box:** place a block of the selected material.
-- **Blast:** place TNT; ignite it with fire to detonate.
+- **Blast:** place TNT and ignite it with fire.
 - **Heat / Cool:** place fire or ice.
 - **Brush size:** use the slider or mouse wheel.
-- **Gravity:** adjust gravity strength, including zero gravity.
-- **Simulation speed:** change the simulation rate multiplier. Physics uses a fixed 60-step-per-second clock independent of display frame rate.
-- **Ambient temperature:** set the world temperature from -100°C to 1200°C. Heat and cold affect water and ice.
+- **Gravity:** adjust gravity strength.
+- **Simulation speed:** change the simulation rate multiplier. The physics clock uses fixed simulation steps.
+- **Ambient temperature:** adjust the world temperature; heat and cold affect water and ice.
 - **Space:** pause or resume.
+- **Step:** advance one simulation step while paused in supported multiplayer sessions.
 - **Right click:** erase.
 - **Export PNG:** save an image of the current experiment.
 
+## Rust and WebAssembly
+
+The Photon WASM branch moves performance-sensitive simulation and pixel-processing systems into Rust compiled to browser WebAssembly:
+
+- Physics force integration and particle movement/collisions.
+- Material reactions, chemistry, and heat simulation.
+- Rope constraints and rigid-body collision solving.
+- Canvas pixel rendering and rendering effects compositing.
+- Input coordinate mapping and brush rasterization.
+
+JavaScript continues to handle browser events, application orchestration, multiplayer integration, and drawing UI/entity overlays. The UI shell is written in TypeScript and compiled to browser-ready JavaScript.
+
+The WASM package is built during CI; generated package artifacts are not committed to the repository.
+
 ## GitHub Pages deployment
 
-The repository deploys from `main` using the workflow in `.github/workflows/pages.yml`. In GitHub, open **Settings → Pages** and make sure the source is **GitHub Actions**. The workflow rebuilds the standalone offline edition and publishes only the contents of `Website/` as the site root. Repository files and Firebase administration files remain outside the deployed website.
+GitHub Pages must use **GitHub Actions** as its source in repository Settings → Pages.
+
+The workflow in .github/workflows/pages.yml:
+- Publishes main as the production site root.
+- Publishes server-migrate under /server-migrate/.
+- Publishes photon-test under /photon-test/.
+- Builds the Rust/WASM package and publishes photon-wasm under /photon-wasm/.
+- Rebuilds the standalone offline edition on main.
 
 ## Repository layout
 
-- `Website/` contains the complete live website published by GitHub Pages.
-  - `Website/index.html` is the website entry point.
-  - `Website/js/` contains the browser-side game, physics, multiplayer, and Firebase configuration modules.
-  - `Website/offline.html` is the generated single-file offline edition.
-- `.github/workflows/` contains GitHub Actions automation.
-- `Server/functions/` contains the Firebase Cloud Function for empty-room cleanup.
-- `Server/firebase.json`, `Server/.firebaserc`, and `Server/database.rules.json` are Firebase project files.
-- `build-offline.mjs` builds the offline edition from the website source.
+- Website/ contains the browser game and published site.
+- Website/js/ contains the browser-side game, simulation integration, multiplayer, and UI modules.
+- Website/wasm/ contains the Rust source for the WebAssembly engine.
+- Offline/build-offline.mjs builds the standalone offline edition.
+- .github/workflows/ contains GitHub Actions automation.
+- Server/ contains backend and configuration files retained in the repository.

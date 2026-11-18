@@ -102,38 +102,16 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 </div>
 <div class="modal" id="roomModal"><div class="dialog"><h2>SERVERS</h2><p>Browse live servers, create your own, or request access to an existing server. Server hosts approve incoming requests.</p>
 
- <div class="online-section usage-section">
-  <div class="section-title"><span>Daily bandwidth</span><strong id="dailyUsageValue">Checking…</strong></div>
-  <div class="usage-track"><div id="dailyUsageBar" class="usage-fill"></div></div>
-  <p id="dailyUsageMessage" class="usage-message">Checking the current daily usage limit…</p>
-  <div class="section-title" style="margin-top:12px"><span>Monthly bandwidth</span><strong id="monthlyUsageValue">Checking…</strong></div>
-  <div class="usage-track"><div id="monthlyUsageBar" class="usage-fill"></div></div>
-  <p id="monthlyUsageMessage" class="usage-message">Checking the current monthly usage limit…</p>
- </div>
+ <div class="online-section"><div class="section-title">Photon Cloud</div><p class="usage-message">Rooms, player presence and gameplay events run through Photon Realtime. The room host coordinates the shared sandbox; Photon handles message delivery and host migration.</p></div>
  <div class="online-settings">
   <div class="control"><label>Display name</label><input id="playerName" type="text" maxlength="20" placeholder="Your name"></div>
   <div class="control"><label>Color</label><input id="playerColor" type="color" value="#65d6ad"></div>
  </div>
- <div class="online-section" style="margin-top:9px;padding-top:9px">
-  <label style="display:flex;align-items:center;gap:8px;color:#cbd7e5;font-size:11px;cursor:pointer">
-   <input id="lanMode" type="checkbox" style="accent-color:#83e4bd;margin:0">
-   <span><strong>LAN Multiplayer</strong><span style="display:block;color:var(--muted);font-size:10px;margin-top:3px">Gameplay is peer-to-peer. LAN rooms do not appear in the public lobby list or use lobby slots; Firebase still provides the small connection-signaling channel.</span></span>
-  </label>
- </div>
- <div class="online-section" style="margin-top:9px;padding-top:9px">
-  <label style="display:flex;align-items:center;gap:8px;color:#cbd7e5;font-size:11px;cursor:pointer">
-   <input id="customServerMode" type="checkbox" style="accent-color:#83e4bd;margin:0">
-   <span><strong>Custom Firebase server</strong><span style="display:block;color:var(--muted);font-size:10px;margin-top:3px">Connect using your own Firebase Realtime Database.</span></span>
-  </label>
-  <div id="customServerSettings" hidden style="margin-top:10px">
-   <div class="control"><label for="customServerAddress">Firebase web app config (JavaScript)</label><textarea id="customServerAddress" rows="7" spellcheck="false" autocomplete="off" placeholder='const firebaseConfig = {&#10;  apiKey: "...",&#10;  authDomain: "your-project.firebaseapp.com",&#10;  databaseURL: "https://your-project-default-rtdb.firebaseio.com",&#10;  projectId: "your-project",&#10;  storageBucket: "your-project.firebasestorage.app",&#10;  messagingSenderId: "...",&#10;  appId: "1:...:web:..."&#10;};' style="width:100%;box-sizing:border-box;resize:vertical;padding:10px;background:#0e151f;border:1px solid var(--line);border-radius:7px;color:#fff;font:10px/1.5 'DM Mono',monospace"></textarea></div>
-   <p id="customServerHint" class="usage-message">Paste the complete const firebaseConfig = { ... }; block from Project settings. Anonymous Authentication and the Realtime Database rules must be enabled in that project.</p>
-  </div>
- </div>
- <div class="online-section" id="currentRoomSection" hidden><div class="section-title">Your current server</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><code id="currentRoomCode" style="font:12px 'DM Mono',monospace;color:#a5f0d0;letter-spacing:.5px">—</code><button class="btn" id="copyRoomCode" type="button" aria-label="Copy room code" title="Copy room code" style="padding:7px 9px;display:grid;place-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg></button></div></div>
+ <div class="online-section"><div class="section-title">Connection</div><p class="usage-message">Photon Realtime uses secure WebSocket relay for browser compatibility. Direct LAN peer-to-peer mode is not available in the Photon browser SDK.</p></div>
+ <div class="online-section" id="currentRoomSection" hidden><div class="section-title">Your current server</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><code id="currentRoomCode" style="font:12px 'DM Mono',monospace;color:#a5f0d0;letter-spacing:.5px">—</code><div style="display:flex;gap:7px"><button class="btn" id="copyRoomCode" type="button" aria-label="Copy room code" title="Copy room code" style="padding:7px 9px;display:grid;place-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg></button><button class="btn" id="leaveRoom" type="button">Leave server</button></div></div></div>
  <div class="online-section"><div class="section-title">Players <span id="playerCount" style="color:var(--muted)">0 online</span></div><div class="player-list online-player-list" id="players"><div class="player">Local experiment</div></div></div>
  <div class="online-section"><div class="section-title">Join by server code</div><div class="control"><label>Server code</label><input id="roomCode" type="text" maxlength="24" placeholder="e.g. PX-ABCDE"></div><button class="btn primary" id="join" style="width:100%;margin-top:9px">Request to join</button></div>
- <div class="online-section"><div class="dialog-actions" style="justify-content:space-between;margin-top:0"><span class="muted" id="lobbyCapacity">0 / 20 active servers</span><button class="btn primary" id="createLobby">+ Create server</button></div><div class="lobby-gallery" id="lobbyGallery"><div class="lobby-empty">Connecting to servers…</div></div></div>
+ <div class="online-section"><div class="dialog-actions" style="justify-content:space-between;margin-top:0"><span class="muted" id="lobbyCapacity">0 servers listed</span><button class="btn primary" id="createLobby">+ Create server</button></div><div class="lobby-gallery" id="lobbyGallery"><div class="lobby-empty">Connecting to servers…</div></div></div>
  <div class="dialog-actions"><button class="btn" data-close>Close</button></div></div></div>
 <script>
 (() => {

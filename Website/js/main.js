@@ -1,26 +1,37 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ firebaseConfig }, { stepMaterialPhysics, materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem }] = await Promise.all([
-  import(`./firebase-config.js?v=${encodeURIComponent(cacheVersion)}`),
+const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createObjectSystem, setRigidBodyWasmStep }, { createWasmEngine }, { initializeUiShell }] = await Promise.all([
   import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`),
-  import(`./objects.js?v=${encodeURIComponent(cacheVersion)}`)
+  import(`./objects.js?v=${encodeURIComponent(cacheVersion)}`),
+  import(`./wasm-engine.js?v=${encodeURIComponent(cacheVersion)}`),
+  import(`./ui.js?v=${encodeURIComponent(cacheVersion)}`)
 ]);
+const wasmEngine = await createWasmEngine();
+setRigidBodyWasmStep(wasmEngine.step_rigid_bodies);
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
+// Allocate every WASM chemistry/physics state buffer for the initial world.
+resetMaterialState(N);
 const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});
 const particleInterpolationCanvas=document.createElement('canvas'),particleInterpolationCtx=particleInterpolationCanvas.getContext('2d');
 particleInterpolationCanvas.className='particle-interpolation';canvas.parentElement.insertBefore(particleInterpolationCanvas,canvas.nextElementSibling);
 let frameImage=ctx.createImageData(W,H);
-const bloomCanvas=document.createElement('canvas'),bloomCtx=bloomCanvas.getContext('2d');
-let bloomImage=null,bloomPixels=null,bloomW=0,bloomH=0;
-function resizeBloomBuffer(){
- bloomW=Math.max(1,Math.ceil(W/4));bloomH=Math.max(1,Math.ceil(H/4));
- bloomCanvas.width=bloomW;bloomCanvas.height=bloomH;
- bloomImage=bloomCtx.createImageData(bloomW,bloomH);bloomPixels=bloomImage.data;
+function protectStrokePoint(p){
+ if(!activeStrokeMeta||!inside(p.x,p.y))return;
+ const radius=activeStrokeMeta.tool==='bomb'?2:activeStrokeMeta.brush;
+ const r2=radius*radius,until=performance.now()+1400;
+ for(let y=-radius;y<=radius;y++)for(let x=-radius;x<=radius;x++)if(x*x+y*y<=r2){const px=p.x+x,py=p.y+y;if(inside(px,py)){const i=idx(px,py);protectedStrokeCells.set(i,{material:cells[i],until})}}
 }
-resizeBloomBuffer();
+function publishStrokeBatch(force=false){
+ if(!activeStrokeMeta||!multiplayer?.joined)return;
+ const now=performance.now();if(!force&&now-lastStrokePublishAt<33)return;
+ const points=strokePoints.slice(lastPublishedStrokePoint);
+ if(!points.length)return;
+ lastPublishedStrokePoint=strokePoints.length;lastStrokePublishAt=now;
+ publishOperation({type:'stroke',points,tool:activeStrokeMeta.tool,material:activeStrokeMeta.material,brush:activeStrokeMeta.brush,erase:activeStrokeMeta.erase});
+}
 const M={EMPTY:0,SAND:1,WATER:2,STONE:3,WOOD:4,FIRE:5,OIL:6,ACID:7,STEAM:8,SMOKE:9,ICE:10,LAVA:11,TNT:12,PLANT:13,SALT:14,GLASS:15,CHARCOAL:16};
 const materials=[
  {id:1,name:'Sand',icon:'▨',color:'#d9b45f',rgb:[217,180,95],type:'powder'},
@@ -41,12 +52,14 @@ const materials=[
  {id:16,name:'Charcoal',icon:'▪',color:'#34363a',rgb:[52,54,58],type:'powder'}
 ];
 const colors=[[12,16,24],...materials.map(m=>m.rgb)];
-let cells=new Uint8Array(N),updated=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
+const colorLut=new Uint8Array(colors.flat());
+let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),movementBlocks=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let snapshotMoves=new Map();
 let temperatureUnit='C';
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
-let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=100,lastOperationAppliedAt=0,remoteLeafblowers={},lastRopePublish=0;
+let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=500,lastAppliedSnapshotAt=0,lastOperationAppliedAt=0,remoteLeafblowers={},lastRopePublish=0;
+const protectedStrokeCells=new Map();let activeStrokeMeta=null,lastStrokePublishAt=0,lastPublishedStrokePoint=0;
 let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
@@ -61,16 +74,16 @@ document.querySelector('#materialCount').textContent=materials.length+' TYPES';
 document.querySelectorAll('[data-prop]').forEach(button=>button.addEventListener('click',()=>{const type=button.dataset.prop;const item=objectSystem.spawn(type,W/2,Math.max(12,H*.22));if(item){publishOperation({type:'propAdd',kind:type,id:item.id,x:item.x,y:item.y});log(type.charAt(0).toUpperCase()+type.slice(1)+' spawned')}}));
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
- W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;resizeBloomBuffer();
- cells=new Uint8Array(N);updated=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem?.clear();frameImage=ctx.createImageData(W,H);
+ W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
+ cells=new Uint8Array(N);updated=new Uint8Array(N);movementBlocks=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem?.clear();frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
  log('Canvas resized to '+size+' ('+W+' × '+H+') — world cleared');return true;
 }
-function recordParticleMove(from,to,material){
+function recordParticleMove(from,to,material,transferVelocity=true){
  const carried=snapshotMoves.get(from);
- const velocityX=particleVelocityX[from],velocityY=particleVelocityY[from];particleVelocityX[from]=0;particleVelocityY[from]=0;particleVelocityX[to]=velocityX;particleVelocityY[to]=velocityY;
+ if(transferVelocity){const velocityX=particleVelocityX[from],velocityY=particleVelocityY[from];particleVelocityX[from]=0;particleVelocityY[from]=0;particleVelocityX[to]=velocityX;particleVelocityY[to]=velocityY;}
  if(carried&&carried.material===material){snapshotMoves.delete(from);carried.toX=to%W;carried.toY=(to/W)|0;snapshotMoves.set(to,carried)}
  else snapshotMoves.set(to,{fromX:from%W,fromY:(from/W)|0,toX:to%W,toY:(to/W)|0,material});
  const previous=moveByDestination[from];
@@ -83,9 +96,9 @@ function recordParticleMove(from,to,material){
  }
 }
 function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
-function circle(x,y,r,m){for(let yy=-r;yy<=r;yy++)for(let xx=-r;xx<=r;xx++)if(xx*xx+yy*yy<=r*r)put(x+xx,y+yy,m)}
-function drawLine(x0,y0,x1,y1,m,r=0){let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;while(true){circle(x0,y0,r,m);if(x0===x1&&y0===y1)break;let e=2*err;if(e>=dy){err+=dy;x0+=sx}if(e<=dx){err+=dx;y0+=sy}}}
-function canvasPoint(e){const r=canvasShell.getBoundingClientRect();if(!r.width||!r.height)return{x:-1,y:-1};return{x:Math.floor((e.clientX-r.left)/r.width*W),y:Math.floor((e.clientY-r.top)/r.height*H)}}
+function circle(x,y,r,m){wasmEngine.paint_segment(cells,x,y,x,y,r,m,W,H)}
+function drawLine(x0,y0,x1,y1,m,r=0){wasmEngine.paint_segment(cells,x0,y0,x1,y1,r,m,W,H)}
+function canvasPoint(e){const r=canvasShell.getBoundingClientRect();const p=wasmEngine.map_pointer(e.clientX,e.clientY,r.left,r.top,r.width,r.height,W,H);return{x:p[0],y:p[1]}}
 let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null;
 function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
  if(tool==='rope'||tool==='grab')return;
@@ -107,7 +120,7 @@ canvas.parentElement.addEventListener('pointerdown',e=>{
   return;
  }
  if(tool==='leafblower'&&e.button===0){drawing=true;activeErase=false;leafblower.active=true;leafblower.x=p.x;leafblower.y=p.y;leafblower.lastPublish=0;lastPoint=p;canvas.parentElement.setPointerCapture(e.pointerId);return}
- drawing=true;activeErase=e.button===2||tool==='erase';canvas.parentElement.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}lastPoint=null;act(p,e)
+ drawing=true;activeErase=e.button===2||tool==='erase';canvas.parentElement.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}activeStrokeMeta={tool,material:selected,brush,erase:activeErase};lastPublishedStrokePoint=0;lastStrokePublishAt=0;lastPoint=null;act(p,e);protectStrokePoint(p);publishStrokeBatch(true)
 });
 canvas.parentElement.addEventListener('pointermove',e=>{
  const p=canvasPoint(e);
@@ -116,17 +129,17 @@ canvas.parentElement.addEventListener('pointermove',e=>{
  if(tool==='leafblower'&&drawing){const dx=p.x-lastPoint.x,dy=p.y-lastPoint.y,distance=Math.hypot(dx,dy);if(distance>.35){leafblower.dx=dx/distance;leafblower.dy=dy/distance}leafblower.x=p.x;leafblower.y=p.y;lastPoint=p;const now=performance.now();if(now-leafblower.lastPublish>=33){leafblower.lastPublish=now;multiplayer?.publishLeafblower({active:true,x:p.x,y:p.y,dx:leafblower.dx,dy:leafblower.dy})}return}
  if(!drawing)return;
  if(!strokePoints.length||strokePoints[strokePoints.length-1].x!==p.x||strokePoints[strokePoints.length-1].y!==p.y)strokePoints.push(p);
- if(tool==='rope'){lastPoint=p;return}act(p,e)
+ if(tool==='rope'){lastPoint=p;return}act(p,e);protectStrokePoint(p);publishStrokeBatch(false)
 });
 canvas.parentElement.addEventListener('pointerup',e=>{
  if(objectSystem.dragging){objectSystem.releaseGrab();drawing=false;return}
  if(ropeDrag){const {rope,node,nodeIndex}=ropeDrag;node.anchor=ropeDrag.wasAnchor;if(!node.anchor){node.px=node.x-ropeDrag.velocityX;node.py=node.y-ropeDrag.velocityY}publishOperation({type:'ropeNode',ropeId:rope.id,nodeIndex,x:+node.x.toFixed(2),y:+node.y.toFixed(2),anchor:!!node.anchor,vx:ropeDrag.velocityX,vy:ropeDrag.velocityY,predicted:false});ropeDrag=null;drawing=false;return}
  if(tool==='leafblower'){leafblower.active=false;drawing=false;lastPoint=null;return}
  if(tool==='rope'&&ropeStart){const end=canvasPoint(e);if(Math.hypot(end.x-ropeStart.x,end.y-ropeStart.y)>3){const created=createRope(ropeStart,end);if(created)publishOperation({type:'rope',ropeId:created.id,a:ropeStart,b:end})}ropeStart=null}
- else if(strokePoints.length)publishOperation({type:'stroke',points:strokePoints,tool,material:selected,brush,erase:e.button===2||tool==='erase'});
- drawing=false;activeErase=false;lastPoint=null;strokePoints=[]
+ else if(strokePoints.length){publishStrokeBatch(true);activeStrokeMeta=null}
+ drawing=false;activeErase=false;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0
 });
-canvas.parentElement.addEventListener('pointercancel',()=>{if(objectSystem.dragging)objectSystem.releaseGrab();if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeErase=false});
+canvas.parentElement.addEventListener('pointercancel',()=>{if(objectSystem.dragging)objectSystem.releaseGrab();if(ropeDrag){ropeDrag.node.anchor=ropeDrag.wasAnchor;ropeDrag=null}leafblower.active=false;drawing=false;ropeStart=null;lastPoint=null;strokePoints=[];activeStrokeMeta=null;lastPublishedStrokePoint=0;activeErase=false});
 canvas.parentElement.addEventListener('wheel',e=>{e.preventDefault();brush=Math.max(1,Math.min(22,brush+(e.deltaY<0?1:-1)));document.querySelector('#brush').value=brush;document.querySelector('#brushOut').textContent=brush+' px'},{passive:false});
 
 function findRopeGrab(p){let best=null,bestDistance=7;for(const rope of ropes){for(let nodeIndex=0;nodeIndex<rope.points.length;nodeIndex++){const node=rope.points[nodeIndex],d=Math.hypot(node.x-p.x,node.y-p.y);if(d<bestDistance){bestDistance=d;best={rope,node,nodeIndex}}}}return best}
@@ -166,13 +179,53 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
 }
 const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)||objectSystem.blocksParticleMove(x1,y1,x2,y2)}
-function stepRopes(){
- // The host is the sole rope-physics authority in multiplayer. Other clients
- // render the host's snapshots and only apply local pointer previews.
- if(!multiplayer?.joined||multiplayer.isHost){
-  physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,airborneParticles,onExtract:i=>snapshotMoves.delete(i),recordMove:recordParticleMove});
+
+function wasmRandom(seed,index,salt){
+ let value=(seed^Math.imul(index,0x9E3779B9)^salt)>>>0;
+ value^=value>>>16;value=Math.imul(value,0x7FEB352D)>>>0;
+ value^=value>>>15;value=Math.imul(value,0x846CA68B)>>>0;
+ value^=value>>>16;
+ return Math.fround(Math.fround(value)/Math.fround(0xFFFFFFFF));
+}
+function buildMovementBlocks(seed){
+ movementBlocks.fill(0);
+ if(!ropes.length&&!objectSystem.count)return;
+ const movable=m=>m===1||m===2||m===6||m===7||m===11||m===14||m===16;
+ const canSwap=(m,target)=>target===M.EMPTY||(m===M.SAND&&(target===M.WATER||target===M.OIL));
+ for(let i=0;i<N;i++){
+  const material=cells[i];if(!material)continue;
+  const x=i%W,y=(i/W)|0;
+  let vx=particleVelocityX[i],vy=particleVelocityY[i];
+  if(Math.abs(vx)+Math.abs(vy)<.12){vx=0;vy=0}
+  else{const acceleration=.055*Math.max(0,Math.min(3,gravity));vx=Math.max(-16,Math.min(16,vx*.965));vy=Math.max(-16,Math.min(16,(vy+acceleration)*.965))}
+  const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;
+  if(sx||sy){
+   const tx=x+sx,ty=y+sy;
+   if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5))movementBlocks[i]|=1;
+  }
+  const gas=material===M.STEAM||material===M.SMOKE||material===M.FIRE;
+  if(!gas&&!movable(material))continue;
+  const dy=gas?-1:1,verticalY=y+dy;
+  if(inside(x,verticalY)&&canSwap(material,cells[idx(x,verticalY)])&&ropeBlocksMove(x+.5,y+.5,x+.5,verticalY+.5))movementBlocks[i]|=2;
+  if(gas)continue;
+  const side=wasmRandom(seed,i,0x51DE)<.5?-1:1,diagonalX=x+side,diagonalY=y+dy;
+  if(inside(diagonalX,diagonalY)&&canSwap(material,cells[idx(diagonalX,diagonalY)])&&ropeBlocksMove(x+.5,y+.5,diagonalX+.5,diagonalY+.5))movementBlocks[i]|=4;
+  if((material===M.WATER||material===M.OIL||material===M.ACID)&&wasmRandom(seed,i,0x51DE2)<.4){
+   const horizontalX=x+side;
+   if(inside(horizontalX,y)&&cells[idx(horizontalX,y)]===M.EMPTY&&ropeBlocksMove(x+.5,y+.5,horizontalX+.5,y+.5))movementBlocks[i]|=8;
+  }
  }
- for(const rope of ropes)for(const node of rope.points)node.dragMoved=false;
+}
+function stepRopes(){
+ let total=0;const offsets=[0],lengths=[];
+ for(const rope of ropes){total+=rope.points.length;offsets.push(total);lengths.push(Number.isFinite(rope.length)&&rope.length>0?rope.length:1)}
+ if(total>1){
+  const x=new Float32Array(total),y=new Float32Array(total),px=new Float32Array(total),py=new Float32Array(total),ox=new Float32Array(total),oy=new Float32Array(total),anchors=new Uint8Array(total),drag=new Uint8Array(total);
+  let k=0;for(const rope of ropes)for(const node of rope.points){x[k]=node.x;y[k]=node.y;px[k]=node.px;py[k]=node.py;ox[k]=Number.isFinite(node.ox)?node.ox:node.x;oy[k]=Number.isFinite(node.oy)?node.oy:node.y;anchors[k]=node.anchor?1:0;drag[k]=node.dragMoved?1:0;k++}
+  wasmEngine.step_ropes(x,y,px,py,ox,oy,anchors,drag,new Uint32Array(offsets),new Float32Array(lengths),cells,W,H,gravity);
+  k=0;for(const rope of ropes)for(const node of rope.points){node.x=x[k];node.y=y[k];node.px=px[k];node.py=py[k];node.ox=ox[k];node.oy=oy[k];node.dragMoved=false;k++}
+ }
+ physicsEngine.step({ropes,cells,width:W,height:H,gravity,velocityX:particleVelocityX,velocityY:particleVelocityY,materialState,airborneParticles,onExtract:i=>snapshotMoves.delete(i),recordMove:recordParticleMove});
 }
 function applyLeafblowerImpulse(x,y,dx,dy,radius=46,strength=4.2){
  const length=Math.hypot(dx,dy)||1;dx/=length;dy/=length;
@@ -235,7 +288,7 @@ function stepVisualParticles(){
      if(Math.random()<.45)emitVisualParticle(p.x,p.y,'steam');
      alive=false;
     }else if(p.kind==='ember'&&(m===M.WOOD||m===M.PLANT||m===M.OIL||m===M.TNT)){
-     const heatIndex=idx(gx,gy);materialState.heat[heatIndex]=Math.min(1600,materialState.heat[heatIndex]+12);alive=false;
+     const heatIndex=idx(gx,gy);materialState.heatInputs[heatIndex]+=12;alive=false;
     }else if(p.kind==='molten'&&p.bounce===0&&p.vy>.08){
      p.vy=-Math.abs(p.vy)*.12;p.vx*=.35;p.bounce=1;p.life=Math.min(p.life,8);
     }else alive=false;
@@ -256,32 +309,19 @@ function drawVisualParticles(){
  }
  ctx.globalAlpha=1;
 }
-function explode(x,y){const radius=17;for(let yy=-radius;yy<=radius;yy++)for(let xx=-radius;xx<=radius;xx++){const d=Math.hypot(xx,yy),px=x+xx,py=y+yy;if(d<radius&&inside(px,py)){const i=idx(px,py);if(d<radius*(.4+Math.random()*.35)){cells[i]=M.EMPTY;if(Math.random()<.35)cells[i]=M.FIRE}else if(cells[i]!==M.STONE)cells[i]=Math.random()<.4?M.FIRE:M.SMOKE}}log('TNT detonation!')}
-function reaction(){}
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();for(let i=0;i<N;i++){if(!cells[i]){particleVelocityX[i]=0;particleVelocityY[i]=0;continue}let vx=particleVelocityX[i],vy=particleVelocityY[i];if(Math.abs(vx)+Math.abs(vy)<.12){particleVelocityX[i]=particleVelocityY[i]=0;continue}vy+=.055*gravity;const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;if(sx||sy){const x=i%W,y=(i/W)|0,tx=x+sx,ty=y+sy;if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5)){const to=idx(tx,ty),material=cells[i];cells[to]=material;cells[i]=M.EMPTY;for(const key of ['wetness','heat','fuel','burn','age','corrosion']){const state=materialState[key];if(state){state[to]=state[i];state[i]=0}}recordParticleMove(i,to,material);particleVelocityX[to]=vx*.94;particleVelocityY[to]=vy*.94;particleVelocityX[i]=particleVelocityY[i]=0;updated[to]=1;continue}else{if(sx)vx*=-.72;if(sy)vy*=-.68}}particleVelocityX[i]=vx*.965;particleVelocityY[i]=vy*.965}for(let y=H-2;y>=0;y--){const dir=Math.random()<.5?1:-1;for(let k=0;k<W;k++){const x=dir===1?k:W-1-k;let i=idx(x,y),m=cells[i];if(!m||updated[i])continue;
- if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
- else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
- else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
- else if(m===M.WATER&&Math.random()<.000018)emitVisualParticle(x,y,'splash');
- else if(m===M.ACID&&Math.random()<.000035)emitVisualParticle(x,y,'acid');
- else if((m===M.SAND||m===M.SALT||m===M.CHARCOAL)&&Math.random()<.000012)emitVisualParticle(x,y,'dust');
- else if(m===M.STEAM&&Math.random()<.000025)emitVisualParticle(x,y,'steam');
- if(m===M.TNT&&(at(x,y+1)===M.FIRE||at(x+1,y)===M.FIRE||at(x-1,y)===M.FIRE)){explode(x,y);continue}
- if(m===M.ICE&&ambient>5&&Math.random()<Math.min(.02,(ambient-5)/5000)){cells[i]=M.WATER;continue}
- if(m===M.WATER&&ambient<0&&Math.random()<Math.min(.04,Math.abs(ambient)/3000)){cells[i]=M.ICE;continue}
- if(ambient>180&&m===M.WATER&&Math.random()<.012){cells[i]=M.STEAM;continue}
- if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA,M.STEAM,M.SMOKE,M.FIRE].includes(m)){
- const gas=m===M.STEAM||m===M.SMOKE||m===M.FIRE,dy=gas?-1:1,ny=y+dy,ni=inside(x,ny)?idx(x,ny):-1;
- if(ni>=0&&cells[ni]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+.5,ny+.5)){cells[ni]=m;cells[i]=M.EMPTY;recordParticleMove(i,ni,m);updated[ni]=1;i=ni;y=gas?y:y}
- else if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+dy+.5)){cells[side]=m;cells[i]=M.EMPTY;recordParticleMove(i,side,m);updated[side]=1}else if((m===M.WATER||m===M.OIL||m===M.ACID)&&at(x+d,y)===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+.5)&&Math.random()<.4){const sideIndex=idx(x+d,y);cells[sideIndex]=m;cells[i]=M.EMPTY;recordParticleMove(i,sideIndex,m)}}
- 
- if(m===M.STEAM&&Math.random()<.002)cells[i]=M.WATER;
- if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
- if(m===M.WATER&&ambient>100&&Math.random()<.0005)cells[i]=M.STEAM;
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();const seed=++simulationTick;buildMovementBlocks(seed);const moveTriples=wasmEngine.step_particles(cells,updated,particleVelocityX,particleVelocityY,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,movementBlocks,W,H,gravity,seed);
+ for(let move=0;move+2<moveTriples.length;move+=3)recordParticleMove(moveTriples[move],moveTriples[move+1],moveTriples[move+2],false);
+ for(let i=0;i<N;i++){const m=cells[i];if(!m)continue;const x=i%W,y=(i/W)|0;
+  if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
+  else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
+  else if(m===M.FIRE&&Math.random()<.00006)emitVisualParticle(x,y,'smoke');
+  else if(m===M.WATER&&Math.random()<.000018)emitVisualParticle(x,y,'splash');
+  else if(m===M.ACID&&Math.random()<.000035)emitVisualParticle(x,y,'acid');
+  else if((m===M.SAND||m===M.SALT||m===M.CHARCOAL)&&Math.random()<.000012)emitVisualParticle(x,y,'dust');
+  else if(m===M.STEAM&&Math.random()<.000025)emitVisualParticle(x,y,'steam');
  }
- if(m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
- }}
- stepMaterialPhysics({cells,width:W,height:H,ambient,gravity,ropes,ropeBlocksMove,materials:M,state:materialState,recordMove:recordParticleMove});
+  const detonations=wasmEngine.step_chemistry(cells,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.airHeat,materialState.airNext,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,ambient,W,H);
+ if(detonations)log('TNT detonation!');
  stepVisualParticles();
 }
 function rebuildCellInterpolation(){
@@ -374,30 +414,9 @@ function drawCursorName(c,targetCtx){
 function render(){
  if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(node===ropeDrag?.node)continue;if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
  let count=0;
- bloomPixels.fill(0);
- for(let i=0;i<N;i++){
-  const m=cells[i],base=colors[m]||colors[0],p=i*4,wet=materialState.wetness[i]||0,heat=materialState.heat[i]||0;
-  let r=base[0],g=base[1],b=base[2];
-  if(m===M.SAND&&wet){const f=1-wet*.38;r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f)}
-  if(heat>0&&m!==M.FIRE){const f=Math.min(.35,heat/900);r=Math.min(255,Math.round(r+(255-r)*f));g=Math.round(g+(100-g)*f);b=Math.round(b*(1-f*.7))}
-  frameImage.data[p]=r;frameImage.data[p+1]=g;frameImage.data[p+2]=b;frameImage.data[p+3]=255;
-  if(m)count++;
-  if(movingDestinations[i]){frameImage.data[p]=12;frameImage.data[p+1]=16;frameImage.data[p+2]=24;}
-  let glow=0,gr=255,gg=135,gb=45;
-  if(m===M.FIRE)glow=210;
-  else if(m===M.LAVA){glow=190;gr=255;gg=65;gb=25}
-  else if(heat>95&&m!==M.WATER&&m!==M.ICE&&m!==M.STEAM&&m!==M.SMOKE)glow=Math.min(150,Math.round((heat-95)*.22));
-  if(glow>0){
-   const x=i%W,y=(i/W)|0,bp=(((y>>2)*bloomW+(x>>2))*4);
-   if(glow>bloomPixels[bp+3]){
-    bloomPixels[bp]=gr;bloomPixels[bp+1]=gg;bloomPixels[bp+2]=gb;bloomPixels[bp+3]=glow;
-   }
-  }
- }
- bloomCtx.putImageData(bloomImage,0,0);
+ frameImage.data.set(wasmEngine.render_composited_frame(cells,materialState.wetness,materialState.heat,colorLut,movingDestinations,W,H));
+ count=wasmEngine.count_particles(cells);
  ctx.putImageData(frameImage,0,0);
- ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.58;ctx.imageSmoothingEnabled=true;
- ctx.drawImage(bloomCanvas,0,0,W,H);ctx.restore();
  drawInterpolatedCells();
  drawAirborneParticles();
  drawVisualParticles();
@@ -439,19 +458,23 @@ function render(){
  count+=airborneParticles.length;
  document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
 }
-const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=4;
+const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=8;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,lastPropPublish=0;
  function loop(now){
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
- // Every peer runs the simulation locally for immediate, smooth particle motion.
- // Host snapshots remain authoritative checkpoints that periodically correct drift.
- if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}if(steps===MAX_STEPS_PER_FRAME&&simulationAccumulator>SIMULATION_STEP)simulationAccumulator=0}
- cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
+ // Clients predict locally for responsive motion; host snapshots reconcile drift.
+ if(running){simulationAccumulator+=elapsed*speed;let steps=0;while(simulationAccumulator>=SIMULATION_STEP&&steps<MAX_STEPS_PER_FRAME){tick();rebuildCellInterpolation();simulationAccumulator-=SIMULATION_STEP;steps++}}
+ if(multiplayer?.joined&&!multiplayer.isHost){
+  // Interpolate the client's own predicted moves, not the host's stale move list.
+  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
+ }else cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.joined&&multiplayer.isHost){
-  if(now-lastWorldPublish>=(multiplayer.lanMode?1000:5000)){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
-  if(now-lastRopePublish>=100){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
+  const syncInterval=N>100000?1000:N>30000?750:500;
+  remoteSnapshotInterval=syncInterval;
+  if(now-lastWorldPublish>=syncInterval){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
+  if(now-lastRopePublish>=200){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
- if(multiplayer?.joined&&multiplayer.isHost&&objectSystem.count&&now-lastPropPublish>=100){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
+ if(multiplayer?.joined&&multiplayer.isHost&&now-lastPropPublish>=300){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
  render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -459,8 +482,8 @@ requestAnimationFrame(loop);
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size})});
-document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'};
-document.querySelector('#step').onclick=()=>{if(!running){tick();rebuildCellInterpolation();cellRenderAlpha=0;render()}};
+document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED';publishOperation({type:'simulation',running})};
+document.querySelector('#step').onclick=()=>{if(!running){if(multiplayer?.joined&&!multiplayer.isHost)publishOperation({type:'simulationStep'});else{tick();rebuildCellInterpolation();cellRenderAlpha=0;render();publishOperation({type:'simulationStep'})}}};
 document.querySelector('#clear').onclick=()=>{cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);movingParticles.length=0;airborneParticles.length=0;snapshotMoves.clear();movingDestinations.fill(0);moveByDestination.fill(-1);visualParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear();publishOperation({type:'clear'});render();log('World cleared')};
 document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.download='pixelphyx-experiment.png';a.href=canvas.toDataURL();a.click()};
 
@@ -469,56 +492,13 @@ document.querySelector('#gravity').oninput=e=>{gravity=+e.target.value/10;docume
 document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.querySelector('#speedOut').textContent=speed+'×'};
 document.querySelector('#temperatureControl').oninput=e=>{const value=+e.target.value;ambient=temperatureUnit==='F'?(value-32)*5/9:value;updateTemperature();publishOperation({type:'settings',gravity,ambient})};
 document.querySelector('#temperatureUnit').onclick=()=>{temperatureUnit=temperatureUnit==='C'?'F':'C';updateTemperature()};
-addEventListener('keydown',e=>{
-  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return;
-  if(e.code==='Space'){e.preventDefault();document.querySelector('#play').click()}
- });
-
-const openModal=id=>document.querySelector('#'+id).classList.add('open');
+const {openModal,closeOnlineModal}=initializeUiShell({
+ onToggleSimulation:()=>document.querySelector('#play').click(),
+ onRoomModalClosed:()=>{if(stopLobbyGallery){stopLobbyGallery();stopLobbyGallery=null}}
+});
 document.querySelector('#roomBtn').onclick=()=>openLobbyGallery();
-function closeOnlineModal(modal){
- modal.classList.remove('open');
- if(modal.id==='roomModal'&&stopLobbyGallery){stopLobbyGallery();stopLobbyGallery=null}
-}
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeOnlineModal(b.closest('.modal')));
-document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeOnlineModal(m)}));
 
 let multiplayerLoading=null;
-let usageStatus=null;
-function renderUsage(status){
- usageStatus=status;
- const daily=status?.daily||{};
- const monthly=status?.monthly||{};
- const dailyValue=document.querySelector('#dailyUsageValue');
- const dailyBar=document.querySelector('#dailyUsageBar');
- const dailyMessage=document.querySelector('#dailyUsageMessage');
- const monthlyValue=document.querySelector('#monthlyUsageValue');
- const monthlyBar=document.querySelector('#monthlyUsageBar');
- const monthlyMessage=document.querySelector('#monthlyUsageMessage');
- if(!dailyValue||!dailyBar||!dailyMessage||!monthlyValue||!monthlyBar||!monthlyMessage)return;
- const dailyPercent=Math.max(0,Math.min(100,Number(daily.percent)||0));
- const monthlyPercent=Math.max(0,Math.min(100,Number(monthly.percent)||0));
- dailyValue.textContent=dailyPercent+'% / 90%';
- dailyBar.style.width=dailyPercent+'%';
- dailyBar.classList.toggle('warning',dailyPercent>=75&&!daily.blocked);
- dailyBar.classList.toggle('blocked',!!daily.blocked);
- dailyMessage.textContent=daily.blocked
-  ? 'Online is disabled because estimated daily downloads reached the 90% safety limit.'
-  : 'Daily allowance: 360 MB. Online locks at 324 MB estimated.';
- monthlyValue.textContent=monthlyPercent+'% / 90%';
- monthlyBar.style.width=monthlyPercent+'%';
- monthlyBar.classList.toggle('warning',monthlyPercent>=75&&!monthly.blocked);
- monthlyBar.classList.toggle('blocked',!!monthly.blocked);
- monthlyMessage.textContent=monthly.blocked
-  ? 'Online is disabled because estimated monthly downloads reached the 90% safety limit.'
-  : 'Monthly allowance: 10 GB. Online locks at 9 GB estimated.';
- const blocked=!!status?.blocked;
- document.querySelector('#createLobby').disabled=blocked;
- document.querySelector('#join').disabled=blocked;
- document.querySelector('#roomCode').disabled=blocked;
- document.querySelectorAll('#lobbyGallery .lobby-join').forEach(button=>button.disabled=blocked);
-}
-
 const pendingJoinRequests=new Map();
 function queueJoinRequest(request){
  if(!request?.key)return;
@@ -542,48 +522,27 @@ function renderJoinRequests(){
   row.append(label,actions);list.append(row);
  }
 }
-function getConnectionConfig(){
- const config={...firebaseConfig};
- if(!document.querySelector('#customServerMode')?.checked)return config;
- const raw=String(document.querySelector('#customServerAddress')?.value||'').trim();
- if(!raw)throw new Error('Paste your Firebase config declaration.');
- let custom,source=raw;
- // Accept Firebase's copied JavaScript format as well as plain JSON.
- source=source.replace(/^\s*(?:const|let|var)\s+firebaseConfig\s*=\s*/,'').replace(/;\s*$/,'');
- source=source.replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g,'$1"$2":').replace(/,\s*([}\]])/g,'$1');
- try{custom=JSON.parse(source)}catch{throw new Error('Invalid Firebase config. Paste the complete const firebaseConfig = { ... }; block from Firebase Project settings.')}
- if(!custom||typeof custom!=='object'||Array.isArray(custom))throw new Error('Firebase config must be an object.');
- for(const key of ['apiKey','authDomain','databaseURL','projectId','appId'])if(typeof custom[key]!=='string'||!custom[key].trim())throw new Error('Firebase config is missing the required "'+key+'" field.');
- let database;
- try{database=new URL(custom.databaseURL)}catch{throw new Error('The databaseURL in your Firebase config is not a valid URL.')}
- if(database.protocol!=='https:'||!(database.hostname==='firebaseio.com'||database.hostname.endsWith('.firebaseio.com')||database.hostname==='firebasedatabase.app'||database.hostname.endsWith('.firebasedatabase.app')))throw new Error('databaseURL must be an HTTPS Firebase Realtime Database URL.');
- custom.databaseURL=database.href.replace(/\/$/,'');
- return custom;
-}
-async function connectFirebase(config){
- config=getConnectionConfig();
- if(!multiplayer){
-  if(!multiplayerLoading){
-   multiplayerLoading=(async()=>{
-    const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
-    multiplayer=createMultiplayer({
-     onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
-     getWorld:()=>serialize(),
-     getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
-     getProps:()=>objectSystem.serialize(),
-     onLeafblowers:people=>{const now=performance.now();for(const [id,state] of Object.entries(people||{})){if(id===playerId)continue;const data=state?.leafblower;if(!data)continue;if(data.active&&[data.x,data.y,data.dx,data.dy].every(Number.isFinite)){const current=remoteLeafblowers[id];if(current){current.targetX=data.x;current.targetY=data.y;current.targetDx=data.dx;current.targetDy=data.dy;current.receivedAt=now;current.active=true}else remoteLeafblowers[id]={x:data.x,y:data.y,dx:data.dx,dy:data.dy,targetX:data.x,targetY:data.y,targetDx:data.dx,targetDy:data.dy,receivedAt:now,active:true}}else if(remoteLeafblowers[id])remoteLeafblowers[id].active=false}},
-     onPlayers:renderPlayers,
-     onJoinRequest:request=>queueJoinRequest(request),
-     onCursors:people=>{remoteCursorTargets={};for(const [id,p] of Object.entries(people||{})){if(id!==playerId&&Number.isFinite(p.x)&&Number.isFinite(p.y))remoteCursorTargets[id]={x:p.x,y:p.y,color:p.color||'#ffffff',name:p.name||'Guest'}}}
-    });
-   })().catch(error=>{multiplayerLoading=null;throw error});
+async function connectPhoton(){
+  if(!multiplayer){
+   if(!multiplayerLoading){
+    multiplayerLoading=(async()=>{
+     const {createMultiplayer}=await import('./multiplayer.js?v='+encodeURIComponent(cacheVersion));
+     multiplayer=createMultiplayer({
+      onStatus:setConnection,onLog:log,onOperation:applyOperation,onWorld:applyWorld,onRopes:applyRopeState,
+      getWorld:()=>serialize(),
+      getRopes:()=>({by:playerId,updatedAt:Date.now(),ropes:ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])}))}),
+      getProps:()=>objectSystem.serialize(),
+      onPlayers:renderPlayers,
+      onJoinRequest:request=>queueJoinRequest(request)
+     });
+    })().catch(error=>{multiplayerLoading=null;throw error});
+   }
+   await multiplayerLoading;
   }
-  await multiplayerLoading;
- }
- playerId=await multiplayer.connect(config);
- return playerId;
+  playerId=await multiplayer.connect();
+  return playerId;
 }
-// Firebase is initialized only after the user selects Online.
+// Photon connects only after the user selects Online.
 function updateCurrentRoomUI(){
  const section=document.querySelector('#currentRoomSection'),code=document.querySelector('#currentRoomCode');
  if(!section||!code)return;
@@ -603,26 +562,30 @@ document.querySelector('#copyRoomCode').onclick=async()=>{
   setTimeout(()=>{button.title='Copy room code';button.setAttribute('aria-label','Copy room code')},1200);
  }catch(error){log('Could not copy room code: '+error.message)}
 };
-const customServerToggle=document.querySelector('#customServerMode');
-const customServerSettings=document.querySelector('#customServerSettings');
-function updateCustomServerUI(){
- customServerSettings.hidden=!customServerToggle.checked;
-}
-customServerToggle.addEventListener('change',updateCustomServerUI);
-updateCustomServerUI();
-document.querySelector('#customServerHint').textContent='Paste the complete const firebaseConfig = { ... }; block copied from Firebase Project settings. Enable Anonymous Authentication and configure Realtime Database rules in that Firebase project.';
+document.querySelector('#leaveRoom').onclick=async()=>{
+ const button=document.querySelector('#leaveRoom');button.disabled=true;
+ try{
+  await multiplayer?.leaveRoom();
+  room='';
+  pendingJoinRequests.clear();renderJoinRequests();updateCurrentRoomUI();
+  document.querySelector('#roomLabel').textContent='ROOM · LOCAL';
+  document.querySelector('#playerCount').textContent='0 online';
+  log('Left the server. Your local experiment is still open.');
+ }catch(error){log('Could not leave server: '+error.message)}
+ finally{button.disabled=false}
+};
 document.querySelector('#join').onclick=()=>requestAndJoinRoom(document.querySelector('#roomCode').value);
 document.querySelector('#createLobby').onclick=async()=>{
  const button=document.querySelector('#createLobby');button.disabled=true;button.textContent='Creating…';
  try{
-  await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error(usage.daily.blocked?'Online is disabled: daily bandwidth usage has reached 90%.':'Online is disabled: monthly bandwidth usage has reached 90%.');
-  room=await multiplayer.createLobby({name:playerName,color:playerColor},{lan:document.querySelector('#lanMode').checked});
+  await connectPhoton();
+  
+  room=await multiplayer.createLobby({name:playerName,color:playerColor});
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
   closeOnlineModal(document.querySelector('#roomModal'));
-  log('Created server '+room+' — you are the host'+(multiplayer.lanMode?' using direct LAN multiplayer':''));
+  log('Created server '+room+' — you are the host'+' using Photon relay');
  }catch(error){alert(error.message);log('Server creation failed: '+error.message)}
  finally{button.disabled=false;button.textContent='+ Create server'}
 };
@@ -630,8 +593,8 @@ document.querySelector('#createLobby').onclick=async()=>{
 let stopLobbyGallery=null;
 async function openLobbyGallery(){
  try{
-  await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);
+  await connectPhoton();
+  
   if(stopLobbyGallery)stopLobbyGallery();
   stopLobbyGallery=multiplayer.watchLobbies(renderLobbyGallery);
   updateCurrentRoomUI();
@@ -640,7 +603,7 @@ async function openLobbyGallery(){
 }
 function renderLobbyGallery(lobbies){
  const gallery=document.querySelector('#lobbyGallery');
- document.querySelector('#lobbyCapacity').textContent=lobbies.length+' / 20 active servers';
+ document.querySelector('#lobbyCapacity').textContent=lobbies.length+' servers listed';
  gallery.replaceChildren();
  if(!lobbies.length){const empty=document.createElement('div');empty.className='lobby-empty';empty.textContent='No active servers yet. Create one to become the host.';gallery.append(empty);return}
  for(const lobby of lobbies){
@@ -649,9 +612,9 @@ function renderLobbyGallery(lobbies){
   const number=document.createElement('span');number.className='lobby-number';number.textContent=lobby.room;
   const count=document.createElement('span');count.className='lobby-count';count.textContent=(lobby.players||0)+' online';
   top.append(number,count);
-  const host=document.createElement('div');host.className='lobby-host';host.textContent=(lobby.transport==='webrtc'?'LAN DIRECT · HOST · ':'HOST · ');
+  const host=document.createElement('div');host.className='lobby-host';host.textContent='HOST · ';
   const hostName=document.createElement('strong');hostName.textContent=lobby.hostName||'Unknown';host.append(hostName);
-  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=!!usageStatus?.blocked;
+  const join=document.createElement('button');join.className='btn primary lobby-join';join.textContent='Request to join';join.disabled=false;
   join.onclick=async()=>{
    join.disabled=true;join.textContent='Request sent…';
    try{await requestAndJoinRoom(lobby.room);closeOnlineModal(document.querySelector('#roomModal'))}
@@ -664,10 +627,10 @@ async function requestAndJoinRoom(code){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Choose a lobby first');return}
  try{
-  await connectFirebase(firebaseConfig);
-  const usage=await multiplayer.getUsageStatus(true);renderUsage(usage);if(usage.blocked)throw new Error('Online is disabled: daily bandwidth usage has reached 90%.');
+  await connectPhoton();
+  
   log('Sending join request to '+clean+'…');
-  const approved=await multiplayer.requestJoin(clean,{name:playerName});
+  const approved=await multiplayer.requestJoin(clean,{name:playerName,color:playerColor});
   if(!approved)throw new Error('The host declined your request');
   await joinRoom(clean,true);
  }catch(error){log('Could not join lobby: '+error.message);throw error}
@@ -677,7 +640,7 @@ function encodeCells(data){let raw='';for(let i=0;i<data.length;i+=0x8000)raw+=S
 function decodeCells(value,packed=false,rle=false){if(Array.isArray(value))return Uint8Array.from(value);const raw=atob(value);if(rle){const out=new Uint8Array(N);let offset=0;for(let i=0;i+1<raw.length;i+=2){const count=raw.charCodeAt(i),material=raw.charCodeAt(i+1);if(!count||offset+count>N)throw new Error('Invalid compressed world snapshot');out.fill(material,offset,offset+count);offset+=count}if(offset!==N)throw new Error('Incomplete compressed world snapshot');return out}if(packed){const out=new Uint8Array(raw.length*2);for(let i=0;i<raw.length;i++){const byte=raw.charCodeAt(i);out[i*2]=byte&15;out[i*2+1]=byte>>4}return out}const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
 function encodeMaterialField(values,scale=1){const bytes=new Uint8Array(values.length);for(let i=0;i<values.length;i++)bytes[i]=Math.max(0,Math.min(255,Math.round(values[i]*scale)));let raw='';for(let i=0;i<bytes.length;i+=0x8000)raw+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(raw)}
 function decodeMaterialField(value,target,scale=1){if(typeof value!=='string')return;try{const raw=atob(value);if(raw.length!==target.length)return;for(let i=0;i<raw.length;i++)target[i]=raw.charCodeAt(i)/scale}catch{}}
-function serialize(){const moves=Array.from(snapshotMoves.values(),p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]);snapshotMoves.clear();return{width:W,height:H,canvasSize,cells:encodeCells(cells),packed:false,moves,airborne:airborneParticles.slice(0,5000).map(p=>[p.x,p.y,p.vx,p.vy,p.material,p.wetness,p.heat,p.fuel,p.burn,p.age,p.corrosion]),props:objectSystem.serialize(),materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},gravity,ambient,updatedAt:Date.now(),by:playerId}}
+function serialize(){const moves=Array.from(snapshotMoves.values(),p=>[p.fromX,p.fromY,p.toX,p.toY,p.material]);snapshotMoves.clear();return{width:W,height:H,canvasSize,cells:encodeCells(cells),packed:false,moves,airborne:airborneParticles.slice(0,5000).map(p=>[p.x,p.y,p.vx,p.vy,p.material,p.wetness,p.heat,p.fuel,p.burn,p.age,p.corrosion]),props:objectSystem.serialize(),materialState:{wetness:encodeMaterialField(materialState.wetness,255),heat:encodeMaterialField(materialState.heat,1/5),fuel:encodeMaterialField(materialState.fuel,255),burn:encodeMaterialField(materialState.burn,1),corrosion:encodeMaterialField(materialState.corrosion,1),airHeat:encodeMaterialField(materialState.airHeat,1/4)},gravity,ambient,running,updatedAt:Date.now(),by:playerId}}
 function applyRopeState(data){
  if(!data||data.by===playerId||!Array.isArray(data.ropes))return;
  const next=[];
@@ -700,19 +663,19 @@ function applyRopeState(data){
  }
  ropes=next;
 }
-function applyWorld(data){if(!data||data.by===playerId)return true;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed,!!data.rle)}catch(e){return false}if(incoming.length!==N)return false;lastRemoteWorldAt++;remoteSnapshotReceivedAt=performance.now();remoteApplying=true;cells.set(incoming);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles=Array.isArray(data.airborne)?data.airborne.slice(0,5000).filter(p=>Array.isArray(p)&&p.length>=5&&p.slice(0,5).every(Number.isFinite)&&p[4]>0&&p[4]<=16&&p[0]>=0&&p[0]<W&&p[1]>=0&&p[1]<H).map(p=>({x:p[0],y:p[1],vx:p[2],vy:p[3],material:p[4],wetness:p[5]||0,heat:p[6]||0,fuel:p[7]||0,burn:p[8]||0,age:p[9]||0,corrosion:p[10]||0,sleep:0})):[];movingParticles=Array.isArray(data.moves)?data.moves.slice(0, W*H).filter(p=>Array.isArray(p)&&p.length>=5&&p.every(Number.isFinite)&&inside(p[0],p[1])&&inside(p[2],p[3])&&p[4]>0&&p[4]<=16).map(p=>({fromX:p[0],fromY:p[1],toX:p[2],toY:p[3],toIndex:idx(p[2],p[3]),material:p[4]})):[];moveByDestination.fill(-1);rebuildCellInterpolation();if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.props))objectSystem.restore(data.props);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false;return true}
+function applyWorld(data){if(!data||data.by===playerId)return true;const snapshotAt=Number.isFinite(data.updatedAt)?data.updatedAt:0;if(snapshotAt&&snapshotAt<=lastAppliedSnapshotAt)return false;if(typeof data.canvasSize==='string'&&CANVAS_SIZES[data.canvasSize])resizeCanvas(data.canvasSize);else if(Number.isInteger(data.width)&&Number.isInteger(data.height)){const matching=Object.entries(CANVAS_SIZES).find(([,d])=>d.width===data.width&&d.height===data.height);if(matching)resizeCanvas(matching[0])}let incoming;try{incoming=decodeCells(data.cells,!!data.packed,!!data.rle)}catch(e){return false}if(incoming.length!==N)return false;if(snapshotAt)lastAppliedSnapshotAt=snapshotAt;lastRemoteWorldAt++;remoteSnapshotReceivedAt=performance.now();remoteSnapshotInterval=N>100000?1000:N>30000?750:500;remoteApplying=true;const now=performance.now(),isPredicting=multiplayer?.joined&&!multiplayer.isHost;for(let i=0;i<N;i++){const protectedEdit=protectedStrokeCells.get(i);if(protectedEdit&&protectedEdit.until>now){incoming[i]=protectedEdit.material;continue}if(protectedEdit)protectedStrokeCells.delete(i);if(isPredicting&&movingDestinations[i]&&cells[i]!==M.EMPTY){incoming[i]=cells[i];continue}if(incoming[i]===M.EMPTY){particleVelocityX[i]=0;particleVelocityY[i]=0}}cells.set(incoming);airborneParticles=Array.isArray(data.airborne)?data.airborne.slice(0,5000).filter(p=>Array.isArray(p)&&p.length>=5&&p.slice(0,5).every(Number.isFinite)&&p[4]>0&&p[4]<=16&&p[0]>=0&&p[0]<W&&p[1]>=0&&p[1]<H).map(p=>({x:p[0],y:p[1],vx:p[2],vy:p[3],material:p[4],wetness:p[5]||0,heat:p[6]||0,fuel:p[7]||0,burn:p[8]||0,age:p[9]||0,corrosion:p[10]||0,sleep:0})):[];movingParticles=multiplayer?.joined&&!multiplayer.isHost?[]:(Array.isArray(data.moves)?data.moves.slice(0,W*H).filter(p=>Array.isArray(p)&&p.length>=5&&p.every(Number.isFinite)&&inside(p[0],p[1])&&inside(p[2],p[3])&&p[4]>0&&p[4]<=16).map(p=>({fromX:p[0],fromY:p[1],toX:p[2],toY:p[3],toIndex:idx(p[2],p[3]),material:p[4]})):[]);moveByDestination.fill(-1);rebuildCellInterpolation();if(data.materialState){decodeMaterialField(data.materialState.wetness,materialState.wetness,255);decodeMaterialField(data.materialState.heat,materialState.heat,1/5);decodeMaterialField(data.materialState.fuel,materialState.fuel,255);decodeMaterialField(data.materialState.burn,materialState.burn,1);decodeMaterialField(data.materialState.corrosion,materialState.corrosion,1);decodeMaterialField(data.materialState.airHeat,materialState.airHeat,1/4)}if(Array.isArray(data.props))objectSystem.restore(data.props);if(Number.isFinite(data.gravity))gravity=data.gravity;if(Number.isFinite(data.ambient))ambient=data.ambient;if(typeof data.running==='boolean'){running=data.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'}document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';updateTemperature();remoteApplying=false;return true}
 async function joinRoom(code,approved=false){
  const clean=String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,24);
  if(!clean){alert('Enter a room code');return}
  try{
-  await connectFirebase(firebaseConfig);
+  await connectPhoton();
   if(!multiplayer)throw new Error('Multiplayer failed to initialize');
-  lastRemoteWorldAt=0;lastWorldPublish=0;
+  lastRemoteWorldAt=0;lastAppliedSnapshotAt=0;lastWorldPublish=0;
   await multiplayer.joinRoom(clean,{name:playerName,color:playerColor},approved,false);room=clean;
   document.querySelector('#roomLabel').textContent='ROOM · '+room;
   document.querySelector('#roomCode').value=room;
   updateCurrentRoomUI();
-  log('Joined room '+room+(multiplayer.lanMode?' — direct LAN connection starting':' — shared world synchronization active'));
+  log('Joined room '+room+' — Photon world synchronization active');
  }catch(e){log('Could not join room: '+e.message);alert('Could not join room: '+e.message)}
 }
 function publishOperation(operation){lastOperationAppliedAt=performance.now();multiplayer?.publishOperation(operation)}
@@ -728,7 +691,7 @@ function renderPlayers(people){
   d.append(av,nm,you);el.append(d);
  }
 }
-function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='props'||op.type==='propAdd'||op.type==='propDelete'){objectSystem.apply(op)}else if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear()}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.ox=node.x;node.oy=node.y;node.dragMoved=true;node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
+function applyOperation(op){if(!op||remoteApplying)return;lastOperationAppliedAt=performance.now();remoteApplying=true;try{if(op.type==='props'||op.type==='propAdd'||op.type==='propDelete'){objectSystem.apply(op)}else if(op.type==='clear'){cells.fill(0);particleVelocityX.fill(0);particleVelocityY.fill(0);airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem.clear()}else if(op.type==='ropeDelete'&&typeof op.ropeId==='string'){ropes=ropes.filter(r=>r.id!==op.ropeId)}else if(op.type==='canvasSize'&&CANVAS_SIZES[op.size]){resizeCanvas(op.size)}else if(op.type==='settings'){if(Number.isFinite(op.gravity)){gravity=op.gravity;document.querySelector('#gravity').value=Math.round(gravity*10);document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×'}if(Number.isFinite(op.ambient)){ambient=op.ambient;updateTemperature()}}else if(op.type==='simulation'&&typeof op.running==='boolean'){running=op.running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';document.querySelector('#worldState').textContent=running?'SIMULATION RUNNING':'SIMULATION PAUSED'}else if(op.type==='simulationStep'){if(multiplayer?.isHost&&!running){tick();rebuildCellInterpolation();cellRenderAlpha=0}}else if(op.type==='rope'&&op.a&&op.b){const a=op.a,b=op.b,id=String(op.ropeId||newRopeId());if(!ropes.some(r=>r.id===id))createRope(a,b,id)}else if(op.type==='ropeNode'&&typeof op.ropeId==='string'&&Number.isInteger(op.nodeIndex)&&Number.isFinite(op.x)&&Number.isFinite(op.y)){const rope=ropes.find(r=>r.id===op.ropeId),node=rope?.points[op.nodeIndex];if(node){node.ox=node.x;node.oy=node.y;node.dragMoved=true;node.x=op.x;node.y=op.y;node.px=op.x-(Number.isFinite(op.vx)&&!op.predicted?op.vx:0);node.py=op.y-(Number.isFinite(op.vy)&&!op.predicted?op.vy:0);if(typeof op.anchor==='boolean')node.anchor=op.anchor}}else if(op.type==='ropeEdit'&&Number.isInteger(op.index)&&Array.isArray(op.points)&&ropes[op.index]){const rope=ropes[op.index];if(op.points.length===rope.points.length)rope.points=op.points.map((p,i)=>({x:+p[0],y:+p[1],px:+p[0],py:+p[1],sx:+p[0],sy:+p[1],sweepAge:0,anchor:!!p[2]}))}else if(op.type==='stroke'&&Array.isArray(op.points)){const pts=op.points.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&inside(p.x,p.y)),bs=Math.max(1,Math.min(22,op.brush||1)),r=Math.floor(bs/4),mat=op.erase?M.EMPTY:Math.max(0,Math.min(16,op.material|0));if(op.erase){for(const p of pts)circle(p.x,p.y,bs,M.EMPTY)}else if(op.tool==='bomb'){for(const p of pts)circle(p.x,p.y,2,M.TNT)}else if(op.tool==='heat'||op.tool==='cool'){for(const p of pts)circle(p.x,p.y,bs,op.tool==='heat'?M.FIRE:M.ICE)}else if(op.tool==='line'){for(let k=0;k<pts.length;k++){if(k===0)circle(pts[k].x,pts[k].y,r,mat);else drawLine(pts[k-1].x,pts[k-1].y,pts[k].x,pts[k].y,mat,r)}}else for(const p of pts)circle(p.x,p.y,bs,mat)}}finally{remoteApplying=false}}
 let localCursor=null;
 canvas.parentElement.addEventListener('pointermove',e=>{const p=canvasPoint(e);if(!inside(p.x,p.y))return;localCursor=p;if(!room||!multiplayer?.joined)return;localCursor=p});
 const localCursorCanvas=document.querySelector('#localCursor'),localCursorCtx=localCursorCanvas.getContext('2d');

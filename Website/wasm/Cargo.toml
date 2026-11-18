@@ -1,0 +1,11 @@
+[package]
+name = "pixelphyx-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "PixelPhyx browser simulation and pixel rendering core"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"

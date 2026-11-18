@@ -1,3 +1,12 @@
+# Legacy Firebase backend (not used by Photon)
+
+This directory is retained for reference and for the separate server-migrate branch. The Photon implementation on photon-test does not load Firebase, use these database rules, or require deploying the Cloud Function below.
+
+For Photon multiplayer, see the repository README and the Photon Dashboard:
+https://dashboard.photonengine.com/
+
+---
+
 # Custom Firebase Server Setup
 
 Pixel Phyx multiplayer can use your own Firebase project instead of the default Pixel Phyx database. This guide covers creating the Firebase backend and connecting the game to it.
