@@ -1,6 +1,7 @@
 mod chemistry;
 mod engine;
 mod grid;
+mod input;
 mod render;
 mod ropes;
 mod rigid_bodies;
@@ -76,4 +77,15 @@ pub fn render_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u8],moving:&
 #[wasm_bindgen]
 pub fn render_composited_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u8],moving:&[u8],width:u32,height:u32)->Vec<u8>{
  render::render_composited_frame(cells,wetness,heat,colors,moving,width as usize,height as usize)
+}
+
+/// Converts a browser pointer position into world-grid coordinates.
+#[wasm_bindgen]
+pub fn map_pointer(client_x:f64,client_y:f64,left:f64,top:f64,css_width:f64,css_height:f64,width:u32,height:u32)->Vec<i32>{
+ input::map_pointer(client_x,client_y,left,top,css_width,css_height,width,height)
+}
+/// Rasterizes a circular brush or line segment directly into the material grid.
+#[wasm_bindgen]
+pub fn paint_segment(cells:&mut[u8],x0:i32,y0:i32,x1:i32,y1:i32,radius:i32,material:u8,width:u32,height:u32){
+ input::paint_segment(cells,x0,y0,x1,y1,radius,material,width,height)
 }
