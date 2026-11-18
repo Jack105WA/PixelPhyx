@@ -23,7 +23,6 @@ const settings = {
 
 const rooms = new Map();
 const clients = new Map();
-const PUBLIC_DIR = path.join(ROOT, 'public');
 let nextPlayerNumber = 1;
 
 function send(socket, type, data = {}) {
@@ -169,29 +168,17 @@ function handle(client, message) {
   }
 }
 const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
+  const pathname = (req.url || '/').split('?')[0];
+  if (pathname === '/health') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     return res.end(JSON.stringify({ name: settings.name, status: 'online', rooms: rooms.size, players: clients.size }));
   }
-  if (req.url === '/server-info') {
+  if (pathname === '/server-info') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     return res.end(JSON.stringify({ name: settings.name, port: settings.port, maxPlayers: settings.maxPlayers, lobbyCount: settings.lobbyCount, publicAddress: settings.publicAddress }));
   }
-  const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
-  const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-  const filePath = path.resolve(PUBLIC_DIR, relative);
-  if (!filePath.startsWith(PUBLIC_DIR + path.sep) && filePath !== path.join(PUBLIC_DIR, 'index.html')) {
-    res.writeHead(403); return res.end('Forbidden');
-  }
-  fs.stat(filePath, (error, stat) => {
-    if (error || !stat.isFile()) { res.writeHead(404); return res.end('Not found'); }
-    const ext = path.extname(filePath).toLowerCase();
-    const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8',
-      '.wasm':'application/wasm', '.json':'application/json; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png',
-      '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.ico':'image/x-icon', '.webp':'image/webp', '.woff2':'font/woff2' };
-    res.writeHead(200, { 'content-type': types[ext] || 'application/octet-stream', 'cache-control': ext === '.html' ? 'no-cache' : 'public, max-age=3600' });
-    fs.createReadStream(filePath).pipe(res);
-  });
+  res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+  res.end('PixelPhyx multiplayer server is running. Connect your game client using WebSocket path /pixelphyx.');
 });
 const wss = new WebSocket.Server({ server, path: '/pixelphyx' });
 wss.on('connection', socket => {
@@ -218,8 +205,6 @@ server.listen(settings.port, settings.host, () => {
   console.log('  Bind:       ' + settings.host);
   console.log('  Port:       ' + settings.port);
   const addresses = Object.values(os.networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal).map(item => item.address);
-  console.log('  Local URL:  http://localhost:' + settings.port);
-  if (addresses.length) for (const address of addresses) console.log('  LAN URL:    http://' + address + ':' + settings.port);
   console.log('  WebSocket:  ws://localhost:' + settings.port + '/pixelphyx');
   console.log('  Max players per lobby: ' + settings.maxPlayers);
   console.log('  Lobby limit: ' + settings.lobbyCount);
