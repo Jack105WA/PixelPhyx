@@ -47,7 +47,7 @@ const gameScript = [
   '(async()=>{',
   `const wasmGlue=await import(${JSON.stringify(wasmGlueUrl)});`,
   `const wasmBytes=Uint8Array.from(atob('${wasmBase64}'),c=>c.charCodeAt(0));`,
-  'await wasmGlue.default(wasmBytes.buffer);',
+  'await wasmGlue.default({module_or_path:wasmBytes.buffer});',
   `const wasmExports=${JSON.stringify(wasmExports)};`,
   'const missingWasmExports=wasmExports.filter(name=>typeof wasmGlue[name]!=="function");if(missingWasmExports.length)throw new Error("Offline WASM build is missing required exports: "+missingWasmExports.join(", "));',
   'async function createWasmEngine(){return Object.freeze(Object.fromEntries(wasmExports.map(name=>[name,wasmGlue[name]])))}',
