@@ -1,7 +1,7 @@
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
 const { EVENTS } = await import('./ws-sync.js?v=' + encodeURIComponent(cacheVersion));
 
-export function createLocal serverRooms(state, sync) {
+export function createServerRooms(state, sync) {
   let pendingApproval = null, roomListOff = null;
   const pendingRequests = new Map();
   const client = () => state.client;
@@ -79,7 +79,7 @@ export function createLocal serverRooms(state, sync) {
   }
 
   async function createLobby(identity = {}) {
-    if (!client()?.isConnected) throw new Error('Connect to Local server before creating a server.');
+    if (!client()?.isConnected) throw new Error('Connect to the local server before creating a server.');
     if (room()) throw new Error('Leave your current server before creating another.');
     const code = 'PX-' + crypto.randomUUID().replaceAll('-', '').slice(0, 7).toUpperCase();
     const safeName = String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest';
@@ -92,7 +92,7 @@ export function createLocal serverRooms(state, sync) {
     state.approvedPlayers.clear();
     state.setLocalIdentity(identity, true);
     state.report('online', 'ROOM HOST');
-    state.log('Created Local server server ' + state.roomName + '.');
+    state.log('Created local server ' + state.roomName + '.');
     const world = state.callbacks.getWorld?.();
     if (world) sync.publishWorld(world);
     const ropes = state.callbacks.getRopes?.();
@@ -101,7 +101,7 @@ export function createLocal serverRooms(state, sync) {
   }
 
   async function joinRoom(code, identity = {}, isApproved = false) {
-    if (!client()?.isConnected) throw new Error('Connect to Local server before joining a server.');
+    if (!client()?.isConnected) throw new Error('Connect to the local server before joining a server.');
     const nextRoom = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
     if (!nextRoom) throw new Error('Enter a server code.');
     if (room()?.name === nextRoom) {
@@ -117,7 +117,7 @@ export function createLocal serverRooms(state, sync) {
     state.setLocalIdentity(identity, isApproved);
     if (isApproved) sync.requestSnapshot();
     state.report('online', 'JOINED ROOM');
-    state.log('Joined Local server server ' + state.roomName +
+    state.log('Joined local server ' + state.roomName +
       (isApproved ? '.' : ' — waiting for host approval.'));
   }
 
@@ -173,7 +173,7 @@ export function createLocal serverRooms(state, sync) {
       state.log('Live server browsing pauses while you are inside a room. Leave the server to refresh the lobby.');
     } else if (client() && !client().isInLobby) {
       client().joinLobby().then(publishLobbyList)
-        .catch(error => state.log('Could not join Local server lobby: ' + error.message));
+        .catch(error => state.log('Could not join local server lobby: ' + error.message));
     }
     roomListOff?.();
     roomListOff = client()?.on('roomListUpdated', publishLobbyList) || null;
@@ -202,7 +202,7 @@ export function createLocal serverRooms(state, sync) {
       catch (error) { state.log('Lobby reconnect failed: ' + error.message); }
     }
     state.report('online', 'LOCAL SERVER ONLINE');
-    state.log('Left the Local server server.');
+    state.log('Left the local server.');
   }
 
   return { setup, createLobby, joinRoom, requestJoin, respondToJoinRequest, watchLobbies, leaveRoom };
