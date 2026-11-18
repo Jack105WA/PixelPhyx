@@ -25,7 +25,7 @@ if %NODE_MAJOR% LSS 20 (
 
 echo Checking and repairing server files...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
- "$ErrorActionPreference='Stop'; $base='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/local-server/Server';" ^
+ "$ErrorActionPreference='Stop'; $base='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Server';" ^
  "$updateAll=$false;" ^
  "try { $remote=Invoke-RestMethod ($base+'/version.json'); if(Test-Path 'version.json') { $local=Get-Content 'version.json' -Raw | ConvertFrom-Json; if($remote.version -ne $local.version) { $updateAll=$true; Write-Host ('Updating server to '+$remote.version) } } else { $updateAll=$true } } catch { Write-Host 'Version check unavailable; repairing missing files only.' }" ^
  "$required=@('server.js','download-website.js','package.json','version.json','README.md');" ^
