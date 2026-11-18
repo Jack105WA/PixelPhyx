@@ -473,7 +473,7 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
   if(now-lastRopePublish>=200){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
  }
  if(multiplayer?.joined&&multiplayer.isHost&&now-lastPropPublish>=300){lastPropPublish=now;multiplayer.publishProps(objectSystem.serialize())}
- render();fpsCount++;if(now-fpsAt>=1000){document.querySelector('#fps').textContent=fpsCount+' FPS';fpsCount=0;fpsAt=now}requestAnimationFrame(loop);
+ render();requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
