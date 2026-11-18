@@ -12,3 +12,15 @@ server:
 
 network:
   heartbeat_ms: 15000
+  # Full compressed world state refresh interval. Lower values sync more often.
+  snapshot_interval_ms: 400
+  # Rope position refresh interval.
+  rope_update_interval_ms: 50
+  # Restore the original live multiplayer mouse cursors.
+  cursor_updates: true
+  cursor_update_interval_ms: 40
+  # Clients normally apply authoritative state without local movement prediction.
+  prediction_enabled: false
+  # Per-WebSocket message limit and maximum queued outgoing data per client.
+  max_payload_bytes: 8388608
+  max_buffered_bytes: 16777216
