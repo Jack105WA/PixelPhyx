@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10151e">
+<title>Join a PixelPhyx Server</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0,#26394d,#0d1118 65%);color:#edf3fb;font:14px system-ui, sans-serif}.card{width:min(100%,440px);padding:28px;background:#151e2a;border:1px solid #34445a;border-radius:16px;box-shadow:0 20px 60px #0007}h1{font-size:20px;margin:0 0 8px}p{color:#9eafc4;line-height:1.5;margin:0 0 22px}.field{display:block;margin:16px 0}.field span{display:block;margin-bottom:7px;font-size:12px;font-weight:700;color:#cbd8e8}input{width:100%;padding:12px;border:1px solid #3a4b61;border-radius:8px;background:#0e151f;color:#fff;font:inherit;outline:none}input:focus{border-color:#a979ff}button{width:100%;padding:12px;border:1px solid #8654d8;border-radius:8px;background:#6235a6;color:white;font-weight:800;font-size:14px;cursor:pointer;margin-top:10px}button:hover{background:#7441bd}.hint{font-size:11px;margin:12px 0 0;color:#8799af}.error{color:#ff9999;font-size:12px;min-height:18px;margin-top:10px}
+</style>
+</head>
+<body>
+<main class="card">
+<h1>Join PixelPhyx</h1>
+<p>Connect to a self-hosted PixelPhyx server, then choose a lobby or enter its server code.</p>
+<form id="joinForm">
+<label class="field"><span>Display name</span><input id="playerName" maxlength="20" placeholder="Your name" autocomplete="nickname"></label>
+<label class="field"><span>Server address</span><input id="serverAddress" placeholder="Blank = this server · ws://192.168.1.10:3000" autocomplete="url"></label>
+<button type="submit">Continue to PixelPhyx</button>
+<div class="error" id="error" role="alert"></div>
+</form>
+<p class="hint">If this page was opened from the server PC or its LAN address, leave the server address blank. For internet hosting, use the host's public IP and forwarded TCP port. A GitHub Pages HTTPS page requires a secure WSS server; use this page from the server's HTTP address for ordinary ws connections.</p>
+</main>
+<script>
+const addressInput=document.querySelector('#serverAddress');
+const nameInput=document.querySelector('#playerName');
+addressInput.value=localStorage.getItem('pixelphyx-server-address')||'';
+nameInput.value=localStorage.getItem('pixelphyx-player-name')||'';
+document.querySelector('#joinForm').addEventListener('submit',event=>{
+ event.preventDefault();
+ let address=addressInput.value.trim().replace(/\\/$/,'');
+ if(address){
+  if(/^https:\/\//i.test(address))address='wss://'+address.slice(8);
+  else if(/^http:\/\//i.test(address))address='ws://'+address.slice(7);
+  else if(!/^wss?:\/\//i.test(address))address='ws://'+address;
+  address=address.replace(/\/pixelphyx$/i,'').replace(/\/$/,'');
+  try{const parsed=new URL(address);if(!['ws:','wss:'].includes(parsed.protocol))throw new Error();address=parsed.origin}
+  catch{document.querySelector('#error').textContent='Enter a valid server address, such as ws://192.168.1.10:3000';return}
+  localStorage.setItem('pixelphyx-server-address',address);
+ }else localStorage.removeItem('pixelphyx-server-address');
+ const name=nameInput.value.trim().slice(0,20);
+ if(name)localStorage.setItem('pixelphyx-player-name',name);
+ location.href='./index.html?join=1';
+});
+</script>
+</body>
+</html>
