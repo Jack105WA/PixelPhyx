@@ -44,3 +44,14 @@ Edit `config.yml`:
 Lower update intervals improve responsiveness but increase bandwidth. The defaults prioritize frequent synchronization while keeping snapshot data compressed and chunked. Restart the server after editing the configuration.
 
 The server keeps rooms and player state in memory. Worlds are not saved to disk.
+
+
+### Port already in use
+
+If the server reports that port 3000 is already in use, another application or an existing PixelPhyx server is already listening on it. Do not start a second copy. Check the process with:
+
+```bat
+netstat -ano | findstr :3000
+```
+
+The final number on the matching `LISTENING` line is the process ID. Find it in Task Manager, or stop that process if you know it is safe to close. Alternatively, change `server.port` in `config.yml` and use that same port in your router forwarding and game client address.
