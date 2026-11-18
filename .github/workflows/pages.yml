@@ -1,7 +1,7 @@
 name: PixelPhyx workflows
 on:
   push:
-    branches: [main]
+    branches: [main, local-server]
   workflow_dispatch:
 
 permissions:
@@ -16,19 +16,23 @@ concurrency:
 
 jobs:
   deploy-live:
-    needs: build-offline
-    if: github.ref == 'refs/heads/main'
-    name: Deploy production
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/local-server'
+    name: Deploy production and local-server preview
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Check out production
+      - name: Check out production site
         uses: actions/checkout@v4
         with:
           ref: main
           path: production
+      - name: Check out local-server branch
+        uses: actions/checkout@v4
+        with:
+          ref: local-server
+          path: local-server
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -38,20 +42,24 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-pack
-      - name: Build optimized Rust WebAssembly package
+      - name: Build production WebAssembly package
         run: wasm-pack build production/Website/wasm --target web --release --out-dir ../pkg
+      - name: Build local-server WebAssembly package
+        run: wasm-pack build local-server/Website/wasm --target web --release --out-dir ../pkg
       - name: Validate browser JavaScript modules
         run: |
-          for file in production/Website/js/*.js production/Website/js/netcode/*.js production/Website/pkg/*.js; do
+          for file in production/Website/js/*.js production/Website/js/netcode/*.js production/Website/pkg/*.js local-server/Website/js/*.js local-server/Website/js/netcode/*.js local-server/Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
       - uses: actions/configure-pages@v5
-      - name: Assemble combined Pages site
+      - name: Assemble Pages site
         run: |
           mkdir -p _site
           cp -a production/Website/. _site/
           mkdir -p _site/Offline
           cp production/Offline/*.html _site/Offline/
+          mkdir -p _site/local-server
+          cp -a local-server/Website/. _site/local-server/
       - uses: actions/upload-pages-artifact@v3
         with:
           name: pixelphyx-pages
