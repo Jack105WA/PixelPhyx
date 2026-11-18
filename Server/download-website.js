@@ -46,8 +46,6 @@ async function downloadWebsite(destination) {
     }
   });
   await Promise.all(workers);
-  fs.writeFileSync(marker, tree.sha + '\n');
-
   const wasmJs = path.join(destination, 'pkg', 'pixelphyx_wasm.js');
   const wasmBinary = path.join(destination, 'pkg', 'pixelphyx_wasm_bg.wasm');
   if (!fs.existsSync(wasmJs) || !fs.existsSync(wasmBinary)) {
@@ -60,6 +58,7 @@ async function downloadWebsite(destination) {
     }
   }
 
+  fs.writeFileSync(marker, tree.sha + '\n');
   console.log('Downloaded ' + files.length + ' PixelPhyx website files into ' + destination + '.');
 }
 
