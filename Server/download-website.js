@@ -5,7 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const REPOSITORY = 'Jack105WA/PixelPhyx';
-const BRANCH = 'local-server';
+const BRANCH = 'main';
 const USER_AGENT = 'PixelPhyx-Local-Server';
 
 async function request(url) {
