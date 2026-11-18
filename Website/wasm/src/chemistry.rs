@@ -68,9 +68,10 @@ pub fn step_acid(
     }
 }
 
-fn random01(index: usize, age: u16, salt: u32) -> f32 {
+// Deterministic, non-cryptographic simulation noise; the stream tag separates effects.
+fn random01(index: usize, age: u16, stream_tag: u32) -> f32 {
     let mut x = (index as u32).wrapping_mul(0x9E37_79B9)
-        ^ (age as u32).wrapping_mul(0x85EB_CA6B) ^ salt;
+        ^ (age as u32).wrapping_mul(0x85EB_CA6B) ^ stream_tag;
     x ^= x >> 16;
     x = x.wrapping_mul(0x7FEB_352D);
     x ^= x >> 15;
