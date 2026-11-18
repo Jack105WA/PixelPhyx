@@ -53,7 +53,7 @@ const materials=[
 ];
 const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 const colorLut=new Uint8Array(colors.flat());
-let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
+let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),movementBlocks=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let snapshotMoves=new Map();
 let temperatureUnit='C';
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
@@ -75,7 +75,7 @@ document.querySelectorAll('[data-prop]').forEach(button=>button.addEventListener
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
- cells=new Uint8Array(N);updated=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem?.clear();frameImage=ctx.createImageData(W,H);
+ cells=new Uint8Array(N);updated=new Uint8Array(N);movementBlocks=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];objectSystem?.clear();frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#worldDimensions').textContent=W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
@@ -179,6 +179,43 @@ function displacePropParticle(x,y,nx,ny,bodyVx=0,bodyVy=0){
 }
 const objectSystem=createObjectSystem({getWidth:()=>W,getHeight:()=>H,getGravity:()=>gravity,getCell:(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE,displaceCell:displacePropParticle,getAirborne:()=>airborneParticles,onPublish:op=>publishOperation(op)});
 function ropeBlocksMove(x1,y1,x2,y2){return physicsEngine.blocksMove(x1,y1,x2,y2)||objectSystem.blocksParticleMove(x1,y1,x2,y2)}
+
+function wasmRandom(seed,index,salt){
+ let value=(seed^Math.imul(index,0x9E3779B9)^salt)>>>0;
+ value^=value>>>16;value=Math.imul(value,0x7FEB352D)>>>0;
+ value^=value>>>15;value=Math.imul(value,0x846CA68B)>>>0;
+ value^=value>>>16;
+ return Math.fround(Math.fround(value)/Math.fround(0xFFFFFFFF));
+}
+function buildMovementBlocks(seed){
+ movementBlocks.fill(0);
+ if(!ropes.length&&!objectSystem.count)return;
+ const movable=m=>m===1||m===2||m===6||m===7||m===11||m===14||m===16;
+ const canSwap=(m,target)=>target===M.EMPTY||(m===M.SAND&&(target===M.WATER||target===M.OIL));
+ for(let i=0;i<N;i++){
+  const material=cells[i];if(!material)continue;
+  const x=i%W,y=(i/W)|0;
+  let vx=particleVelocityX[i],vy=particleVelocityY[i];
+  if(Math.abs(vx)+Math.abs(vy)<.12){vx=0;vy=0}
+  else{const acceleration=.055*Math.max(0,Math.min(3,gravity));vx=Math.max(-16,Math.min(16,vx*.965));vy=Math.max(-16,Math.min(16,(vy+acceleration)*.965))}
+  const sx=Math.abs(vx)>.42?Math.sign(vx):0,sy=Math.abs(vy)>.42?Math.sign(vy):0;
+  if(sx||sy){
+   const tx=x+sx,ty=y+sy;
+   if(inside(tx,ty)&&cells[idx(tx,ty)]===M.EMPTY&&ropeBlocksMove(x+.5,y+.5,tx+.5,ty+.5))movementBlocks[i]|=1;
+  }
+  const gas=material===M.STEAM||material===M.SMOKE||material===M.FIRE;
+  if(!gas&&!movable(material))continue;
+  const dy=gas?-1:1,verticalY=y+dy;
+  if(inside(x,verticalY)&&canSwap(material,cells[idx(x,verticalY)])&&ropeBlocksMove(x+.5,y+.5,x+.5,verticalY+.5))movementBlocks[i]|=2;
+  if(gas)continue;
+  const side=wasmRandom(seed,i,0x51DE)<.5?-1:1,diagonalX=x+side,diagonalY=y+dy;
+  if(inside(diagonalX,diagonalY)&&canSwap(material,cells[idx(diagonalX,diagonalY)])&&ropeBlocksMove(x+.5,y+.5,diagonalX+.5,diagonalY+.5))movementBlocks[i]|=4;
+  if((material===M.WATER||material===M.OIL||material===M.ACID)&&wasmRandom(seed,i,0x51DE2)<.4){
+   const horizontalX=x+side;
+   if(inside(horizontalX,y)&&cells[idx(horizontalX,y)]===M.EMPTY&&ropeBlocksMove(x+.5,y+.5,horizontalX+.5,y+.5))movementBlocks[i]|=8;
+  }
+ }
+}
 function stepRopes(){
  let total=0;const offsets=[0],lengths=[];
  for(const rope of ropes){total+=rope.points.length;offsets.push(total);lengths.push(Number.isFinite(rope.length)&&rope.length>0?rope.length:1)}
@@ -272,7 +309,7 @@ function drawVisualParticles(){
  }
  ctx.globalAlpha=1;
 }
-function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();const moveTriples=wasmEngine.step_particles(cells,updated,particleVelocityX,particleVelocityY,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,W,H,gravity,++simulationTick);
+function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);if(!multiplayer?.joined||multiplayer.isHost||objectSystem.dragging)objectSystem.step();if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();const seed=++simulationTick;buildMovementBlocks(seed);const moveTriples=wasmEngine.step_particles(cells,updated,particleVelocityX,particleVelocityY,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,movementBlocks,W,H,gravity,seed);
  for(let move=0;move+2<moveTriples.length;move+=3)recordParticleMove(moveTriples[move],moveTriples[move+1],moveTriples[move+2],false);
  for(let i=0;i<N;i++){const m=cells[i];if(!m)continue;const x=i%W,y=(i/W)|0;
   if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
