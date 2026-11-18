@@ -4,12 +4,13 @@ import vm from 'node:vm';
 const websiteDir = 'Website/';
 const offlineDir = 'Offline/';
 const read = path => readFile(websiteDir + path, 'utf8');
-const [offlineHtml, mainSource, physicsSource, engineSource, uiSource, wasmGlueSource, wasmBinary] = await Promise.all([
+const [offlineHtml, mainSource, physicsSource, engineSource, uiSource, wasmEngineSource, wasmGlueSource, wasmBinary] = await Promise.all([
   readFile(offlineDir + 'offline.html', 'utf8'),
   read('js/main.js'),
   read('js/material-physics.js'),
   read('js/physics-engine.js'),
   read('js/ui.js'),
+  read('js/wasm-engine.js'),
   readFile('Website/pkg/pixelphyx_wasm.js', 'utf8'),
   readFile('Website/pkg/pixelphyx_wasm_bg.wasm')
 ]);
@@ -34,13 +35,20 @@ const offlineMain = mainStart.replace(
 );
 if (offlineMain === mainStart) throw new Error('Could not replace multiplayer import.');
 
+const wasmImport = wasmEngineSource.match(/import\\s+init,\\s*\\{([\\s\\S]*?)\\}\\s*from/);
+if (!wasmImport) throw new Error('Could not read the online WASM engine exports.');
+const wasmExports = wasmImport[1].split(',').map(name => name.trim()).filter(Boolean);
+const mainWasmMethods = [...new Set([...mainSource.matchAll(/\\bwasmEngine\\.([A-Za-z_$][\\w$]*)\\s*\\(/g)].map(match => match[1]))];
+const missingMainMethods = mainWasmMethods.filter(name => !wasmExports.includes(name));
+if (missingMainMethods.length) throw new Error('Online game uses WASM methods missing from wasm-engine.js: ' + missingMainMethods.join(', '));
+
 const gameScript = [
   '/* Generated from main.js and the physics modules. */',
   '(async()=>{',
   `const wasmGlue=await import(${JSON.stringify(wasmGlueUrl)});`,
   `const wasmBytes=Uint8Array.from(atob('${wasmBase64}'),c=>c.charCodeAt(0));`,
   'await wasmGlue.default(wasmBytes.buffer);',
-  `const wasmExports=${JSON.stringify([...new Set([...mainSource.matchAll(/\bwasmEngine\.([A-Za-z_$][\w$]*)\s*\(/g)].map(match=>match[1]))])};`,
+  `const wasmExports=${JSON.stringify(wasmExports)};`,
   'const missingWasmExports=wasmExports.filter(name=>typeof wasmGlue[name]!=="function");if(missingWasmExports.length)throw new Error("Offline WASM build is missing required exports: "+missingWasmExports.join(", "));',
   'async function createWasmEngine(){return Object.freeze(Object.fromEntries(wasmExports.map(name=>[name,wasmGlue[name]])))}',
   'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
