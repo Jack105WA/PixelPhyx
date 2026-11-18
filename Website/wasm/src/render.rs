@@ -91,8 +91,8 @@ pub fn render_composited_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u
  };
  for y in 0..height{
   for x in 0..width{
-   let px=(x*4) as f32/4.0;
-   let py=(y*4) as f32/4.0;
+   let px=x as f32/4.0;
+   let py=y as f32/4.0;
    let alpha=(sample(px,py,3)/255.0*0.58).clamp(0.0,1.0);
    if alpha<=0.0{continue}
    let p=(y*width+x)*4;
