@@ -1,6 +1,6 @@
 import {drawObjectBodies} from './object-renderer.js';
 // PixelPhyx rigid-body system. World units are material cells; simulation advances at 60 Hz.
-export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,getAirborne=()=>[],onPublish=()=>{}}){
+let wasmStep=()=>{};\nexport function setRigidBodyWasmStep(step){if(typeof step==='function')wasmStep=step}\nexport function createObjectSystem({getWidth,getHeight,getGravity,getCell,displaceCell,getAirborne=()=>[],onPublish=()=>{}}){
  const bodies=[];
  const MAX_BODIES=60, SUBSTEPS=3, SOLVER_PASSES=4;
  let nextId=1,drag=null;
@@ -229,53 +229,34 @@ export function createObjectSystem({getWidth,getHeight,getGravity,getCell,displa
    if(vn<0){const j=-(1.12)*vn;p.vx+=normal.x*j;p.vy+=normal.y*j;b.vx-=normal.x*j*.012;b.vy-=normal.y*j*.012}
   }
  }
- function solveBodyPairs(){
-  for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++){
-   const a=bodies[i],b=bodies[j],dx=b.x-a.x,dy=b.y-a.y,aa=axes(a),ba=axes(b),tests=[[1,0],[0,1],aa[0],aa[1],ba[0],ba[1]];
-   let depth=Infinity,nx=0,ny=0,separated=false;
-   for(const axis of tests){
-    const overlap=projectRadius(a,axis)+projectRadius(b,axis)-Math.abs(dx*axis[0]+dy*axis[1]);
-    if(overlap<=0){separated=true;break}
-    if(overlap<depth){depth=overlap;const sign=dx*axis[0]+dy*axis[1]>=0?1:-1;nx=axis[0]*sign;ny=axis[1]*sign}
-   }
-   if(separated)continue;
-   const ia=invMass(a),ib=invMass(b),sum=ia+ib,correction=Math.min(2,Math.max(0,depth-.01)*.72/sum);
-   a.x-=nx*correction*ia;a.y-=ny*correction*ia;b.x+=nx*correction*ib;b.y+=ny*correction*ib;
-   const ra=projectRadius(a,[nx,ny]),rb=projectRadius(b,[nx,ny]);
-   const px=(a.x+nx*ra+b.x-nx*rb)/2,py=(a.y+ny*ra+b.y-ny*rb)/2;
-   const rax=px-a.x,ray=py-a.y,rbx=px-b.x,rby=py-b.y;
-   const avx=a.vx-a.spin*ray,avy=a.vy+a.spin*rax,bvx=b.vx-b.spin*rby,bvy=b.vy+b.spin*rbx,rvx=bvx-avx,rvy=bvy-avy,vn=rvx*nx+rvy*ny;
-   a.sleep=b.sleep=0;
-   if(vn>=0)continue;
-   const ran=rax*ny-ray*nx,rbn=rbx*ny-rby*nx,den=sum+ran*ran/inertia(a)+rbn*rbn/inertia(b),e=Math.min(a.restitution,b.restitution),impulse=-(1+e)*vn/den,ix=impulse*nx,iy=impulse*ny;
-   a.vx-=ix*ia;a.vy-=iy*ia;b.vx+=ix*ib;b.vy+=iy*ib;
-   a.spin=clamp(a.spin-(rax*iy-ray*ix)/inertia(a),-.45,.45);b.spin=clamp(b.spin+(rbx*iy-rby*ix)/inertia(b),-.45,.45);
-   const tx=-ny,ty=nx,rat=rax*ty-ray*tx,rbt=rbx*ty-rby*tx;
-   const tangentDen=sum+rat*rat/inertia(a)+rbt*rbt/inertia(b);
-   const jt=clamp(-(rvx*tx+rvy*ty)/tangentDen,-impulse*.25,impulse*.25);
-   a.vx-=tx*jt*ia;a.vy-=ty*jt*ia;b.vx+=tx*jt*ib;b.vy+=ty*jt*ib;
-   a.spin=clamp(a.spin-rat*jt/inertia(a),-.45,.45);b.spin=clamp(b.spin+rbt*jt/inertia(b),-.45,.45);
-   if(Math.abs(vn)>3){a.damage=Math.min(1,a.damage+Math.abs(vn)*.004);b.damage=Math.min(1,b.damage+Math.abs(vn)*.004)}
-   a.sleep=b.sleep=0;
-  }
- }
  function step(){
   const gravity=clamp(getGravity(),0,3),w=getWidth(),h=getHeight(),dt=1/SUBSTEPS;
   for(let sub=0;sub<SUBSTEPS;sub++){
+   for(const b of bodies)applyGrab(b,dt);
+   const state=new Float32Array(bodies.length*13);
+   for(let i=0;i<bodies.length;i++){
+    const b=bodies[i],o=i*13;
+    state[o]=b.x;state[o+1]=b.y;state[o+2]=b.vx;state[o+3]=b.vy;
+    state[o+4]=b.angle;state[o+5]=b.spin;state[o+6]=b.w;state[o+7]=b.h;
+    state[o+8]=b.mass;state[o+9]=b.restitution;state[o+10]=b.friction;
+    state[o+11]=b.damage;state[o+12]=b.sleep;
+   }
+   // The compact body state crosses into WASM once per substep.
+   // Terrain, car suspension and airborne-particle contacts remain in the
+   // existing grid-aware layer until their dedicated migration.
+   wasmStep(state,gravity,dt);
+   for(let i=0;i<bodies.length;i++){
+    const b=bodies[i],o=i*13;
+    b.x=state[o];b.y=state[o+1];b.vx=state[o+2];b.vy=state[o+3];
+    b.angle=state[o+4];b.spin=state[o+5];b.damage=state[o+11];b.sleep=state[o+12];
+   }
    for(const b of [...bodies]){
-    if(b.sleep>12&&(!drag||drag.body!==b)){b.vx=0;b.vy=0;b.spin=0;collideAirborne(b);continue;}
-    applyGrab(b,dt);
-    b.vy=clamp(b.vy+.16*gravity*dt,-26,26);
-    b.vx*=.9995;b.spin*=.96;
-    b.spin=clamp(b.spin,-.38,.38);b.vx=clamp(b.vx,-22,22);b.vy=clamp(b.vy,-22,22);
-   b.x+=b.vx*dt;b.y+=b.vy*dt;b.angle+=b.spin*dt;
+    if(b.sleep>12&&(!drag||drag.body!==b)){collideAirborne(b);continue;}
     solveSuspension(b,dt);resolveTerrain(b);collideAirborne(b);
     if(b.y>h+35||b.x<-35||b.x>w+35)remove(b.id);
     if(Math.hypot(b.vx,b.vy)<.1&&Math.abs(b.spin)<.01&&(!drag||drag.body!==b))b.sleep++;
    }
-   solveBodyPairs();
   }
-  // Wake a body when a nearby object is moving into it.
   for(const b of bodies)if(b.sleep>0&&Math.hypot(b.vx,b.vy)>.12)b.sleep=0;
  }
  function draw(ctx){drawObjectBodies(ctx,bodies,drag,worldPoint)}
