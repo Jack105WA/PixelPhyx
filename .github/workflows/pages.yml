@@ -38,6 +38,56 @@ jobs:
             node --input-type=module --check < "$file"
           done
 
+  deploy-photon-preview:
+    name: Deploy Photon WASM preview
+    if: github.ref == 'refs/heads/photon-wasm'
+    needs: build-wasm
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}photon-wasm/
+    steps:
+      - name: Check out production
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: production
+
+      - name: Check out server migration preview
+        uses: actions/checkout@v4
+        with:
+          ref: server-migrate
+          path: migration
+
+      - name: Check out Photon test preview
+        uses: actions/checkout@v4
+        with:
+          ref: photon-test
+          path: photon-test
+
+      - name: Check out Photon WASM preview
+        uses: actions/checkout@v4
+        with:
+          ref: photon-wasm
+          path: photon-wasm
+
+      - uses: actions/configure-pages@v5
+
+      - name: Assemble Pages site with Photon WASM preview
+        run: |
+          mkdir -p _site/server-migrate _site/photon-test _site/photon-wasm
+          cp -a production/Website/. _site/
+          cp -a migration/Website/. _site/server-migrate/
+          cp -a photon-test/Website/. _site/photon-test/
+          cp -a photon-wasm/Website/. _site/photon-wasm/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
   request-main-deploy:
     name: Queue deployment from preview branch
     if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/photon-wasm'
