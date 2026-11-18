@@ -107,3 +107,25 @@ pub fn render_composited_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u
  combined.truncate(frame_len);
  combined
 }
+
+#[cfg(test)]
+mod tests {
+    use super::render_composited_frame;
+
+    #[test]
+    fn bloom_samples_the_matching_quarter_resolution_cell() {
+        let mut cells = vec![0_u8; 8 * 4];
+        cells[0] = 5;
+        let wetness = vec![0.0_f32; cells.len()];
+        let heat = vec![0.0_f32; cells.len()];
+        let mut colors = vec![0_u8; 17 * 3];
+        colors[5 * 3..5 * 3 + 3].copy_from_slice(&[0, 0, 0]);
+
+        let frame = render_composited_frame(&cells, &wetness, &heat, &colors, &[], 8, 4);
+        let pixel = |x: usize| &frame[(x * 4)..(x * 4 + 3)];
+
+        assert!(pixel(0)[0] > 0, "the fire cell should receive bloom");
+        assert!(pixel(3)[0] > 0, "the rest of the matching 4x4 tile should receive bloom");
+        assert_eq!(pixel(4)[0], 0, "the adjacent tile should not receive bloom");
+    }
+}
