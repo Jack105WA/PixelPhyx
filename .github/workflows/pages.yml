@@ -38,9 +38,9 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-pack
-      - name: Build optimized Photon WebAssembly package
+      - name: Build optimized Rust WebAssembly package
         run: wasm-pack build production/Website/wasm --target web --release --out-dir ../pkg
-      - name: Validate Photon JavaScript modules
+      - name: Validate browser JavaScript modules
         run: |
           for file in production/Website/js/*.js production/Website/js/netcode/*.js production/Website/pkg/*.js; do
             node --input-type=module --check < "$file"
