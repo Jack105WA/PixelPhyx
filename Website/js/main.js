@@ -55,7 +55,7 @@ const colors=[[12,16,24],...materials.map(m=>m.rgb)];
 const colorLut=new Uint8Array(colors.flat());
 let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),movementBlocks=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let snapshotMoves=new Map();
-let temperatureUnit='C';
+let temperatureUnit='C',lastAirTemperatureUpdate=0;
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
 let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=500,lastAppliedSnapshotAt=0,lastOperationAppliedAt=0,remoteLeafblowers={},lastRopePublish=0;
@@ -461,6 +461,7 @@ function render(){
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=8;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,lastPropPublish=0;
  function loop(now){
+  if(now-lastAirTemperatureUpdate>=250){lastAirTemperatureUpdate=now;updateCurrentAirTemperature()}
   const elapsed=Math.min(250,Math.max(0,now-lastFrameAt));lastFrameAt=now;
  // Multiplayer uses a single authoritative simulation: only the host advances physics.
  // Clients render host snapshots and apply local edits optimistically until the host confirms them.
@@ -478,7 +479,7 @@ let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationA
 requestAnimationFrame(loop);
 
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
-function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);document.querySelector('#tempBig').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units'}
+function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units';updateCurrentAirTemperature()}\nfunction updateCurrentAirTemperature(){let total=0;for(let i=0;i<materialState.airHeat.length;i++)total+=materialState.airHeat[i];const average=materialState.airHeat.length?total/materialState.airHeat.length:0;const value=document.querySelector('#currentAirTemp');if(value)value.textContent=formatTemperature(ambient+average)}
 document.querySelector('#canvasSize').title='Current resolution: '+W+' × '+H;
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size});else e.target.title='Current resolution: '+W+' × '+H});
 document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';publishOperation({type:'simulation',running})};
