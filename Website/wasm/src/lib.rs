@@ -36,3 +36,20 @@ pub fn step_combustion(cells: &mut [u8], heat: &mut [f32], wetness: &[f32], fuel
 pub fn step_material_thermal(cells: &[u8], wetness: &mut [f32], heat: &mut [f32], air: &mut [f32], next_air: &mut [f32], fuel: &mut [f32], burn: &mut [f32], age: &mut [u16], corrosion: &mut [f32], ambient: f32, width: u32, height: u32) {
     chemistry::step_material_thermal(cells, wetness, heat, air, next_air, fuel, burn, age, corrosion, ambient, width as usize, height as usize);
 }
+
+/// Executes all material chemistry and thermal kernels in one WASM boundary crossing.
+#[wasm_bindgen]
+pub fn step_chemistry(
+    cells: &mut [u8], wetness: &mut [f32], heat: &mut [f32],
+    air: &mut [f32], next_air: &mut [f32], fuel: &mut [f32],
+    burn: &mut [f32], age: &mut [u16], corrosion: &mut [f32],
+    ambient: f32, width: u32, height: u32,
+) -> u32 {
+    let w = width as usize;
+    let h = height as usize;
+    chemistry::step_material_thermal(cells, wetness, heat, air, next_air, fuel, burn, age, corrosion, ambient, w, h);
+    chemistry::step_acid(cells, corrosion, burn, heat, wetness, fuel, age, w, h);
+    let detonations = chemistry::step_combustion(cells, heat, wetness, fuel, burn, age, ambient, w, h);
+    chemistry::step_phase_changes(cells, age, ambient, w, h);
+    detonations
+}
