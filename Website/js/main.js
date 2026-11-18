@@ -287,8 +287,6 @@ function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestin
  if(ni>=0&&cells[ni]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+.5,ny+.5)){cells[ni]=m;cells[i]=M.EMPTY;recordParticleMove(i,ni,m);updated[ni]=1;i=ni;y=gas?y:y}
  else if([M.SAND,M.SALT,M.CHARCOAL,M.WATER,M.OIL,M.ACID,M.LAVA].includes(m)){const d=Math.random()<.5?-1:1,side=inside(x+d,y+dy)?idx(x+d,y+dy):-1;if(side>=0&&cells[side]===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+dy+.5)){cells[side]=m;cells[i]=M.EMPTY;recordParticleMove(i,side,m);updated[side]=1}else if((m===M.WATER||m===M.OIL||m===M.ACID)&&at(x+d,y)===M.EMPTY&&!ropeBlocksMove(x+.5,y+.5,x+d+.5,y+.5)&&Math.random()<.4){const sideIndex=idx(x+d,y);cells[sideIndex]=m;cells[i]=M.EMPTY;recordParticleMove(i,sideIndex,m)}}
  
- if(m===M.STEAM&&Math.random()<.002)cells[i]=M.WATER;
- if(m===M.SMOKE&&Math.random()<.003)cells[i]=M.EMPTY;
  }
  if(m===M.ACID||m===M.LAVA||m===M.SALT)reaction(i,x,y,m);
  }}
