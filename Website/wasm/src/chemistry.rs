@@ -270,14 +270,22 @@ pub fn step_combustion(
                 if burn[i] <= 0.0 { ignite(heat, fuel, burn, i, material); }
                 burn[i] += 1.0;
                 heat[i] = heat[i].max(520.0);
-                // Burn each segment visibly, then advance exactly one cell right.
+                // Burn each segment visibly, then follow the connected fuse path.
+                // Prefer rightward travel; allow upward/downward turns so vertical
+                // sections and rising paths do not stop the burn.
                 if burn[i] >= 8.0 {
-                    if x + 1 < width {
-                        let next = i + 1;
+                    let candidates = [
+                        if x + 1 < width { Some(i + 1) } else { None },
+                        if y > 0 { Some(i - width) } else { None },
+                        if y + 1 < height { Some(i + width) } else { None },
+                        if x > 0 { Some(i - 1) } else { None },
+                    ];
+                    for next in candidates.into_iter().flatten() {
                         if cells[next] == 17 && burn[next] <= 0.0 {
                             fuel[next] = material_fuel(17);
                             burn[next] = 1.0;
                             heat[next] = 900.0;
+                            break;
                         }
                     }
                     cells[i] = 9;
