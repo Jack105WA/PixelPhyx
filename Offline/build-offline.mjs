@@ -40,7 +40,7 @@ const gameScript = [
   `const wasmGlue=await import(${JSON.stringify(wasmGlueUrl)});`,
   `const wasmBytes=Uint8Array.from(atob('${wasmBase64}'),c=>c.charCodeAt(0));`,
   'await wasmGlue.default(wasmBytes.buffer);',
-  `const wasmExports=${JSON.stringify([...new Set([...mainSource.matchAll(/\\bwasmEngine\\.([A-Za-z_$][\\w$]*)\\s*\\(/g)].map(match=>match[1]))])};`,
+  `const wasmExports=${JSON.stringify([...new Set([...mainSource.matchAll(/\bwasmEngine\.([A-Za-z_$][\w$]*)\s*\(/g)].map(match=>match[1]))])};`,
   'const missingWasmExports=wasmExports.filter(name=>typeof wasmGlue[name]!=="function");if(missingWasmExports.length)throw new Error("Offline WASM build is missing required exports: "+missingWasmExports.join(", "));',
   'async function createWasmEngine(){return Object.freeze(Object.fromEntries(wasmExports.map(name=>[name,wasmGlue[name]])))}',
   'window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};',
