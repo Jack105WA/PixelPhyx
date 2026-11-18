@@ -17,7 +17,6 @@ pub fn step_acid(
 
     for i in 0..len {
         if cells[i] != 7 { continue; } // Acid
-        let x = i % width;
         let y = i / width;
         if age[i] > 1800 {
             cells[i] = 0;
@@ -99,7 +98,6 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: us
             9 if random01(i, age[i], 0x5A0C_0001) < 0.004994 => cells[i] = 0,
             _ => {}
         }
-        let _ = x;
     }
 }
 
@@ -110,12 +108,11 @@ fn material_fuel(material: u8) -> f32 {
     match material { 4 | 6 | 12 => 1.0, 13 => 0.65, 16 => 0.12, _ => 0.0 }
 }
 fn flammable(material: u8) -> bool { material_fuel(material) > 0.0 }
-fn ignite(cells: &[u8], heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32], i: usize, material: u8) {
+fn ignite(heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32], i: usize, material: u8) {
     if !flammable(material) { return; }
     if fuel[i] <= 0.0 { fuel[i] = material_fuel(material).max(0.001); }
     burn[i] = burn[i].max(1.0);
     heat[i] = heat[i].max(material_ignition(material).max(100.0));
-    let _ = cells;
 }
 
 pub fn step_combustion(
@@ -163,7 +160,7 @@ pub fn step_combustion(
                     heat[ni] = (heat[ni]+added).min(1600.0);
                     if heat[ni] > material_ignition(target).max(200.0)
                         && random01(ni, age[ni], 0xF1AE_2000 + slot as u32) < chance {
-                        ignite(cells, heat, fuel, burn, ni, target);
+                        ignite(heat, fuel, burn, ni, target);
                     }
                 }
             }
@@ -209,7 +206,7 @@ pub fn step_combustion(
                 * (1.0-wetness[i].clamp(0.0,1.0)*0.94);
             if heat[i] > material_ignition(material).max(220.0)
                 && random01(i, age[i], 0x1A17_1000) < ignition_chance {
-                ignite(cells, heat, fuel, burn, i, material);
+                ignite(heat, fuel, burn, i, material);
             }
             if burn[i] > 0.0 {
                 burn[i] += 1.0;
