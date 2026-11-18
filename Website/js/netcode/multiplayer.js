@@ -94,7 +94,7 @@ function createClient() {
             client.room = null; client.emit('roomLeft'); client.resolveWait('room-left', message); return;
           } else if (message.type === 'roster') {
             if (client.room) {
-              client.room.players = Object.entries(message.players || {}).map(([id, p]) => ({ number: p.photonNumber, name: p.name, isMasterClient: !!p.isHost,
+              client.room.players = Object.entries(message.players || {}).map(([id, p]) => ({ number: p.serverNumber, name: p.name, isMasterClient: !!p.isHost,
                 customProperties: { clientId: id, name: p.name, color: p.color, approved: p.approved } }));
               client.room.masterClientNumber = client.room.players.find(p => p.isMasterClient)?.number || client.room.masterClientNumber;
               client.localPlayer = client.room.getPlayer(client.localPlayer?.number) || client.localPlayer;
@@ -159,7 +159,7 @@ export function createMultiplayer(callbacks = {}) {
     const people = {};
     for (const player of state.client?.room?.players || []) {
       const properties = player.customProperties || {}, id = properties.clientId || 'local-' + player.number;
-      people[id] = { name: properties.name || player.name || 'Guest', color: properties.color || '#65d6ad', photonNumber: player.number, isHost: !!player.isMasterClient, approved: state.isApproved(player.number) };
+      people[id] = { name: properties.name || player.name || 'Guest', color: properties.color || '#65d6ad', serverNumber: player.number, isHost: !!player.isMasterClient, approved: state.isApproved(player.number) };
     }
     callbacks.onPlayers?.(people);
   };
