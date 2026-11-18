@@ -178,7 +178,7 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ name: settings.name, port: settings.port, maxPlayers: settings.maxPlayers, lobbyCount: settings.lobbyCount, publicAddress: settings.publicAddress }));
   }
   const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
-  const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\\/+/, '');
+  const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
   const filePath = path.resolve(PUBLIC_DIR, relative);
   if (!filePath.startsWith(PUBLIC_DIR + path.sep) && filePath !== path.join(PUBLIC_DIR, 'index.html')) {
     res.writeHead(403); return res.end('Forbidden');
