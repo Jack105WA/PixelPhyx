@@ -35,10 +35,10 @@ const offlineMain = mainStart.replace(
 );
 if (offlineMain === mainStart) throw new Error('Could not replace multiplayer import.');
 
-const wasmImport = wasmEngineSource.match(/import\\s+init,\\s*\\{([\\s\\S]*?)\\}\\s*from/);
+const wasmImport = wasmEngineSource.match(/import\s+init,\s*\{([\s\S]*?)\}\s*from/);
 if (!wasmImport) throw new Error('Could not read the online WASM engine exports.');
 const wasmExports = wasmImport[1].split(',').map(name => name.trim()).filter(Boolean);
-const mainWasmMethods = [...new Set([...mainSource.matchAll(/\\bwasmEngine\\.([A-Za-z_$][\\w$]*)\\s*\\(/g)].map(match => match[1]))];
+const mainWasmMethods = [...new Set([...mainSource.matchAll(/\bwasmEngine\.([A-Za-z_$][\w$]*)\s*\(/g)].map(match => match[1]))];
 const missingMainMethods = mainWasmMethods.filter(name => !wasmExports.includes(name));
 if (missingMainMethods.length) throw new Error('Online game uses WASM methods missing from wasm-engine.js: ' + missingMainMethods.join(', '));
 
