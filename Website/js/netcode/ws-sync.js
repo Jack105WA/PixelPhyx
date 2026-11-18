@@ -55,7 +55,7 @@ export function createServerSync(state) {
 
   function queueSnapshot(targetPlayers) {
     if (!state.isHost() || !targetPlayers.length) return;
-    pendingSnapshot = targetPlayers;
+    pendingSnapshot = [...new Set([...(pendingSnapshot || []), ...targetPlayers])];
     if (snapshotBusy) return;
     snapshotBusy = true;
     (async () => {
