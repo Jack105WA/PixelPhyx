@@ -8,6 +8,7 @@ const os = require('node:os');
 const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
 const yaml = require('js-yaml');
+const { downloadWebsite } = require('./download-website');
 
 const ROOT = __dirname;
 const CONFIG_PATH = path.join(ROOT, 'config.yml');
@@ -31,7 +32,7 @@ const settings = {
   maxBufferedBytes: Math.max(65536, Math.min(64 * 1024 * 1024, Number(config.network?.max_buffered_bytes) || 16 * 1024 * 1024))
 };
 
-const WEBSITE_ROOT = fs.existsSync(path.join(ROOT, 'Website', 'index.html')) ? path.join(ROOT, 'Website') : path.resolve(ROOT, '..', 'Website');
+const WEBSITE_ROOT = path.join(ROOT, 'Website');
 const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2','.txt':'text/plain; charset=utf-8'};
 const simulations = new Map();
 const rooms = new Map();
@@ -334,7 +335,7 @@ const server = http.createServer((req, res) => {
   }
   if (fs.existsSync(path.join(WEBSITE_ROOT, 'index.html'))) return serveGame(res, pathname);
   res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' });
-  res.end('PixelPhyx game files were not found. Place the Website folder beside Server.');
+  res.end('PixelPhyx game files are not installed. Restart the server with internet access to download them.');
 });
 const wss = new WebSocket.Server({ server, path: '/pixelphyx', maxPayload: settings.maxPayloadBytes });
 wss.on('connection', socket => {
@@ -382,7 +383,7 @@ wss.on('error', error => {
   }
   console.error('WebSocket server error:', error.message || error);
 });
-server.listen(settings.port, settings.host, () => {
+downloadWebsite(WEBSITE_ROOT).then(() => server.listen(settings.port, settings.host, () => {
   console.log('');
   console.log('  PixelPhyx Server');
   console.log('  ----------------');
@@ -398,6 +399,9 @@ server.listen(settings.port, settings.host, () => {
   console.log('');
   console.log('  Forward TCP port ' + settings.port + ' on your router for internet access.');
   console.log('  Keep this window open while hosting.');
+})).catch(error => {
+  console.error('Could not prepare PixelPhyx website files:', error.message);
+  process.exitCode = 1;
 });
 function shutdown() {
   clearInterval(heartbeat);
