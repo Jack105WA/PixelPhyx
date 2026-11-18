@@ -41,7 +41,7 @@ jobs:
         run: wasm-pack build production/Website/wasm --target web --release --out-dir ../pkg
       - name: Validate Photon JavaScript modules
         run: |
-          for file in production/Website/js/*.js production/Website/pkg/*.js; do
+          for file in production/Website/js/*.js production/Website/js/netcode/*.js production/Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
       - uses: actions/configure-pages@v5
