@@ -166,10 +166,9 @@ pub fn step_particles(
             }
         }
     }
-    // Sand receives three additional settling passes per simulation tick.
-    // This preserves its faster-than-liquid behavior while leaving other
-    // materials on the normal single movement pass.
-    for pass in 0..3 {
+    // Sand receives two additional settling passes per simulation tick.
+    // This keeps it faster than liquids without making it fall excessively fast.
+    for pass in 0..2 {
         let pass_seed=seed.wrapping_add(pass*0x9E37_79B9);
         for y in (0..height-1).rev() {
             let reverse=random(pass_seed,y,0x5A4D_5EC0)<0.5;
