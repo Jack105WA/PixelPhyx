@@ -68,3 +68,41 @@ pub fn render_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u8],moving:&
  }
  out
 }
+
+/// Renders and composites the glow pass into the base frame using a bilinear
+/// quarter-resolution upscale and the same screen blend strength as the UI.
+pub fn render_composited_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u8],moving:&[u8],width:usize,height:usize)->Vec<u8>{
+ let mut combined=render_frame(cells,wetness,heat,colors,moving,width,height);
+ let count=width.saturating_mul(height).min(cells.len());
+ let frame_len=count.saturating_mul(4);
+ let bw=width.saturating_add(3)/4;
+ let bh=height.saturating_add(3)/4;
+ if bw==0||bh==0||combined.len()<frame_len+bw.saturating_mul(bh).saturating_mul(4){combined.truncate(frame_len);return combined}
+ let sample=|x:f32,y:f32,c:usize|->f32{
+  let x=x.clamp(0.0,(bw-1) as f32);let y=y.clamp(0.0,(bh-1) as f32);
+  let x0=x.floor() as usize;let y0=y.floor() as usize;
+  let x1=(x0+1).min(bw-1);let y1=(y0+1).min(bh-1);
+  let fx=x-x0 as f32;let fy=y-y0 as f32;
+  let at=|xx:usize,yy:usize|combined[frame_len+(yy*bw+xx)*4+c] as f32;
+  let top=at(x0,y0)*(1.0-fx)+at(x1,y0)*fx;
+  let bottom=at(x0,y1)*(1.0-fx)+at(x1,y1)*fx;
+  top*(1.0-fy)+bottom*fy
+ };
+ for y in 0..height{
+  for x in 0..width{
+   let px=(x*4) as f32/4.0;
+   let py=(y*4) as f32/4.0;
+   let alpha=(sample(px,py,3)/255.0*0.58).clamp(0.0,1.0);
+   if alpha<=0.0{continue}
+   let p=(y*width+x)*4;
+   for c in 0..3{
+    let glow=sample(px,py,c).clamp(0.0,255.0);
+    let base=combined[p+c] as f32;
+    let screened=255.0-(255.0-base)*(255.0-glow)/255.0;
+    combined[p+c]=(base+(screened-base)*alpha).round().clamp(0.0,255.0) as u8;
+   }
+  }
+ }
+ combined.truncate(frame_len);
+ combined
+}
