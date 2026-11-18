@@ -206,6 +206,7 @@ server.listen(settings.port, settings.host, () => {
   console.log('  Port:       ' + settings.port);
   const addresses = Object.values(os.networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal).map(item => item.address);
   console.log('  WebSocket:  ws://localhost:' + settings.port + '/pixelphyx');
+  for (const address of addresses) console.log('  LAN URL:    ws://' + address + ':' + settings.port + '/pixelphyx');
   console.log('  Max players per lobby: ' + settings.maxPlayers);
   console.log('  Lobby limit: ' + settings.lobbyCount);
   console.log('');
