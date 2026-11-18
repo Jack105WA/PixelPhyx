@@ -86,12 +86,20 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: us
     let melt = (ambient / 14000.0).clamp(0.0, 0.10);
     let evaporation = ((ambient - 100.0) / 18000.0).clamp(0.0, 0.05);
     for i in 0..len {
+        let x = i % width;
+        let y = i / width;
         match cells[i] {
             2 if random01(i, age[i], 0xA341_316C) < freeze => cells[i] = 10,
             10 if random01(i, age[i], 0xC801_3EA4) < melt => cells[i] = 2,
-            2 if random01(i, age[i], 0xAD90_777D) < evaporation => cells[i] = 8,
+            2 if random01(i, age[i], 0xAD90_777D) < evaporation
+                || (ambient > 180.0 && random01(i, age[i], 0xAD90_777E) < 0.012) => cells[i] = 8,
+            14 if y + 1 < height && cells[i + width] == 2
+                && random01(i, age[i], 0x5A17_0001) < 0.04 => cells[i] = 0,
+            8 if random01(i, age[i], 0x57EA_0001) < 0.004994 => cells[i] = 2,
+            9 if random01(i, age[i], 0x5A0C_0001) < 0.004994 => cells[i] = 0,
             _ => {}
         }
+        let _ = x;
     }
 }
 
@@ -104,7 +112,7 @@ fn material_fuel(material: u8) -> f32 {
 fn flammable(material: u8) -> bool { material_fuel(material) > 0.0 }
 fn ignite(cells: &[u8], heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32], i: usize, material: u8) {
     if !flammable(material) { return; }
-    if fuel[i] <= 0.0 { fuel[i] = material_fuel(material).max(1.0); }
+    if fuel[i] <= 0.0 { fuel[i] = material_fuel(material).max(0.001); }
     burn[i] = burn[i].max(1.0);
     heat[i] = heat[i].max(material_ignition(material).max(100.0));
     let _ = cells;
@@ -207,7 +215,7 @@ pub fn step_combustion(
                 burn[i] += 1.0;
                 let consumption = match material { 4=>0.003,13=>0.012,6=>0.025,_=>0.018 }
                     * (1.0-wetness[i].clamp(0.0,1.0)*0.8);
-                let starting_fuel = if fuel[i] > 0.0 { fuel[i] } else { material_fuel(material).max(1.0) };
+                let starting_fuel = if fuel[i] > 0.0 { fuel[i] } else { material_fuel(material).max(0.001) };
                 fuel[i] = (starting_fuel-consumption).max(0.0);
                 if fuel[i] <= 0.0 {
                     match material {
