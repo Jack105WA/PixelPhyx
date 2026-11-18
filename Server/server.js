@@ -141,6 +141,18 @@ function handle(client, message) {
     }
     case 'event':
       if (!room) return;
+      if (Number(message.code) === 6 && client.id === room.hostId) {
+        const targetNumber = Array.isArray(message.targetPlayers) ? Number(message.targetPlayers[0]) : 0;
+        const target = [...room.players.values()].find(player => player.number === targetNumber);
+        if (!target || target.id === client.id) return;
+        target.approved = !!message.data?.approved;
+        const targetClient = clients.get(target.id);
+        if (targetClient) targetClient.approved = target.approved;
+        send(target.socket, 'join-reply', { approved: target.approved });
+        if (!target.approved && targetClient) removeFromRoom(targetClient);
+        else sendRoster(room);
+        break;
+      }
       if (!client.approved && client.id !== room.hostId) {
         if (Number(message.code) !== 5) return;
       }
