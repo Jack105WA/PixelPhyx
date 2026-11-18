@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
  "$ErrorActionPreference='Stop'; $base='https://raw.githubusercontent.com/Jack105WA/PixelPhyx/local-server/Server';" ^
  "$remote=Invoke-RestMethod ($base+'/version.json'); $local=Get-Content 'version.json' -Raw | ConvertFrom-Json;" ^
  "if($remote.version -ne $local.version) {" ^
- "  foreach($f in @('server.js','package.json','version.json','README.md','Start Server.bat')) { Invoke-WebRequest -UseBasicParsing ($base+'/'+$f) -OutFile $f; };" ^
+ "  foreach($f in @('server.js','package.json','config.yml','version.json','README.md','Start Server.bat')) { Invoke-WebRequest -UseBasicParsing ($base+'/'+$f) -OutFile $f; };" ^
  "  Write-Host ('Updated multiplayer server to '+$remote.version);" ^
  "} else { Write-Host ('Server files are current ('+$local.version+').') }"
 if errorlevel 1 (
