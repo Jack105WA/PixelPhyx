@@ -1,11 +1,11 @@
 @echo off
 setlocal EnableExtensions
-title PixelPhyx Local Server
+title PixelPhyx Multiplayer Server
 cd /d "%~dp0"
 
 echo.
-echo  PixelPhyx Local Server
-echo  ======================
+echo  PixelPhyx Multiplayer Server
+echo  ===========================
 echo.
 
 where node >nul 2>nul
@@ -29,34 +29,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
  "$remote=Invoke-RestMethod ($base+'/version.json'); $local=Get-Content 'version.json' -Raw | ConvertFrom-Json;" ^
  "if($remote.version -ne $local.version) {" ^
  "  foreach($f in @('server.js','package.json','version.json','README.md','Start Server.bat')) { Invoke-WebRequest -UseBasicParsing ($base+'/'+$f) -OutFile $f; };" ^
- "  Write-Host ('Updated server files to '+$remote.version);" ^
- "} else { Write-Host ('Server files are current ('+$local.version+').') };" ^
- "if(!(Test-Path 'public/index.html') -or $remote.version -ne $local.version) {" ^
- "  Write-Host 'Downloading the matching PixelPhyx game files...';" ^
- "  $tmp=Join-Path $env:TEMP ('PixelPhyx-'+[guid]::NewGuid().ToString('N'));" ^
- "  New-Item -ItemType Directory -Path $tmp | Out-Null;" ^
- "  $zip=Join-Path $tmp 'source.zip';" ^
- "  Invoke-WebRequest -UseBasicParsing 'https://codeload.github.com/Jack105WA/PixelPhyx/zip/refs/heads/local-server' -OutFile $zip;" ^
- "  Expand-Archive -LiteralPath $zip -DestinationPath $tmp;" ^
- "  $root=Get-ChildItem $tmp -Directory | Select-Object -First 1;" ^
- "  if(!(Test-Path (Join-Path $root.FullName 'Website/index.html'))) { throw 'Website files were not found in the update archive.' };" ^
- "  if(Test-Path 'public') { Remove-Item 'public' -Recurse -Force; };" ^
- "  Copy-Item (Join-Path $root.FullName 'Website') 'public' -Recurse;" ^
- "  New-Item -ItemType Directory -Force 'public/pkg' | Out-Null;" ^
- "  foreach($f in @('pixelphyx_wasm.js','pixelphyx_wasm_bg.wasm')) { Invoke-WebRequest -UseBasicParsing ('https://jack105wa.github.io/PixelPhyx/pkg/'+$f) -OutFile ('public/pkg/'+$f); };" ^
- "  Remove-Item $tmp -Recurse -Force;" ^
- "  Write-Host 'Game files updated.';" ^
- "}"
+ "  Write-Host ('Updated multiplayer server to '+$remote.version);" ^
+ "} else { Write-Host ('Server files are current ('+$local.version+').') }"
 if errorlevel 1 (
-  echo Update check or game download failed.
-  echo The server will try to start using the existing files.
+  echo Update check failed. Continuing with existing server files.
 )
 
-if not exist "public\index.html" (
-  echo Game files are missing. Update/download failed.
-  pause
-  exit /b 1
-)
 if not exist "node_modules\ws\package.json" (
   echo Installing server dependencies...
   call npm install --omit=dev --no-audit --no-fund
