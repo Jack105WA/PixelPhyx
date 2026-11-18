@@ -49,7 +49,7 @@ function roomRoster(room) {
 function sendRoster(room) {
   const players = {};
   for (const p of room.players.values()) players[p.id] = {
-    name: p.name, color: p.color, photonNumber: p.number,
+    name: p.name, color: p.color, serverNumber: p.number,
     isHost: p.id === room.hostId, approved: p.approved
   };
   for (const p of room.players.values()) send(p.socket, 'roster', { players });
