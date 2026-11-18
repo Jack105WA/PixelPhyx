@@ -44,15 +44,17 @@ fn swap_cell(
     moves:&mut Vec<u32>,
 ) {
     if a==b || a>=cells.len() || b>=cells.len() {return;}
-    let material=cells[a]; if material==0{return;}
-    cells[b]=material;cells[a]=0;
+    let material=cells[a]; let displaced=cells[b]; if material==0{return;}
+    if displaced!=0 && !(material==1&&matches!(displaced,2|6)){return;}
+    cells[b]=material;cells[a]=displaced;
     for values in [wet,heat,heat_inputs,fuel,burn,corrosion] {
-        values[b]=values[a];values[a]=0.0;
+        let value=values[a];values[a]=values[b];values[b]=value;
     }
-    age[b]=age[a];age[a]=0;
-    vx[b]=vx[a];vy[b]=vy[a];vx[a]=0.0;vy[a]=0.0;
-    updated[b]=1;
+    let old_age=age[a];age[a]=age[b];age[b]=old_age;
+    let old_vx=vx[a];let old_vy=vy[a];vx[a]=vx[b];vy[a]=vy[b];vx[b]=old_vx;vy[b]=old_vy;
+    updated[b]=1;if displaced!=0{updated[a]=1;}
     moves.push(a as u32);moves.push(b as u32);moves.push(material as u32);
+    if displaced!=0{moves.push(b as u32);moves.push(a as u32);moves.push(displaced as u32);}
 }
 
 pub fn step_particles(
@@ -70,6 +72,7 @@ pub fn step_particles(
 
     // First integrate existing momentum. A blocked step reflects velocity.
     for i in 0..len {
+        if updated[i]!=0{continue;}
         if cells[i]==0 {vx[i]=0.0;vy[i]=0.0;continue;}
         let sx=if vx[i].abs()>0.42 {vx[i].signum() as isize}else{0};
         let sy=if vy[i].abs()>0.42 {vy[i].signum() as isize}else{0};
