@@ -6,9 +6,7 @@ PixelPhyx is a browser-based 2D pixel physics and chemistry sandbox featuring fa
 
 Production: https://jack105wa.github.io/PixelPhyx/
 
-Photon test preview: https://jack105wa.github.io/PixelPhyx/photon-test/
-
-The Photon test preview is isolated from production. The production game runs its simulation engine compiled from Rust to WebAssembly.
+The production game runs its simulation engine compiled from Rust to WebAssembly.
 
 ## Play offline
 
@@ -18,7 +16,7 @@ The offline edition is generated from Website/ by Offline/build-offline.mjs. Loc
 
 ## Multiplayer
 
-The Photon preview uses Photon Realtime Core 6 for browser connections, room discovery, room membership, and reliable gameplay events. The room's Photon master client is the physics authority; other clients render interpolated world snapshots instead of simulating a separate copy of the particle world.
+Multiplayer uses Photon Realtime Core 6 for browser connections, room discovery, room membership, and reliable gameplay events. The room's Photon master client is the physics authority; other clients render interpolated world snapshots instead of simulating a separate copy of the particle world.
 
 Drawing, erasing, material placement, ropes, props, settings, pause/resume, and single-step requests are relayed through the room host. Room hosts approve join requests, and Photon transfers master-client ownership if the host leaves. World snapshots are compressed and chunked; ropes use small, frequent state updates, and prop state is sent only when it changes.
 
@@ -64,8 +62,6 @@ GitHub Pages must use **GitHub Actions** as its source in repository Settings â†
 
 The workflow in .github/workflows/pages.yml:
 - Publishes main as the production site root.
-- Publishes server-migrate under /server-migrate/.
-- Publishes photon-test under /photon-test/.
 - Builds the Rust/WASM package from main and includes it in the production site.
 - Rebuilds the standalone offline edition on main.
 
