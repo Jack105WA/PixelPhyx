@@ -40,47 +40,89 @@ const clients = new Map();
 let nextPlayerNumber = 1;
 
 
-function findChrome() {
-  const candidates = [process.env.PIXELPHYX_CHROME_PATH, process.env.CHROME_PATH,
-    process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES,'Google/Chrome/Application/chrome.exe'),
-    process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)'],'Google/Chrome/Application/chrome.exe'),
-    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA,'Google/Chrome/Application/chrome.exe'),
-    '/usr/bin/google-chrome','/usr/bin/chromium','/usr/bin/chromium-browser',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].filter(Boolean);
-  return candidates.find(file => fs.existsSync(file)) || null;
+function findBrowser() {
+  const envPath = process.env.PIXELPHYX_BROWSER_PATH || process.env.PIXELPHYX_CHROME_PATH || process.env.CHROME_PATH;
+  const candidates = [
+    envPath && { executable: envPath, engine: process.env.PIXELPHYX_BROWSER_ENGINE || 'chromium', name: 'custom browser' },
+    process.env.PROGRAMFILES && { executable: path.join(process.env.PROGRAMFILES,'Google/Chrome/Application/chrome.exe'), engine:'chromium', name:'Google Chrome' },
+    process.env['PROGRAMFILES(X86)'] && { executable: path.join(process.env['PROGRAMFILES(X86)'],'Google/Chrome/Application/chrome.exe'), engine:'chromium', name:'Google Chrome' },
+    process.env.LOCALAPPDATA && { executable: path.join(process.env.LOCALAPPDATA,'Google/Chrome/Application/chrome.exe'), engine:'chromium', name:'Google Chrome' },
+    process.env.PROGRAMFILES && { executable: path.join(process.env.PROGRAMFILES,'Microsoft/Edge/Application/msedge.exe'), engine:'chromium', name:'Microsoft Edge' },
+    process.env['PROGRAMFILES(X86)'] && { executable: path.join(process.env['PROGRAMFILES(X86)'],'Microsoft/Edge/Application/msedge.exe'), engine:'chromium', name:'Microsoft Edge' },
+    process.env.LOCALAPPDATA && { executable: path.join(process.env.LOCALAPPDATA,'Microsoft/Edge/Application/msedge.exe'), engine:'chromium', name:'Microsoft Edge' },
+    process.env.PROGRAMFILES && { executable: path.join(process.env.PROGRAMFILES,'BraveSoftware/Brave-Browser/Application/brave.exe'), engine:'chromium', name:'Brave' },
+    process.env.LOCALAPPDATA && { executable: path.join(process.env.LOCALAPPDATA,'BraveSoftware/Brave-Browser/Application/brave.exe'), engine:'chromium', name:'Brave' },
+    process.env.LOCALAPPDATA && { executable: path.join(process.env.LOCALAPPDATA,'Vivaldi/Application/vivaldi.exe'), engine:'chromium', name:'Vivaldi' },
+    process.env.PROGRAMFILES && { executable: path.join(process.env.PROGRAMFILES,'Vivaldi/Application/vivaldi.exe'), engine:'chromium', name:'Vivaldi' },
+    { executable:'/usr/bin/google-chrome', engine:'chromium', name:'Google Chrome' },
+    { executable:'/usr/bin/chromium', engine:'chromium', name:'Chromium' },
+    { executable:'/usr/bin/chromium-browser', engine:'chromium', name:'Chromium' },
+    { executable:'/usr/bin/microsoft-edge', engine:'chromium', name:'Microsoft Edge' },
+    { executable:'/usr/bin/brave-browser', engine:'chromium', name:'Brave' },
+    { executable:'/usr/bin/firefox', engine:'firefox', name:'Firefox' },
+    { executable:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', engine:'chromium', name:'Google Chrome' },
+    { executable:'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge', engine:'chromium', name:'Microsoft Edge' },
+    { executable:'/Applications/Brave Browser.app/Contents/MacOS/Brave Browser', engine:'chromium', name:'Brave' },
+    { executable:'/Applications/Firefox.app/Contents/MacOS/firefox', engine:'firefox', name:'Firefox' }
+  ].filter(Boolean);
+  return candidates.find(candidate => fs.existsSync(candidate.executable)) || null;
 }
 function closeSimulation(name) {
-  const entry = simulations.get(name); if (!entry) return;
-  simulations.delete(name); try { entry.process.kill(); } catch {}
+  const entry = simulations.get(name);
+  if (!entry) return;
+  simulations.delete(name);
+  Promise.resolve(entry.context.close()).catch(() => {});
   try { fs.rmSync(entry.profile,{recursive:true,force:true}); } catch {}
 }
 async function launchSimulation(room) {
-  const chrome=findChrome();
-  if(!chrome) throw new Error('Google Chrome or Chromium was not found. Install Chrome or set PIXELPHYX_CHROME_PATH.');
-  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'pixelphyx-sim-'));
-  const child=spawn(chrome,['--headless=new','--disable-gpu','--disable-background-networking','--disable-default-apps','--disable-extensions','--no-first-run','--no-default-browser-check','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{stdio:'ignore',windowsHide:true});
-  const entry={process:child,profile}; simulations.set(room.name,entry);
-  child.once('exit',()=>{
-    if(simulations.get(room.name)===entry){
-      simulations.delete(room.name); const active=rooms.get(room.name);
-      if(active){for(const p of active.players.values()){const peer=clients.get(p.id);if(peer){peer.room=null;peer.approved=false;send(peer.socket,'room-left',{reason:'The server simulation stopped.'});}}rooms.delete(room.name);broadcastLobbies();}
+  const detected = findBrowser();
+  if (!detected) throw new Error('No supported browser was found. Install Chrome, Edge, Brave, Vivaldi, Chromium, or Firefox. Set PIXELPHYX_BROWSER_PATH to your browser executable if it is installed elsewhere.');
+  const { chromium, firefox } = require('playwright-core');
+  const browserType = detected.engine === 'firefox' ? firefox : chromium;
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(),'pixelphyx-sim-'));
+  let context;
+  try {
+    context = await browserType.launchPersistentContext(profile, {
+      headless: true,
+      executablePath: detected.executable,
+      viewport: { width: 1280, height: 720 },
+      args: detected.engine === 'chromium'
+        ? ['--disable-background-networking','--disable-default-apps','--disable-extensions','--no-first-run','--no-default-browser-check']
+        : []
+    });
+    const entry = { context, profile, browser: detected.name };
+    simulations.set(room.name, entry);
+    context.on('close', () => {
+      if (simulations.get(room.name) === entry) {
+        simulations.delete(room.name);
+        const active = rooms.get(room.name);
+        if (active) {
+          for (const p of active.players.values()) {
+            const peer = clients.get(p.id);
+            if (peer) { peer.room = null; peer.approved = false; send(peer.socket,'room-left',{reason:'The server simulation stopped.'}); }
+          }
+          rooms.delete(room.name);
+          broadcastLobbies();
+        }
+      }
+      try { fs.rmSync(profile,{recursive:true,force:true}); } catch {}
+    });
+    const page = context.pages()[0] || await context.newPage();
+    const targetUrl = 'http://127.0.0.1:' + settings.port + '/?pixelphyx-sim=' + encodeURIComponent(room.simulationToken) + '&room=' + encodeURIComponent(room.name);
+    await page.goto(targetUrl, { waitUntil:'domcontentloaded', timeout:30000 });
+    for (let i=0; i<60; i++) {
+      if (room.simulationClientId) return;
+      if (rooms.get(room.name) !== room) throw new Error('Lobby closed before its simulation connected.');
+      if (context.pages().length === 0) throw new Error(detected.name + ' closed the simulation page.');
+      await new Promise(resolve => setTimeout(resolve,500));
     }
-    try{fs.rmSync(profile,{recursive:true,force:true});}catch{}
-  });
-  const portFile=path.join(profile,'DevToolsActivePort'); let port=0;
-  for(let i=0;i<100;i++){if(child.exitCode!==null)throw new Error('Chrome exited before its debugging endpoint started.');try{port=Number(fs.readFileSync(portFile,'utf8').split(String.fromCharCode(10))[0]);}catch{}if(port>0)break;await new Promise(resolve=>setTimeout(resolve,100));}
-  if(!port){closeSimulation(room.name);throw new Error('Chrome did not start its headless debugging endpoint.');}
-  const targetUrl='http://127.0.0.1:'+settings.port+'/?pixelphyx-sim='+encodeURIComponent(room.simulationToken)+'&room='+encodeURIComponent(room.name);
-  const response=await fetch('http://127.0.0.1:'+port+'/json/new?'+encodeURIComponent(targetUrl),{method:'PUT'});
-  if(!response.ok){closeSimulation(room.name);throw new Error('Chrome could not open the simulation page ('+response.status+').');}
-  entry.target=await response.json();
-  for(let i=0;i<60;i++){
-    if(room.simulationClientId)return;
-    if(rooms.get(room.name)!==room)throw new Error('Lobby closed before its simulation connected.');
-    await new Promise(resolve=>setTimeout(resolve,500));
+    throw new Error('The hidden game page did not connect within 30 seconds. Check the game WASM files and server logs.');
+  } catch (error) {
+    if (context) await context.close().catch(() => {});
+    simulations.delete(room.name);
+    try { fs.rmSync(profile,{recursive:true,force:true}); } catch {}
+    throw new Error(detected.name + ' headless startup failed: ' + error.message);
   }
-  closeSimulation(room.name);
-  throw new Error('The hidden game page did not connect within 30 seconds. Check the game WASM files and server logs.');
 }
 function serveGame(res,pathname){
   let relative;try{relative=decodeURIComponent(pathname==='/'?'/index.html':pathname).replace(/^\/+/, '');}catch{res.writeHead(400);return res.end('Bad request');}
