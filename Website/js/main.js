@@ -456,7 +456,7 @@ function render(){
   drawCursorName({x:screenX,y:screenY,name:c.name},nameCtx);
  }
  count+=airborneParticles.length;
- document.querySelector('#particleCount').textContent=count.toLocaleString();document.querySelector('#particleHud').textContent=count.toLocaleString()+' PARTICLES';document.querySelector('#ropeCount').textContent=ropes.length;document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';
+ for(const [selector,value] of [['#particleCount',count.toLocaleString()],['#particleHud',count.toLocaleString()+' PARTICLES'],['#ropeCount',ropes.length],['#gravityRead',gravity.toFixed(1)+'×']]){const element=document.querySelector(selector);if(element)element.textContent=value;}
 }
 const SIMULATION_HZ=60,SIMULATION_STEP=1000/SIMULATION_HZ,MAX_STEPS_PER_FRAME=8;
 let fpsAt=performance.now(),fpsCount=0,lastFrameAt=performance.now(),simulationAccumulator=0,lastPropPublish=0;
