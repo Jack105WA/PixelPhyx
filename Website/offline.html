@@ -114,6 +114,9 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 <script>
 /* Generated from main.js and the physics modules. */
 window.__pixelphyxOfflineMultiplayer={createMultiplayer(){throw new Error("Multiplayer is unavailable in the offline edition.")}};
+const offlineStorage=(()=>{try{return window.localStorage}catch{return null}})();
+const offlineReadSetting=key=>{try{return offlineStorage?.getItem(key)||null}catch{return null}};
+const offlineWriteSetting=(key,value)=>{try{offlineStorage?.setItem(key,value)}catch(error){console.info("Offline preferences could not be saved.",error)}};
 const PixelPhyxMaterial=(()=>{
 // PixelPhyx material simulation: density, capillary wetting, thermal transfer and combustion.
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -901,7 +904,7 @@ let temperatureUnit='C';
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
 let strokePoints=[],lastCursorPoint=null,activeErase=false;
 let remoteSnapshotReceivedAt=0,remoteSnapshotInterval=100,lastOperationAppliedAt=0,remoteLeafblowers={},lastRopePublish=0;
-let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=localStorage.getItem('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=localStorage.getItem('pixelphyx-player-color')||'#65d6ad';
+let ropes=[],room='',playerId='guest-'+Math.random().toString(36).slice(2,9),playerName=offlineReadSetting('pixelphyx-player-name')||'Lab guest',remoteApplying=false,lastRemoteWorldAt=0,lastCursorWrite=0,lastWorldPublish=0,remoteCursors={},remoteCursorTargets={},multiplayer=null,playerColor=offlineReadSetting('pixelphyx-player-color')||'#65d6ad';
 const idx=(x,y)=>y*W+x,inside=(x,y)=>x>=0&&x<W&&y>=0&&y<H,at=(x,y)=>inside(x,y)?cells[idx(x,y)]:M.STONE;
 function log(message){const el=document.querySelector('#feed'),d=document.createElement('div');d.className='log-entry';d.textContent=message;el.prepend(d);while(el.children.length>18)el.lastChild.remove()}
 function setConnection(state){const el=document.querySelector('#connection');el.className='status '+state}
@@ -1604,10 +1607,41 @@ else window.addEventListener('resize',fitCanvasToShell);
 canvas.addEventListener('pointerleave',()=>{localCursor=null;localCursorCtx.clearRect(0,0,localCursorCanvas.width,localCursorCanvas.height)});
 document.querySelector('#playerName').value=playerName;
 document.querySelector('#playerColor').value=playerColor;
-document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;localStorage.setItem('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
-document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;localStorage.setItem('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
+document.querySelector('#playerName').addEventListener('change',e=>{playerName=e.target.value.trim().slice(0,20)||'Lab guest';e.target.value=playerName;offlineWriteSetting('pixelphyx-player-name',playerName);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
+document.querySelector('#playerColor').addEventListener('input',e=>{playerColor=e.target.value;offlineWriteSetting('pixelphyx-player-color',playerColor);multiplayer?.updateIdentity(playerName,playerColor);if(localCursor)multiplayer?.updateCursor(localCursor,playerColor,playerName)});
 updateTemperature();
 // Trigger offline bundle rebuild for swept rope collision handling.
+
+
+// Local world files preserve pixels, material state, props, ropes and simulation settings.
+const saveWorldButton=document.querySelector('#saveWorld');
+const loadWorldButton=document.querySelector('#loadWorld');
+const loadWorldFile=document.querySelector('#loadWorldFile');
+saveWorldButton.addEventListener('click',()=>{
+ const snapshot=serialize();
+ snapshot.format='pixelphyx-world';snapshot.version=1;
+ snapshot.ropes=ropes.map(rope=>({id:rope.id,points:rope.points.map(p=>[p.x,p.y,!!p.anchor])}));
+ const blob=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download='pixelphyx-world.json';link.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+loadWorldButton.addEventListener('click',()=>loadWorldFile.click());
+loadWorldFile.addEventListener('change',async()=>{
+ const file=loadWorldFile.files?.[0];if(!file)return;
+ try{
+  if(file.size>12*1024*1024)throw new Error('World file is too large (12 MB maximum).');
+  const snapshot=JSON.parse(await file.text());
+  if(snapshot?.format!=='pixelphyx-world'||snapshot.version!==1||typeof snapshot.cells!=='string')throw new Error('This is not a supported PixelPhyx world file.');
+  const imported={...snapshot,by:'offline-file',updatedAt:Date.now()+1};
+  if(!applyWorld(imported))throw new Error('The world data could not be loaded.');
+  applyRopeState({by:'offline-file',ropes:Array.isArray(snapshot.ropes)?snapshot.ropes:[]});
+  running=snapshot.running!==false;
+  document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Play';
+  render();log('World loaded from '+file.name);
+ }catch(error){alert('Could not load world: '+error.message);log('World load failed: '+error.message)}
+ finally{loadWorldFile.value=''}
+});
 
 })();
 </script>
