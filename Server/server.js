@@ -304,6 +304,36 @@ function handle(client, message) {
       for(const p of target.players.values())if(p.id!==client.id)send(p.socket,'host-changed',{hostId:client.id});
       sendRoster(target);broadcastLobbies();break;
     }
+    case 'request-join-approval': {
+      if (!room) throw new Error('Join a server before requesting approval.');
+      if (client.approved) return;
+      const owner = room.players.get(room.approvalHostId || room.hostId);
+      if (!owner || owner.isSimulation) throw new Error('The room owner is unavailable.');
+      send(owner.socket, 'join-request', {
+        senderNumber: client.number,
+        data: { clientId: client.id, name: client.name }
+      });
+      break;
+    }
+    case 'approve-join-request': {
+      if (!room || client.id !== (room.approvalHostId || room.hostId)) {
+        throw new Error('Only the room owner can approve join requests.');
+      }
+      const target = [...room.players.values()].find(p => p.number === Number(message.playerNumber));
+      if (!target || target.id === client.id || target.approved) {
+        throw new Error('That join request is no longer active.');
+      }
+      target.approved = !!message.approved;
+      const targetClient = clients.get(target.id);
+      if (targetClient) targetClient.approved = target.approved;
+      send(target.socket, 'join-reply', { approved: target.approved });
+      if (!target.approved && targetClient) removeFromRoom(targetClient);
+      else {
+        sendRoster(room);
+        broadcastLobbies();
+      }
+      break;
+    }
     case 'join-room': {
       if (room) throw new Error('Leave your current server before joining another.');
       const target = rooms.get(String(message.room || '').toUpperCase());
