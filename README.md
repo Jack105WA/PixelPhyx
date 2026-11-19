@@ -1,6 +1,6 @@
 # PixelPhyx
 
-PixelPhyx is a browser-based 2D pixel physics and chemistry sandbox featuring falling particles, liquids, gases, material reactions, explosions, ropes, and multiplayer.
+Pixelphyx is a online 2D Physics Simulator featuring multiplayer, Simulated Reactions and more!
 
 ## Play online
 
