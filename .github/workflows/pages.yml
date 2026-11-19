@@ -1,12 +1,11 @@
-name: PixelPhyx workflows
+name: Deploy PixelPhyx to GitHub Pages
 on:
   push:
-    branches: [main, local-server]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  actions: write
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -15,24 +14,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy-live:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/local-server'
-    name: Deploy production and local-server preview
+  deploy:
+    name: Build and deploy PixelPhyx
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Check out production site
+      - name: Check out main
         uses: actions/checkout@v4
-        with:
-          ref: main
-          path: production
-      - name: Check out local-server branch
-        uses: actions/checkout@v4
-        with:
-          ref: local-server
-          path: local-server
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -42,26 +32,20 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-pack
-      - name: Build production WebAssembly package
-        run: wasm-pack build production/Website/wasm --target web --release --out-dir ../pkg
-      - name: Build local-server WebAssembly package
-        run: wasm-pack build local-server/Website/wasm --target web --release --out-dir ../pkg
+      - name: Build browser WebAssembly package
+        run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
       - name: Validate browser JavaScript modules
         run: |
-          # Validate the preview branch only. Production is copied into the combined
-          # Pages artifact, but its syntax must not block local-server deployments.
-          for file in local-server/Website/js/*.js local-server/Website/js/netcode/*.js local-server/Website/pkg/*.js; do
+          for file in Website/js/*.js Website/js/netcode/*.js Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
       - uses: actions/configure-pages@v5
       - name: Assemble Pages site
         run: |
           mkdir -p _site
-          cp -a production/Website/. _site/
+          cp -a Website/. _site/
           mkdir -p _site/Offline
-          cp production/Offline/*.html _site/Offline/
-          mkdir -p _site/local-server
-          cp -a local-server/Website/. _site/local-server/
+          cp Offline/*.html _site/Offline/
       - uses: actions/upload-pages-artifact@v3
         with:
           name: pixelphyx-pages
