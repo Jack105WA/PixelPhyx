@@ -46,14 +46,21 @@ function grow(cells,age,x,y,p,w,h,tick,wetness){
  const i=y*w+x;if(age[i]<p.growth)return;
  let height=1;for(let py=y+1;py<h&&cells[py*w+x]===p.plantId;py++)height++;
  const stage=Math.floor(tick/p.growth),side=noise(x,y,stage,p.plantId)<.5?-1:1;
- if(height<p.maxHeight&&add(cells,age,x,y-1,p.plantId,w,h)){
-  age[i]=0;
-  if(p.style==='tree'&&stage%p.branchEvery===0){add(cells,age,x+side,y-1,p.plantId,w,h);if(stage%(p.branchEvery*2)===0)add(cells,age,x-side,y-2,p.plantId,w,h)}
-  else if(p.style==='fern'&&stage%p.branchEvery===0){add(cells,age,x-1,y-1,p.plantId,w,h);add(cells,age,x+1,y-1,p.plantId,w,h)}
-  else if(p.style==='flower'&&height>=p.maxHeight-2){add(cells,age,x-1,y-1,p.plantId,w,h);add(cells,age,x+1,y-1,p.plantId,w,h);add(cells,age,x,y-2,p.plantId,w,h)}
-  else if(p.style==='vine'&&stage%p.branchEvery===0)add(cells,age,x+side,y,p.plantId,w,h);
-  else if(p.style==='cactus'&&stage%p.branchEvery===0&&height>3){add(cells,age,x+side,y,p.plantId,w,h);add(cells,age,x+side,y-1,p.plantId,w,h)}
-  return;
+ if(height<p.maxHeight){
+  const above=y>0?(y-1)*w+x:-1;
+  if(above>=0&&cells[above]===SOIL){
+   const push=noise(x,y,stage,0x5013)<.5?-1:1;
+   for(const dx of [push,-push]){const nx=x+dx;if(nx>=0&&nx<w&&cells[(y-1)*w+nx]===EMPTY){const target=(y-1)*w+nx;cells[target]=SOIL;cells[above]=EMPTY;wetness[target]=wetness[above];wetness[above]=0;age[target]=age[above];age[above]=0;break}}
+  }
+  if(add(cells,age,x,y-1,p.plantId,w,h)){
+   age[i]=0;
+   if(p.style==='tree'&&stage%p.branchEvery===0){add(cells,age,x+side,y-1,p.plantId,w,h);if(stage%(p.branchEvery*2)===0)add(cells,age,x-side,y-2,p.plantId,w,h)}
+   else if(p.style==='fern'&&stage%p.branchEvery===0){add(cells,age,x-1,y-1,p.plantId,w,h);add(cells,age,x+1,y-1,p.plantId,w,h)}
+   else if(p.style==='flower'&&height>=p.maxHeight-2){add(cells,age,x-1,y-1,p.plantId,w,h);add(cells,age,x+1,y-1,p.plantId,w,h);add(cells,age,x,y-2,p.plantId,w,h)}
+   else if(p.style==='vine'&&stage%p.branchEvery===0)add(cells,age,x+side,y,p.plantId,w,h);
+   else if(p.style==='cactus'&&stage%p.branchEvery===0&&height>3){add(cells,age,x+side,y,p.plantId,w,h);add(cells,age,x+side,y-1,p.plantId,w,h)}
+   return;
+  }
  }
  age[i]=0;
 }
