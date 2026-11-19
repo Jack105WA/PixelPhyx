@@ -78,7 +78,7 @@ export function createLifeSystem(){
     const p=bySeed.get(cells[i]);if(!p)continue;
     const below=i+width;
     if(y+1<height&&cells[below]===EMPTY){
-     cells[below]=cells[i];cells[i]=EMPTY;age[below]=age[i];age[i]=0;wetness[below]=wetness[i];wetness[i]=0;continue;
+     cells[below]=cells[i];cells[i]=EMPTY;age[below]=age[i];age[i]=0;wetness[below]=wetness[i];wetness[i]=0;seedBurrowDepth[below]=seedBurrowDepth[i];seedBurrowDepth[i]=0;continue;
     }
     if(y+1<height&&cells[below]===SOIL&&y>0&&seedBurrowDepth[i]<2&&(cells[i-width]===EMPTY||cells[i-width]===SOIL)&&noise(x,y,tick,p.seedId)<.82){
      swapState(cells,age,wetness,i,below);seedBurrowDepth[below]=seedBurrowDepth[i]+1;seedBurrowDepth[i]=0;
