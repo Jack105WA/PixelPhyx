@@ -65,8 +65,10 @@ function grow(cells,age,x,y,p,w,h,tick,wetness){
  age[i]=0;
 }
 export function createLifeSystem(){
+ let seedBurrowDepth=new Uint8Array(0);
  function step({cells,age,wetness,width,height,tick}){
   const length=Math.min(cells.length,age.length,wetness.length,width*height);
+  if(seedBurrowDepth.length!==length)seedBurrowDepth=new Uint8Array(length);
   soilMoisture(cells,wetness,width,height,tick);
   // Seeds fall normally, then displace one soil cell as they burrow into loose soil.
   for(let y=height-1;y>=0;y--){
@@ -78,15 +80,15 @@ export function createLifeSystem(){
     if(y+1<height&&cells[below]===EMPTY){
      cells[below]=cells[i];cells[i]=EMPTY;age[below]=age[i];age[i]=0;wetness[below]=wetness[i];wetness[i]=0;continue;
     }
-    if(y+1<height&&cells[below]===SOIL&&y>0&&(cells[i-width]===EMPTY||cells[i-width]===SOIL)&&noise(x,y,tick,p.seedId)<.82){
-     swapState(cells,age,wetness,i,below);
+    if(y+1<height&&cells[below]===SOIL&&y>0&&seedBurrowDepth[i]<2&&(cells[i-width]===EMPTY||cells[i-width]===SOIL)&&noise(x,y,tick,p.seedId)<.82){
+     swapState(cells,age,wetness,i,below);seedBurrowDepth[below]=seedBurrowDepth[i]+1;seedBurrowDepth[i]=0;
      continue;
     }
     const support=y+1<height?cells[below]:FIRE;
     const buried=support===SOIL||((x>0&&cells[i-1]===SOIL)||(x+1<width&&cells[i+1]===SOIL));
     if(buried&&moistureNear(cells,wetness,x,y,width,height,3)&&age[i]<65535)age[i]++;
     if(buried&&age[i]>=90){
-     cells[i]=p.plantId;age[i]=0;wetness[i]=Math.max(wetness[i]||0,.18);
+     cells[i]=p.plantId;age[i]=0;wetness[i]=Math.max(wetness[i]||0,.18);seedBurrowDepth[i]=0;
      // Establish a short root below the seed without deleting the surrounding soil.
      if(y+1<height&&cells[below]===SOIL){cells[below]=p.plantId;age[below]=0;wetness[below]=Math.max(wetness[below]||0,.18)}
     }
