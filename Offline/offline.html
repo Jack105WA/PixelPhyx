@@ -445,7 +445,7 @@ function createLifeSystem(){
     if(y+1<height&&cells[below]===EMPTY){
      cells[below]=cells[i];cells[i]=EMPTY;age[below]=age[i];age[i]=0;wetness[below]=wetness[i];wetness[i]=0;continue;
     }
-    if(y+1<height&&cells[below]===SOIL&&cells[i-width]===EMPTY&&y>0){
+    if(y+1<height&&cells[below]===SOIL&&y>0&&(cells[i-width]===EMPTY||cells[i-width]===SOIL)&&noise(x,y,tick,p.seedId)<.82){
      swapState(cells,age,wetness,i,below);
      continue;
     }
