@@ -13,10 +13,23 @@ const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},la
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
 // Allocate every WASM chemistry/physics state buffer for the initial world.
 resetMaterialState(N);
-const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});
+const canvas=document.querySelector('#world');
+let ctx=canvas.getContext('2d',{alpha:false}),canvasContextAvailable=!!ctx;
 const particleInterpolationCanvas=document.createElement('canvas'),particleInterpolationCtx=particleInterpolationCanvas.getContext('2d');
 particleInterpolationCanvas.className='particle-interpolation';canvas.parentElement.insertBefore(particleInterpolationCanvas,canvas.nextElementSibling);
-let frameImage=ctx.createImageData(W,H);
+let frameImage=ctx?.createImageData(W,H)||null;
+canvas.addEventListener('contextlost',event=>{
+ event.preventDefault();
+ canvasContextAvailable=false;
+});
+canvas.addEventListener('contextrestored',()=>{
+ ctx=canvas.getContext('2d',{alpha:false});
+ canvasContextAvailable=!!ctx;
+ if(canvasContextAvailable){
+  frameImage=ctx.createImageData(W,H);
+  ctx.imageSmoothingEnabled=false;
+ }
+});
 function protectStrokeSegment(from,to){
  if(!activeStrokeMeta||!to||!inside(to.x,to.y))return;
  const radius=activeStrokeMeta.tool==='bomb'?2:activeStrokeMeta.tool==='line'?Math.max(0,Math.floor(activeStrokeMeta.brush/4)):activeStrokeMeta.brush;
@@ -479,6 +492,7 @@ function drawCursorName(c,targetCtx){
 }
 const particleCountElement=document.querySelector('#particleCount'),ropeCountElement=document.querySelector('#ropeCount'),gravityReadElement=document.querySelector('#gravityRead');
 function render(){
+ if(!canvasContextAvailable||!ctx||!frameImage)return;
  if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(node===ropeDrag?.node)continue;if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
  let count=0;
  frameImage.data.set(wasmEngine.render_composited_frame(cells,materialState.wetness,materialState.heat,colorLut,movingDestinations,W,H));
