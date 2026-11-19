@@ -238,7 +238,7 @@ function sendStrokeEvent(room, sender, event) {
       stroke.pointsPacked.length > 65536 ||
       !/^[A-Za-z0-9+/]*={0,2}$/.test(stroke.pointsPacked) ||
       stroke.pointScale !== 4 ||
-      !Number.isInteger(stroke.material) || stroke.material < 0 || stroke.material > 27 ||
+      !Number.isInteger(stroke.material) || stroke.material < 0 || stroke.material > 28 ||
       !Number.isFinite(stroke.brush) || stroke.brush < 1 || stroke.brush > 22 ||
       !['draw', 'line', 'bomb', 'heat', 'cool', 'erase'].includes(stroke.tool)) return;
 
