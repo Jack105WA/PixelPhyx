@@ -12,7 +12,7 @@ pub fn render_cells(cells: &[u8], wetness: &[f32], heat: &[f32], colors: &[u8], 
         let mut red = base[0] as f32;
         let mut green = base[1] as f32;
         let mut blue = base[2] as f32;
-        if material == 1 && wet > 0.0 {
+        if (material == 1 || material == 28) && wet > 0.0 {
             let factor = 1.0 - wet * 0.38;
             red *= factor; green *= factor; blue *= factor;
         }
@@ -48,7 +48,7 @@ pub fn render_frame(cells:&[u8],wetness:&[f32],heat:&[f32],colors:&[u8],moving:&
   let wet=wetness.get(i).copied().unwrap_or(0.0).clamp(0.0,1.0);
   let temp=heat.get(i).copied().unwrap_or(0.0).max(0.0);
   let mut rgb=[base[0] as f32,base[1] as f32,base[2] as f32];
-  if material==1&&wet>0.0{let f=1.0-wet*0.38;for c in &mut rgb{*c*=f;}}
+  if (material==1||material==28)&&wet>0.0{let f=1.0-wet*0.38;for c in &mut rgb{*c*=f;}}
   if temp>0.0&&material!=5{let f=(temp/900.0).min(0.35);rgb[0]+=(255.0-rgb[0])*f;rgb[1]+=(100.0-rgb[1])*f;rgb[2]*=1.0-f*0.7;}
   let p=i*4;
   if moving.get(i).copied().unwrap_or(0)!=0{rgb=[12.0,16.0,24.0];}
