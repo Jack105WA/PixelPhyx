@@ -4,12 +4,13 @@ import vm from 'node:vm';
 const websiteDir = 'Website/';
 const offlineDir = 'Offline/';
 const read = path => readFile(websiteDir + path, 'utf8');
-const [offlineHtml, mainSource, physicsSource, engineSource, uiSource, wasmEngineSource, wasmGlueSource, wasmBinary] = await Promise.all([
+const [offlineHtml, mainSource, physicsSource, engineSource, uiSource, lifeSource, wasmEngineSource, wasmGlueSource, wasmBinary] = await Promise.all([
   readFile(offlineDir + 'offline.html', 'utf8'),
   read('js/main.js'),
   read('js/material-physics.js'),
   read('js/physics-engine.js'),
   read('js/ui.js'),
+  read('js/life.js'),
   read('js/wasm-engine.js'),
   readFile('Website/pkg/pixelphyx_wasm.js', 'utf8'),
   readFile('Website/pkg/pixelphyx_wasm_bg.wasm')
@@ -18,6 +19,7 @@ const stripExports = source => source.replace(/\bexport\s+(?=(?:const|function)\
 const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
 const ui = stripExports(uiSource);
+const life = stripExports(lifeSource);
 const wasmGlueUrl = 'data:text/javascript;base64,' + Buffer.from(wasmGlueSource).toString('base64');
 const wasmBase64 = wasmBinary.toString('base64');
 if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) || /\bexport\s/.test(ui)) {
@@ -55,6 +57,8 @@ const gameScript = [
   'const PixelPhyxMaterial=(()=>{', physics, 'return {materialState,resetMaterialState};', '})();',
   'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
   'const PixelPhyxUi=(()=>{', ui, 'return {initializeUiShell};', '})();',
+  'const PixelPhyxLife=(()=>{', life, 'return {createLifeSystem,LIFE_MATERIALS};', '})();',
+  'const {createLifeSystem,LIFE_MATERIALS}=PixelPhyxLife;',
   'const {initializeUiShell}=PixelPhyxUi;',
   '(async()=>{const firebaseConfig={};',
   'const {materialState,resetMaterialState}=PixelPhyxMaterial;',

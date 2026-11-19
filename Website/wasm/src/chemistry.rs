@@ -34,7 +34,7 @@ pub fn step_acid(
         for ni in neighbors.into_iter().flatten() {
             let resistance = match cells[ni] {
                 1 => 18.0,  // Sand
-                13 => 24.0, // Plant
+                13 | 18..=22 => 24.0, // Plant life
                 4 => 42.0,  // Wood
                 3 => 95.0,  // Stone
                 15 => 125.0,// Glass
@@ -103,10 +103,10 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: us
 }
 
 fn material_ignition(material: u8) -> f32 {
-    match material { 4 => 270.0, 6 | 12 => 180.0, 13 => 90.0, 16 => 520.0, 17 => 85.0, _ => 0.0 }
+    match material { 4 => 270.0, 6 | 12 => 180.0, 13 | 18..=22 => 90.0, 16 => 520.0, 17 => 85.0, _ => 0.0 }
 }
 fn material_fuel(material: u8) -> f32 {
-    match material { 4 | 6 | 12 => 1.0, 13 => 0.65, 16 => 0.12, 17 => 0.34, _ => 0.0 }
+    match material { 4 | 6 | 12 => 1.0, 13 | 18..=22 => 0.65, 16 => 0.12, 17 => 0.34, _ => 0.0 }
 }
 fn flammable(material: u8) -> bool { material_fuel(material) > 0.0 }
 fn ignite(heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32], i: usize, material: u8) {
@@ -358,10 +358,10 @@ pub fn step_combustion(
 
         if material == 4 || material == 13 || material == 6 || material == 12 {
             if heat[i] > 0.0 {
-                let cooling = (match material { 4=>1.2,13=>2.4,_=>0.7 }) + wetness[i]*8.0;
+                let cooling = (match material { 4=>1.2,13|18..=22=>2.4,_=>0.7 }) + wetness[i]*8.0;
                 heat[i] = (heat[i]-cooling).max(ambient);
             }
-            let ignition_chance = match material { 12=>0.22,6=>0.16,13=>0.12,_=>0.075 }
+            let ignition_chance = match material { 12=>0.22,6=>0.16,13|18..=22=>0.12,_=>0.075 }
                 * (1.0-wetness[i].clamp(0.0,1.0)*0.94);
             if heat[i] > material_ignition(material).max(220.0)
                 && random01(i, age[i], 0x1A17_1000) < ignition_chance {
@@ -369,7 +369,7 @@ pub fn step_combustion(
             }
             if burn[i] > 0.0 {
                 burn[i] += 1.0;
-                let consumption = match material { 4=>0.003,13=>0.012,6=>0.025,_=>0.018 }
+                let consumption = match material { 4=>0.003,13|18..=22=>0.012,6=>0.025,_=>0.018 }
                     * (1.0-wetness[i].clamp(0.0,1.0)*0.8);
                 let starting_fuel = if fuel[i] > 0.0 { fuel[i] } else { material_fuel(material).max(0.001) };
                 fuel[i] = (starting_fuel-consumption).max(0.0);
@@ -422,7 +422,7 @@ pub fn step_material_thermal(
                 && random01(ni,age[ni],0xAE75_0000+slot as u32)<0.12 {
                 wetness[ni]+=(0.025_f32).min(1.0-wetness[ni]);
             }
-            if cells[ni]==13 && random01(ni,age[ni],0xA17A_0000+slot as u32)<0.08 {
+            if (cells[ni]==13 || (18..=22).contains(&cells[ni])) && random01(ni,age[ni],0xA17A_0000+slot as u32)<0.08 {
                 wetness[ni]=(wetness[ni]+0.15).min(1.0);
             }
         }
