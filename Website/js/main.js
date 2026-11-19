@@ -66,7 +66,7 @@ const materials=[
  {id:15,name:'Glass',icon:'◇',color:'#b8dce8',rgb:[184,220,232],type:'solid'},
  {id:16,name:'Charcoal',icon:'▪',color:'#34363a',rgb:[52,54,58],type:'powder'},
  {id:17,name:'Fuse',icon:'━',color:'#d68b48',rgb:[214,139,72],type:'solid'},
- {id:28,name:'Soil',icon:'▧',color:'#79543b',rgb:[121,84,59],type:'solid'}
+ {id:28,name:'Soil',icon:'▧',color:'#79543b',rgb:[121,84,59],type:'powder'}
 ];
 let colorLut=new Uint8Array(256*3);
 let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),movementBlocks=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
