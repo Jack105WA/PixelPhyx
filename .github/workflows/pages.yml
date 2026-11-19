@@ -11,11 +11,11 @@ permissions:
 
 concurrency:
   group: github-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Build and deploy PixelPhyx
+    name: Build, validate and deploy PixelPhyx
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -23,73 +23,72 @@ jobs:
     steps:
       - name: Check out main
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-pack
+
       - name: Compile TypeScript sources
         run: |
           npx --yes --package typescript@5.9.3 tsc -p Website/tsconfig.json
           npx --yes --package typescript@5.9.3 tsc -p Server/tsconfig.json
           npx --yes --package typescript@5.9.3 tsc -p Offline/tsconfig.json
+
       - name: Build browser WebAssembly package
         run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
+
       - name: Validate browser JavaScript modules
         run: |
+          set -e
           for file in Website/js/*.js Website/js/netcode/*.js Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
+
+      - name: Generate and validate standalone offline edition
+        run: |
+          node Offline/build-offline.mjs
+          test -s Offline/offline.html
+          ! grep -Eiq 'pixelphyx-offline-updater|raw.githubusercontent.com' Offline/offline.html
+          ! grep -Eiq '<script[^>]+src=' Offline/offline.html
+
+      - name: Commit generated offline edition
+        run: |
+          if [ -z "$(git status --porcelain -- Offline/offline.html)" ]; then
+            echo "Offline edition is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+Jack105WA@users.noreply.github.com"
+          git add Offline/offline.html
+          git commit -m "[skip ci] Build offline edition"
+          git push origin HEAD:main
+
       - uses: actions/configure-pages@v5
-      - name: Assemble Pages site
+
+      - name: Assemble Pages site from the same build
         run: |
           mkdir -p _site
           cp -a Website/. _site/
           mkdir -p _site/Offline
           cp Offline/*.html _site/Offline/
+
       - uses: actions/upload-pages-artifact@v3
         with:
           name: pixelphyx-pages
           path: _site
+
       - id: deployment
         uses: actions/deploy-pages@v4
         with:
           artifact_name: pixelphyx-pages
-
-  build-offline:
-    name: Build offline edition
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-pack
-      - name: Compile optimized WASM for the standalone offline edition
-        run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
-      - name: Compile offline TypeScript builder
-        run: npx --yes --package typescript@5.9.3 tsc -p Offline/tsconfig.json
-      - name: Generate standalone offline edition
-        run: node Offline/build-offline.mjs
-      - name: Commit generated offline edition
-        run: |
-          if [ -z "$(git status --porcelain -- Offline/offline.html)" ]; then
-            echo "Offline/offline.html is already up to date."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+Jack105WA@users.noreply.github.com"
-          git add Offline/offline.html
-          git commit -m "[skip ci] Build offline edition"
-          git push
