@@ -248,7 +248,7 @@ function wasmRandom(seed,index,salt){
 function buildMovementBlocks(seed){
  movementBlocks.fill(0);
  if(!ropes.length)return;
- const movable=m=>m===1||m===2||m===6||m===7||m===11||m===14||m===16;
+ const movable=m=>m===1||m===2||m===6||m===7||m===11||m===14||m===16||m===28;
  const canSwap=(m,target)=>target===M.EMPTY||(m===M.SAND&&(target===M.WATER||target===M.OIL));
  for(let i=0;i<N;i++){
   const material=cells[i];if(!material)continue;
@@ -367,7 +367,7 @@ function drawVisualParticles(){
  }
  ctx.globalAlpha=1;
 }
-const baseMaterialDensity=[0,1.6,1,2.7,.65,.05,.82,1.1,.04,.04,.92,2.5,1.1,.65,1.9,2.7,.85,.9];
+const baseMaterialDensity=[0,1.6,1,2.7,.65,.05,.82,1.1,.04,.04,.92,2.5,1.1,.65,1.9,2.7,.85,.9,...Array(10).fill(1),1.35];
 function getMaterialDensity(id){const custom=customMaterialById[id];return custom?Math.max(.05,Number(custom.density)||.05):(baseMaterialDensity[id]??1)}
 function swapMaterialCells(from,to,movingId){const displaced=cells[to],keys=['wetness','heat','heatInputs','fuel','burn','age','corrosion'];cells[to]=movingId;cells[from]=displaced;for(const key of keys){const values=materialState[key],value=values[from];values[from]=values[to];values[to]=value}const vx=particleVelocityX[from],vy=particleVelocityY[from];particleVelocityX[from]=particleVelocityX[to];particleVelocityY[from]=particleVelocityY[to];particleVelocityX[to]=vx;particleVelocityY[to]=vy;updated[from]=1;updated[to]=1;recordParticleMove(from,to,movingId,false);if(displaced)recordParticleMove(to,from,displaced,false)}
 function moveCustomMaterial(from,to,id){if(to<0||to>=N)return false;const target=cells[to];if(target===id)return false;if(target===M.EMPTY){cells[to]=id;cells[from]=M.EMPTY;for(const key of ['wetness','heat','heatInputs','fuel','burn','age','corrosion']){materialState[key][to]=materialState[key][from];materialState[key][from]=0}particleVelocityX[to]=particleVelocityX[from];particleVelocityY[to]=particleVelocityY[from];particleVelocityX[from]=particleVelocityY[from]=0;updated[from]=updated[to]=1;recordParticleMove(from,to,id,false);return true}const targetCustom=customMaterialById[target],targetIsMovable=targetCustom?targetCustom.state!=='solid':[1,2,6,7,11,14,16].includes(target);if(!targetIsMovable||getMaterialDensity(id)<=getMaterialDensity(target))return false;swapMaterialCells(from,to,id);return true}
