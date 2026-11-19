@@ -32,6 +32,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-pack
+      - name: Compile TypeScript sources
+        run: |
+          npx --yes --package typescript@5.9.3 tsc -p Website/tsconfig.json
+          npx --yes --package typescript@5.9.3 tsc -p Offline/tsconfig.json
       - name: Build browser WebAssembly package
         run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
       - name: Validate browser JavaScript modules
@@ -72,6 +76,8 @@ jobs:
           tool: wasm-pack
       - name: Compile optimized WASM for the standalone offline edition
         run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
+      - name: Compile offline TypeScript builder
+        run: npx --yes --package typescript@5.9.3 tsc -p Offline/tsconfig.json
       - name: Generate standalone offline edition
         run: node Offline/build-offline.mjs
       - name: Commit generated offline edition

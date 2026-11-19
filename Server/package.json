@@ -5,11 +5,15 @@
   "description": "Self-hosted PixelPhyx multiplayer server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "npm run build && node server.js",
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",
     "ws": "^8.18.0",
     "playwright-core": "^1.56.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
