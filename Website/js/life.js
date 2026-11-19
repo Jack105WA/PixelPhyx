@@ -95,12 +95,16 @@ export function createLifeSystem(){
   // Only the growing tips advance. Dry plants pause rather than growing at a fixed rate.
   for(let y=height-1;y>=0;y--)for(let x=0;x<width;x++){
    const i=y*width+x;if(i>=length)continue;const p=byPlant.get(cells[i]);if(!p)continue;
-   const above=y>0?cells[i-width]:EMPTY;
-   if(above!==p.plantId){
-    const rootY=Math.min(height-1,y+2);
-    if(moistureNear(cells,wetness,x,rootY,width,height,4)&&age[i]<65535)age[i]++;
-    grow(cells,age,x,y,p,width,height,tick,wetness);
+   const above=y>0?cells[i-width]:EMPTY,below=y+1<height?cells[i+width]:EMPTY;
+   const damp=moistureNear(cells,wetness,x,Math.min(height-1,y+2),width,height,4);
+   if(above===p.plantId&&below===SOIL&&damp){
+    if(age[i]<65535)age[i]++;
+    if(age[i]>=p.growth*2){cells[i+width]=p.plantId;age[i+width]=0;wetness[i+width]=Math.max(wetness[i+width]||0,.12);age[i]=0;
+     const side=noise(x,y,tick,p.plantId+91)<.5?-1:1,nx=x+side;
+     if(nx>=0&&nx<width&&cells[i+side]===SOIL&&noise(x,y,tick,p.plantId+92)<.18){cells[i+side]=p.plantId;age[i+side]=0}
+    }
    }
+   if(above!==p.plantId&&damp){if(age[i]<65535)age[i]++;grow(cells,age,x,y,p,width,height,tick,wetness)}
   }
  }
  return Object.freeze({step,materials:LIFE_MATERIALS});
