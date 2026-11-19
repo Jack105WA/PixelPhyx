@@ -141,12 +141,55 @@ async function launchSimulation(room) {
     throw new Error(detected.name + ' headless startup failed: ' + error.message);
   }
 }
-function serveGame(res,pathname){
-  let relative;try{relative=decodeURIComponent(pathname==='/'?'/index.html':pathname).replace(/^\/+/, '');}catch{res.writeHead(400);return res.end('Bad request');}
-  const file=path.resolve(WEBSITE_ROOT,relative);
-  if(file!==WEBSITE_ROOT&&!file.startsWith(WEBSITE_ROOT+path.sep)){res.writeHead(403);return res.end('Forbidden');}
-  fs.stat(file,(error,stat)=>{if(error||!stat.isFile()){res.writeHead(404,{'content-type':'text/plain; charset=utf-8'});return res.end('Not found');}
-    res.writeHead(200,{'content-type':MIME[path.extname(file).toLowerCase()]||'application/octet-stream','cache-control':path.extname(file)==='.html'?'no-store':'public, max-age=300'});fs.createReadStream(file).pipe(res);});
+function serveGame(res, pathname) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+  } catch {
+    res.writeHead(400);
+    return res.end('Bad request');
+  }
+
+  // Accept only simple URL path segments before constructing a filesystem path.
+  // This rejects traversal, backslashes, control characters, and encoded separators.
+  if (decoded.includes('\\') || decoded.includes('\0')) {
+    res.writeHead(400);
+    return res.end('Bad request');
+  }
+  const segments = decoded.split('/').filter(Boolean);
+  if (!segments.length || segments.some(segment =>
+    segment === '.' || segment === '..' || !/^[A-Za-z0-9._-]+$/.test(segment)
+  )) {
+    res.writeHead(400);
+    return res.end('Bad request');
+  }
+
+  const root = path.resolve(WEBSITE_ROOT);
+  const file = path.resolve(root, ...segments);
+  if (!file.startsWith(root + path.sep)) {
+    res.writeHead(403);
+    return res.end('Forbidden');
+  }
+
+  // Resolve symlinks too, preventing files inside Website from escaping its root.
+  fs.realpath(file, (realpathError, realFile) => {
+    if (realpathError || (realFile !== root && !realFile.startsWith(root + path.sep))) {
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+      return res.end('Not found');
+    }
+    fs.stat(realFile, (statError, stat) => {
+      if (statError || !stat.isFile()) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        return res.end('Not found');
+      }
+      const extension = path.extname(realFile).toLowerCase();
+      res.writeHead(200, {
+        'content-type': MIME[extension] || 'application/octet-stream',
+        'cache-control': extension === '.html' ? 'no-store' : 'public, max-age=300'
+      });
+      fs.createReadStream(realFile).pipe(res);
+    });
+  });
 }
 
 function send(socket, type, data = {}) {
