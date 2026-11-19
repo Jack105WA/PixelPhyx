@@ -34,6 +34,7 @@ pub fn step_acid(
         for ni in neighbors.into_iter().flatten() {
             let resistance = match cells[ni] {
                 1 => 18.0,  // Sand
+                28 => 18.0, // Soil
                 13 | 18..=22 => 24.0, // Plant life
                 4 => 42.0,  // Wood
                 3 => 95.0,  // Stone
@@ -389,7 +390,7 @@ pub fn step_combustion(
 
 fn conductivity(material: u8) -> f32 {
     match material {
-        1=>0.08,2=>0.58,3=>0.18,4=>0.12,5=>0.02,6=>0.09,7=>0.3,
+        1=>0.08,28=>0.10,2=>0.58,3=>0.18,4=>0.12,5=>0.02,6=>0.09,7=>0.3,
         8=>0.04,9=>0.015,10=>0.22,11=>0.8,12=>0.1,13=>0.12,
         14=>0.12,15=>0.9,16=>0.12,_=>0.05
     }
@@ -418,7 +419,7 @@ pub fn step_material_thermal(
         ];
         for (slot, neighbor) in neighbors.into_iter().enumerate() {
             let Some(ni)=neighbor else {continue;};
-            if cells[ni]==1 && wetness[ni]<1.0
+            if (cells[ni]==1 || cells[ni]==28) && wetness[ni]<1.0
                 && random01(ni,age[ni],0xAE75_0000+slot as u32)<0.12 {
                 wetness[ni]+=(0.025_f32).min(1.0-wetness[ni]);
             }
@@ -454,7 +455,7 @@ pub fn step_material_thermal(
         let material=cells[i];
         if material==0 { continue; }
         age[i]=age[i].saturating_add(1);
-        if material==1 && wetness[i]>0.0 { wetness[i]=(wetness[i]-0.0008).max(0.0); }
+        if (material==1 || material==28) && wetness[i]>0.0 { wetness[i]=(wetness[i]-0.0008).max(0.0); }
         let x=i%width; let y=i/width;
         if heat[i]>ambient {
             let neighbors=[
