@@ -10,7 +10,7 @@ The production game runs its simulation engine compiled from Rust to WebAssembly
 
 ## Play offline
 
-Download the standalone HTML edition from the [latest GitHub release](https://github.com/Jack105WA/PixelPhyx/releases/latest).
+Download the [standalone offline HTML edition](https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Offline/offline.html) directly. Save the file and open it in a browser; it does not need the loader, GitHub, or a server.
 
 The offline edition is generated from Website/ by Offline/build-offline.mjs. Local offline play does not require multiplayer services.
 
