@@ -111,7 +111,7 @@ pub fn step_particles(
             // settling are handled by the separate material-physics pass below.
             if m==1 {
                 if let Some(to)=vertical {
-                    if to<len && cells[to]==0 && blocked[i]&2==0 {
+                    if to<len && cells[to]==0 && blocked[i]&2==0 && (m!=28 || random(seed,i,0x5011)<(1.0-wet[i].clamp(0.0,1.0)*0.92)) {
                         swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                         continue;
                     }
@@ -145,7 +145,7 @@ pub fn step_particles(
                 let ny=y as isize+dy;
                 if nx>=0&&nx<width as isize&&ny>=0&&ny<height as isize {
                     let to=ny as usize*width+nx as usize;
-                    if to<len&&cells[to]==0&&blocked[i]&4==0 {
+                    if to<len&&cells[to]==0&&blocked[i]&4==0&&(m!=28||random(seed,i,0x5012)<(1.0-wet[i].clamp(0.0,1.0)*0.92)) {
                         swap_cell(cells,updated,i,to,vx,vy,wet,heat,heat_inputs,fuel,burn,age,corrosion,&mut moves);
                         continue;
                     }
