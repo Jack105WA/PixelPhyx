@@ -2,7 +2,7 @@ const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
 const { EVENTS } = await import('./ws-sync.js?v=' + encodeURIComponent(cacheVersion));
 
 export function createServerRooms(state, sync) {
-  let pendingApproval = null, roomListOff = null;
+  let pendingApproval = null, roomListOff = null, lobbyRefreshTimer = null;
   const pendingRequests = new Map();
   const client = () => state.client;
   const room = () => client()?.room || null;
@@ -135,10 +135,7 @@ export function createServerRooms(state, sync) {
         reject(new Error('The host did not respond to the join request.'));
       }, 60000);
       pendingApproval = { resolve, reject, timer, identity };
-      const sent = client().sendEvent(EVENTS.JOIN_REQUEST, {
-        clientId: state.playerId,
-        name: String(identity.name || 'Lab guest').trim().slice(0, 20) || 'Lab guest'
-      }, { reliable: true, receivers: 'masterClient' });
+      const sent = client().send('request-join-approval');
       if (!sent) {
         clearTimeout(timer);
         pendingApproval = null;
@@ -154,8 +151,8 @@ export function createServerRooms(state, sync) {
     if (!request) throw new Error('That join request is no longer active.');
     pendingRequests.delete(String(key));
     if (isApproved) state.approvedPlayers.add(request.senderNumber);
-    const sent = client().sendEvent(EVENTS.JOIN_REPLY, { approved: !!isApproved }, {
-      reliable: true, targetPlayers: [request.senderNumber]
+    const sent = client().send('approve-join-request', {
+      playerNumber: request.senderNumber, approved: !!isApproved
     });
     if (!sent) {
       if (isApproved) state.approvedPlayers.delete(request.senderNumber);
@@ -175,12 +172,19 @@ export function createServerRooms(state, sync) {
       client().joinLobby().then(publishLobbyList)
         .catch(error => state.log('Could not join local server lobby: ' + error.message));
     }
+    if (!room() && client()?.isConnected) client().send('list');
+    if (lobbyRefreshTimer) clearInterval(lobbyRefreshTimer);
+    lobbyRefreshTimer = setInterval(() => {
+      if (client()?.isConnected && !room()) client().send('list');
+    }, 2000);
     roomListOff?.();
     roomListOff = client()?.on('roomListUpdated', publishLobbyList) || null;
     publishLobbyList();
     return () => {
       roomListOff?.();
       roomListOff = null;
+      if (lobbyRefreshTimer) clearInterval(lobbyRefreshTimer);
+      lobbyRefreshTimer = null;
       state.callbacks.onLobbyList = null;
     };
   }
