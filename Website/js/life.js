@@ -14,7 +14,7 @@ function swapState(cells,age,wetness,a,b){const c=cells[a];cells[a]=cells[b];cel
 function add(cells,age,x,y,id,w,h){if(x<0||x>=w||y<0||y>=h)return false;const i=y*w+x;if(cells[i]!==EMPTY)return false;cells[i]=id;age[i]=0;return true}
 function soilMoisture(cells,wetness,w,h,tick){
  const len=Math.min(cells.length,wetness.length,w*h);
- if(tick%3===0){
+ {
   for(let i=0;i<len;i++)if(cells[i]===SOIL){
    const x=i%w,y=(i/w)|0;let water=false;
    for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){
