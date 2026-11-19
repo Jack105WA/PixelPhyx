@@ -35,6 +35,7 @@ jobs:
       - name: Compile TypeScript sources
         run: |
           npx --yes --package typescript@5.9.3 tsc -p Website/tsconfig.json
+          npx --yes --package typescript@5.9.3 tsc -p Server/tsconfig.json
           npx --yes --package typescript@5.9.3 tsc -p Offline/tsconfig.json
       - name: Build browser WebAssembly package
         run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
