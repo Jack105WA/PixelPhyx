@@ -100,7 +100,7 @@ pub fn step_particles(
             if i>=len||cells[i]==0||updated[i]!=0{continue;}
             let m=cells[i];
             let gas=m==8||m==9||m==5;
-            let movable=matches!(m,1|2|6|7|11|14|16);
+            let movable=matches!(m,1|2|6|7|11|14|16|28);
             if !gas&&!movable{continue;}
             let dy:isize=if gas {-1}else{1};
             let ny=y as isize+dy;
@@ -139,7 +139,7 @@ pub fn step_particles(
                     continue;
                 }
             }
-            if !gas && matches!(m,2|6|7|11|14|16) {
+            if !gas && matches!(m,2|6|7|11|14|16|28) {
                 let side=if random(seed,i,0x51DE)<0.5 {-1isize}else{1isize};
                 let nx=x as isize+side;
                 let ny=y as isize+dy;
