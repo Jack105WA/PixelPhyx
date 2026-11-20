@@ -19,7 +19,7 @@ export function createParallelWorkers() {
   let workerUrl = null;
   const workers = [];
   const pending = Array(workerCount).fill(null);
-  let nextJobId = 0, disposed = false, workerFailure = null;
+  let nextJobId = 0, disposed = false, workerFailure = null, workersInitialized = false;
   const failWorkers = error => {
     if (workerFailure) return;
     workerFailure = error;
