@@ -49,7 +49,7 @@ if (mainStart === mainSource) {
 
 // Replace the current lazy-loaded multiplayer import wherever it appears.
 const offlineMain = mainStart.replace(
-  /const\s+\{\s*createMultiplayer\s*\}\s*=\s*await\s+import\(['"]\.\/netcode\/multiplayer\.js[^'"]*['"]\s*\);/,
+  /const\s+\{\s*createMultiplayer\s*\}\s*=\s*await\s+import\(['"]\.\/netcode\/multiplayer\.js\?v=['"]\s*\+\s*encodeURIComponent\(cacheVersion\)\);/,
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
 );
 if (offlineMain === mainStart) {
