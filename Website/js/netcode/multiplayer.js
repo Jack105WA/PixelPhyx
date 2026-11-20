@@ -227,7 +227,7 @@ export function createMultiplayer(callbacks = {}) {
     get networkSettings() {
       const network = state.client?.serverInfo?.network || {};
       return {
-        snapshotIntervalMs: Math.max(100, Number(network.snapshotIntervalMs) || 400),
+        snapshotIntervalMs: Math.max(750, Number(network.snapshotIntervalMs) || 1000),
         ropeUpdateIntervalMs: Math.max(20, Number(network.ropeUpdateIntervalMs) || 50),
         cursorUpdates: network.cursorUpdates !== false,
         cursorUpdateIntervalMs: Math.max(20, Number(network.cursorUpdateIntervalMs) || 40),
