@@ -13,6 +13,7 @@ const [
   engineSource,
   uiSource,
   lifeSource,
+  parallelWorkerSource,
   wasmEngineSource,
   wasmGlueSource,
   wasmBinary
@@ -23,6 +24,7 @@ const [
   read('js/physics-engine.js'),
   read('js/ui.js'),
   read('js/life.js'),
+  read('js/parallel-worker.js'),
   read('js/wasm-engine.js'),
   readFile('Website/pkg/pixelphyx_wasm.js', 'utf8'),
   readFile('Website/pkg/pixelphyx_wasm_bg.wasm')
@@ -33,9 +35,10 @@ const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
 const ui = stripExports(uiSource);
 const life = stripExports(lifeSource);
+const parallelWorker = stripExports(parallelWorkerSource);
 
 if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) ||
-    /\bexport\s/.test(ui) || /\bexport\s/.test(life)) {
+    /\bexport\s/.test(ui) || /\bexport\s/.test(life) || /\bexport\s/.test(parallelWorker)) {
   throw new Error('Unsupported export syntax in offline physics modules.');
 }
 
@@ -86,7 +89,9 @@ const gameScript = [
   'const PixelPhyxEngine=(()=>{', engine, 'return {createPhysicsEngine};', '})();',
   'const PixelPhyxUi=(()=>{', ui, 'return {initializeUiShell};', '})();',
   'const PixelPhyxLife=(()=>{', life, 'return {createLifeSystem,LIFE_MATERIALS};', '})();',
+  'const PixelPhyxParallel=(()=>{', parallelWorker, 'return {createParallelWorkers};', '})();',
   'const {createLifeSystem,LIFE_MATERIALS}=PixelPhyxLife;',
+  'const {createParallelWorkers}=PixelPhyxParallel;',
   'const {initializeUiShell}=PixelPhyxUi;',
   '(async()=>{const firebaseConfig={};',
   'const {materialState,resetMaterialState}=PixelPhyxMaterial;',
@@ -127,6 +132,7 @@ const buildId = createHash('sha256')
   .update(engineSource)
   .update(uiSource)
   .update(lifeSource)
+  .update(parallelWorkerSource)
   .update(wasmGlueSource)
   .update(wasmBinary)
   .digest('hex')
