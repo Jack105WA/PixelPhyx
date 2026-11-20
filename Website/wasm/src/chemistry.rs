@@ -580,3 +580,69 @@ mod tests {
         assert!(air[12] > 20.0);
     }
 }
+
+
+#[cfg(test)]
+mod combustion_tests {
+    use super::{prime_fuse_ignition, step_combustion, step_material_thermal};
+
+    #[test]
+    fn fuse_ignites_when_touching_fire_before_particle_motion() {
+        let mut cells = vec![0u8; 25];
+        cells[12] = 5;
+        cells[13] = 17;
+        let mut heat = vec![0.0f32; 25];
+        let mut fuel = vec![0.0f32; 25];
+        let mut burn = vec![0.0f32; 25];
+
+        prime_fuse_ignition(&cells, &mut heat, &mut fuel, &mut burn, 5, 5);
+
+        assert!(burn[13] > 0.0);
+        assert!(fuel[13] > 0.0);
+        assert!(heat[13] >= 900.0);
+    }
+
+    #[test]
+    fn combustion_advances_fire_and_returns_detonation_count() {
+        let mut cells = vec![0u8; 25];
+        cells[12] = 5;
+        let mut heat = vec![0.0f32; 25];
+        let wetness = vec![0.0f32; 25];
+        let mut fuel = vec![0.0f32; 25];
+        let mut burn = vec![0.0f32; 25];
+        let age = vec![0u16; 25];
+
+        let detonations = step_combustion(&mut cells, &mut heat, &wetness,
+            &mut fuel, &mut burn, &age, 20.0, 5, 5);
+
+        assert_eq!(detonations, 0);
+        assert!(burn[12] > 0.0);
+        assert!(heat[12] >= 700.0);
+    }
+
+    #[test]
+    fn thermal_step_clears_chemistry_for_empty_cells() {
+        let cells = vec![0u8; 4];
+        let mut wetness = vec![0.8f32; 4];
+        let mut heat = vec![100.0f32; 4];
+        let mut air = vec![80.0f32; 4];
+        let mut next_air = vec![80.0f32; 4];
+        let mut fuel = vec![0.5f32; 4];
+        let mut burn = vec![0.5f32; 4];
+        let mut age = vec![12u16; 4];
+        let mut corrosion = vec![2.0f32; 4];
+
+        step_material_thermal(&cells, &mut wetness, &mut heat, &mut air,
+            &mut next_air, &mut fuel, &mut burn, &mut age, &mut corrosion,
+            20.0, 2, 2);
+
+        for i in 0..4 {
+            assert_eq!(wetness[i], 0.0);
+            assert_eq!(heat[i], 0.0);
+            assert_eq!(fuel[i], 0.0);
+            assert_eq!(burn[i], 0.0);
+            assert_eq!(age[i], 0);
+            assert_eq!(corrosion[i], 0.0);
+        }
+    }
+}
