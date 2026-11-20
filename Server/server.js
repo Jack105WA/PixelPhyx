@@ -21,7 +21,7 @@ const settings = {
   name: String(config.server?.name || 'PixelPhyx Server').slice(0, 48),
   publicAddress: String(config.server?.public_address || '').trim(),
   heartbeatMs: Math.max(5000, Number(config.network?.heartbeat_ms) || 15000),
-  snapshotIntervalMs: Math.max(100, Math.min(5000, Number(config.network?.snapshot_interval_ms) || 400)),
+  snapshotIntervalMs: Math.max(750, Math.min(5000, Number(config.network?.snapshot_interval_ms) || 1000)),
   ropeUpdateIntervalMs: Math.max(20, Math.min(1000, Number(config.network?.rope_update_interval_ms) || 50)),
   cursorUpdates: config.network?.cursor_updates !== false,
   cursorUpdateIntervalMs: Math.max(20, Math.min(500, Number(config.network?.cursor_update_interval_ms) || 40)),
