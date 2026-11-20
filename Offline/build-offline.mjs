@@ -79,6 +79,9 @@ const gameScript = [
   `const wasmGlue=await import(${JSON.stringify(wasmGlueUrl)});`,
   `const wasmBytes=Uint8Array.from(atob('${wasmBase64}'),c=>c.charCodeAt(0));`,
   'await wasmGlue.default({module_or_path:wasmBytes.buffer});',
+  // file:// storage access can throw in privacy-restricted browsers. Keep that
+  // failure isolated so it cannot prevent the physics engine and canvas booting.
+  'const localStorage=(()=>{try{const storage=window.localStorage;const key="__pixelphyx_offline_storage_probe__";storage.setItem(key,"1");storage.removeItem(key);return storage}catch(error){const values=new Map();return{getItem:key=>values.has(key)?values.get(key):null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key),clear:()=>values.clear(),key:index=>Array.from(values.keys())[index]??null,get length(){return values.size}}}})();',
   `const wasmExports=${JSON.stringify(wasmExports)};`,
   'const missingWasmExports=wasmExports.filter(name=>typeof wasmGlue[name]!=="function");',
   'if(missingWasmExports.length)throw new Error("Offline WASM build is missing required exports: "+missingWasmExports.join(", "));',
@@ -147,6 +150,9 @@ if (/pixelphyx-offline-updater|raw\.githubusercontent\.com/i.test(builtHtml)) {
 }
 if (!builtHtml.includes('pixelphyx-offline-build') || !builtHtml.includes('wasmBytes')) {
   throw new Error('Offline output failed its required build markers.');
+}
+if (!builtHtml.includes('__pixelphyx_offline_storage_probe__')) {
+  throw new Error('Offline output is missing its file:// storage protection.');
 }
 
 await writeFile(offlineDir + 'offline.html', builtHtml, 'utf8');
