@@ -37,3 +37,41 @@ pub fn step_ropes(x:&mut[f32],y:&mut[f32],px:&mut[f32],py:&mut[f32],ox:&mut[f32]
   }
  }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::step_ropes;
+
+    #[test]
+    fn anchored_rope_endpoints_remain_fixed_and_nodes_stay_finite() {
+        let mut x = vec![1.0, 2.0, 3.0];
+        let mut y = vec![1.0, 1.0, 1.0];
+        let mut px = x.clone();
+        let mut py = y.clone();
+        let mut ox = x.clone();
+        let mut oy = y.clone();
+        let anchors = vec![1, 0, 1];
+        let drag = vec![0; 3];
+        let offsets = vec![0, 3];
+        let lengths = vec![1.0];
+        let cells = vec![0u8; 25];
+
+        for _ in 0..20 {
+            step_ropes(&mut x, &mut y, &mut px, &mut py, &mut ox, &mut oy,
+                &anchors, &drag, &offsets, &lengths, &cells, 5, 5, 1.0);
+        }
+
+        assert_eq!((x[0], y[0]), (1.0, 1.0));
+        assert_eq!((x[2], y[2]), (3.0, 1.0));
+        assert!(x.iter().chain(y.iter()).all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn invalid_or_empty_rope_inputs_are_safe() {
+        let mut values = vec![0.0f32; 1];
+        step_ropes(&mut values, &mut values.clone(), &mut values.clone(),
+            &mut values.clone(), &mut values.clone(), &mut values.clone(),
+            &[0], &[0], &[0, 1], &[1.0], &[0], 0, 4, 1.0);
+    }
+}
