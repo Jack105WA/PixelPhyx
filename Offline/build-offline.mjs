@@ -47,14 +47,16 @@ if (mainStart === mainSource) {
   throw new Error('Could not remove the online module imports from main.js.');
 }
 
-// Replace the current lazy-loaded multiplayer import wherever it appears.
-const offlineMain = mainStart.replace(
-  /const\s+\{\s*createMultiplayer\s*\}\s*=\s*await\s+import\(['"]\.\/netcode\/multiplayer\.js\?v=['"]\s*\+\s*encodeURIComponent\(cacheVersion\)\);/,
-  'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
-);
-if (offlineMain === mainStart) {
-  throw new Error('The multiplayer entry point changed; update the offline adapter before building.');
+// Replace every lazy-loaded multiplayer import with the offline adapter.
+const multiplayerImportPattern = /const\s*\{\s*createMultiplayer\s*\}\s*=\s*await\s+import\(\s*(['"])\.\/netcode\/multiplayer\.js\?v=\1\s*\+\s*encodeURIComponent\(cacheVersion\)\s*\)/g;
+const multiplayerImportMatches = [...mainStart.matchAll(multiplayerImportPattern)];
+if (multiplayerImportMatches.length !== 1) {
+  throw new Error(`Expected one multiplayer import for offline adaptation; found ${multiplayerImportMatches.length}. Update Offline/build-offline.mjs for the current main.js source.`);
 }
+const offlineMain = mainStart.replace(
+  multiplayerImportPattern,
+  'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer'
+);
 
 const wasmImport = wasmEngineSource.match(/import\s+init,\s*\{([\s\S]*?)\}\s*from/);
 if (!wasmImport) throw new Error('Could not read the online WASM engine exports.');
