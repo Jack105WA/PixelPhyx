@@ -4,7 +4,7 @@
 
 The persistent Web Workers in `Website/js/parallel-worker.ts` are auxiliary workers for HUD summaries only. They count occupied cells and sum air temperature values. They do not execute physics, chemistry, life, ropes, or rendering. Do not describe the simulation as multithreaded yet.
 
-The simulation remains authoritative on the main thread. Rust/WASM accelerates kernels, but a WASM call is synchronous and does not itself create another thread.
+The simulation remains authoritative on the main thread. Rust/WASM accelerates kernels, but a WASM call is synchronous and does not itself create another thread. The ordered tick dispatcher is now extracted into `Website/js/simulation-core.ts` and shared by the browser and offline builds. It receives stage callbacks, so this is an orchestration extraction—not yet a headless state-owning simulation core.
 
 ## Authoritative tick order
 
@@ -68,9 +68,9 @@ Avoid copying every typed array on every frame. Prefer a bounded snapshot protoc
 
 ## Migration sequence and acceptance criteria
 
-1. **Baseline and parity (current prerequisite):** keep TypeScript/runtime source pairs synchronized and run worker tests plus the existing build pipeline.
+1. **Baseline and parity:** keep TypeScript/runtime source pairs synchronized and run worker tests plus the existing build pipeline. The ordered tick dispatcher has been extracted and its stage order is covered by Node tests.
 2. **Define the protocol:** specify initialization, commands, resize, tick scheduling, snapshot ownership, errors, and shutdown. Add protocol tests before moving state.
-3. **Extract a headless simulation core:** move state initialization and the complete tick orchestration behind a single interface without changing stage order. Run it on the main thread first and compare deterministic state hashes against the current implementation.
+3. **Extract a headless simulation core:** the dispatcher extraction is complete, but state initialization and subsystem ownership still need to move behind a headless interface. Add deterministic state-hash comparisons before changing ownership.
 4. **Run the core in one worker:** move ownership of all simulation arrays into the worker. Keep a main-thread fallback for unsupported environments.
 5. **Move rendering data efficiently:** introduce transferable double buffers or dirty-region messages, then verify no buffer is read after transfer and no stale frame is applied.
 6. **Integrate browser features:** route pointer input, resize, multiplayer authority, save/load, and offline packaging through the same protocol.
