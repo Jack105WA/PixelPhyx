@@ -696,7 +696,7 @@ async function connectToEnteredServer(){
  }catch(error){alert('Could not connect to '+address+': '+error.message)}
  finally{button.disabled=false;button.textContent='Connect to server'}
 }
-document.querySelector('#connectServer').onclick=connectToEnteredServer;
+const connectServerButton=document.querySelector('#connectServer');if(connectServerButton)connectServerButton.onclick=connectToEnteredServer;
 function renderLobbyGallery(lobbies){
  const gallery=document.querySelector('#lobbyGallery');
  document.querySelector('#lobbyCapacity').textContent=lobbies.length+' lobbies listed';
