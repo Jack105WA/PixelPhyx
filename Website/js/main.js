@@ -16,10 +16,23 @@ const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},la
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
 // Allocate every WASM chemistry/physics state buffer for the initial world.
 resetMaterialState(N);
-const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d',{alpha:false});
+const canvas=document.querySelector('#world');
+let ctx=canvas.getContext('2d',{alpha:false}),canvasContextAvailable=!!ctx;
 const particleInterpolationCanvas=document.createElement('canvas'),particleInterpolationCtx=particleInterpolationCanvas.getContext('2d');
 particleInterpolationCanvas.className='particle-interpolation';canvas.parentElement.insertBefore(particleInterpolationCanvas,canvas.nextElementSibling);
-let frameImage=ctx.createImageData(W,H);
+let frameImage=ctx?.createImageData(W,H)||null;
+canvas.addEventListener('contextlost',event=>{
+ event.preventDefault();
+ canvasContextAvailable=false;
+});
+canvas.addEventListener('contextrestored',()=>{
+ ctx=canvas.getContext('2d',{alpha:false});
+ canvasContextAvailable=!!ctx;
+ if(canvasContextAvailable){
+  frameImage=ctx.createImageData(W,H);
+  ctx.imageSmoothingEnabled=false;
+ }
+});
 function protectStrokeSegment(from,to){
  if(!activeStrokeMeta||!to||!inside(to.x,to.y))return;
  const radius=activeStrokeMeta.tool==='bomb'?2:activeStrokeMeta.tool==='line'?Math.max(0,Math.floor(activeStrokeMeta.brush/4)):activeStrokeMeta.brush;
@@ -251,7 +264,7 @@ function wasmRandom(seed,index,salt){
 function buildMovementBlocks(seed){
  movementBlocks.fill(0);
  if(!ropes.length)return;
- const movable=m=>m===1||m===2||m===6||m===7||m===11||m===14||m===16||m===28;
+ const movable=m=>m===1||m===2||m===6||m===7||m===11||m===14||m===16;
  const canSwap=(m,target)=>target===M.EMPTY||(m===M.SAND&&(target===M.WATER||target===M.OIL));
  for(let i=0;i<N;i++){
   const material=cells[i];if(!material)continue;
@@ -370,7 +383,7 @@ function drawVisualParticles(){
  }
  ctx.globalAlpha=1;
 }
-const baseMaterialDensity=[0,1.6,1,2.7,.65,.05,.82,1.1,.04,.04,.92,2.5,1.1,.65,1.9,2.7,.85,.9,...Array(10).fill(1),1.35];
+const baseMaterialDensity=[0,1.6,1,2.7,.65,.05,.82,1.1,.04,.04,.92,2.5,1.1,.65,1.9,2.7,.85,.9];
 function getMaterialDensity(id){const custom=customMaterialById[id];return custom?Math.max(.05,Number(custom.density)||.05):(baseMaterialDensity[id]??1)}
 function swapMaterialCells(from,to,movingId){const displaced=cells[to],keys=['wetness','heat','heatInputs','fuel','burn','age','corrosion'];cells[to]=movingId;cells[from]=displaced;for(const key of keys){const values=materialState[key],value=values[from];values[from]=values[to];values[to]=value}const vx=particleVelocityX[from],vy=particleVelocityY[from];particleVelocityX[from]=particleVelocityX[to];particleVelocityY[from]=particleVelocityY[to];particleVelocityX[to]=vx;particleVelocityY[to]=vy;updated[from]=1;updated[to]=1;recordParticleMove(from,to,movingId,false);if(displaced)recordParticleMove(to,from,displaced,false)}
 function moveCustomMaterial(from,to,id){if(to<0||to>=N)return false;const target=cells[to];if(target===id)return false;if(target===M.EMPTY){cells[to]=id;cells[from]=M.EMPTY;for(const key of ['wetness','heat','heatInputs','fuel','burn','age','corrosion']){materialState[key][to]=materialState[key][from];materialState[key][from]=0}particleVelocityX[to]=particleVelocityX[from];particleVelocityY[to]=particleVelocityY[from];particleVelocityX[from]=particleVelocityY[from]=0;updated[from]=updated[to]=1;recordParticleMove(from,to,id,false);return true}const targetCustom=customMaterialById[target],targetIsMovable=targetCustom?targetCustom.state!=='solid':[1,2,6,7,11,14,16].includes(target);if(!targetIsMovable||getMaterialDensity(id)<=getMaterialDensity(target))return false;swapMaterialCells(from,to,id);return true}
@@ -379,7 +392,6 @@ function stepCustomMaterials(){for(let y=H-1;y>=0;y--){const reverse=((simulatio
 function tick(){movingParticles.length=0;moveByDestination.fill(-1);movingDestinations.fill(0);updated.fill(0);try{lifeSystem.step({cells,age:materialState.age,wetness:materialState.wetness,width:W,height:H,tick:simulationTick+1})}catch(error){console.error('PixelPhyx Life simulation error:',error)}if(leafblower.active)applyLeafblowerImpulse(leafblower.x,leafblower.y,leafblower.dx,leafblower.dy,46,4.2);if(multiplayer?.isHost){const now=performance.now();for(const [id,blower] of Object.entries(remoteLeafblowers)){if(!blower.active||now-blower.receivedAt>500){if(now-blower.receivedAt>1200)delete remoteLeafblowers[id];continue}const blend=.42;blower.x+=(blower.targetX-blower.x)*blend;blower.y+=(blower.targetY-blower.y)*blend;let dx=blower.targetDx,dy=blower.targetDy;const directionLength=Math.hypot(dx,dy)||1;dx/=directionLength;dy/=directionLength;let mixedX=blower.dx+(dx-blower.dx)*.38,mixedY=blower.dy+(dy-blower.dy)*.38;const mixedLength=Math.hypot(mixedX,mixedY)||1;blower.dx=mixedX/mixedLength;blower.dy=mixedY/mixedLength;applyLeafblowerImpulse(blower.x,blower.y,blower.dx,blower.dy,46,4.2)}}stepRopes();const seed=++simulationTick;buildMovementBlocks(seed);const moveTriples=wasmEngine.step_particles(cells,updated,particleVelocityX,particleVelocityY,materialState.wetness,materialState.heat,materialState.heatInputs,materialState.fuel,materialState.burn,materialState.age,materialState.corrosion,movementBlocks,W,H,gravity,seed);
  for(let move=0;move+2<moveTriples.length;move+=3)recordParticleMove(moveTriples[move],moveTriples[move+1],moveTriples[move+2],false);
  stepCustomMaterials();
-
  for(let i=0;i<N;i++){const m=cells[i];if(!m)continue;const x=i%W,y=(i/W)|0;
   if(m===M.LAVA&&Math.random()<.00022)emitVisualParticle(x,y,'molten');
   else if(m===M.FIRE&&Math.random()<.00009)emitVisualParticle(x,y,'ember');
@@ -482,6 +494,7 @@ function drawCursorName(c,targetCtx){
 }
 const particleCountElement=document.querySelector('#particleCount'),ropeCountElement=document.querySelector('#ropeCount'),gravityReadElement=document.querySelector('#gravityRead');
 function render(){
+ if(!canvasContextAvailable||!ctx||!frameImage)return;
  if(multiplayer?.joined&&!multiplayer.isHost){for(const rope of ropes)for(const node of rope.points){if(node===ropeDrag?.node)continue;if(Number.isFinite(node.targetX)){node.x+=(node.targetX-node.x)*.42;node.y+=(node.targetY-node.y)*.42;if(Math.abs(node.targetX-node.x)<.015)node.x=node.targetX;if(Math.abs(node.targetY-node.y)<.015)node.y=node.targetY}}}
  let count=0;
  frameImage.data.set(wasmEngine.render_composited_frame(cells,materialState.wetness,materialState.heat,colorLut,movingDestinations,W,H));
