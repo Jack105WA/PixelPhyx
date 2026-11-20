@@ -142,4 +142,71 @@ mod exported_api_tests {
         assert!(heat.iter().all(|value| value.is_finite()));
         assert!(air.iter().all(|value| value.is_finite()));
     }
+
+    fn run_deterministic_world() -> (Vec<u8>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<u16>, Vec<f32>, Vec<f32>, Vec<f32>) {
+        const WIDTH: u32 = 8;
+        const HEIGHT: u32 = 8;
+        let len = (WIDTH * HEIGHT) as usize;
+        let mut cells = vec![0u8; len];
+        cells[9] = 1;  // Sand.
+        cells[10] = 2; // Water.
+        cells[27] = 5; // Fire.
+        cells[28] = 17; // Fuse.
+        cells[36] = 7; // Acid.
+        cells[37] = 1; // Sand exposed to acid.
+        let mut updated = vec![0u8; len];
+        let mut vx = vec![0.0f32; len];
+        let mut vy = vec![0.0f32; len];
+        let mut wetness = vec![0.0f32; len];
+        let mut heat = vec![0.0f32; len];
+        let mut heat_inputs = vec![0.0f32; len];
+        let mut air = vec![20.0f32; len];
+        let mut next_air = vec![20.0f32; len];
+        let mut fuel = vec![0.0f32; len];
+        let mut burn = vec![0.0f32; len];
+        let mut age = vec![0u16; len];
+        let mut corrosion = vec![0.0f32; len];
+        let blocked = vec![0u8; len];
+        wetness[9] = 0.3;
+        heat[27] = 850.0;
+        heat_inputs[27] = 25.0;
+
+        for tick in 0..120u32 {
+            updated.fill(0);
+            step_particles(
+                &mut cells, &mut updated, &mut vx, &mut vy,
+                &mut wetness, &mut heat, &mut heat_inputs, &mut fuel,
+                &mut burn, &mut age, &mut corrosion, &blocked,
+                WIDTH, HEIGHT, 1.0, 0xA5A5_1234 ^ tick,
+            );
+            step_chemistry(
+                &mut cells, &mut wetness, &mut heat, &mut heat_inputs,
+                &mut air, &mut next_air, &mut fuel, &mut burn,
+                &mut age, &mut corrosion, 20.0, WIDTH, HEIGHT,
+            );
+        }
+
+        (cells, vx, vy, wetness, heat, heat_inputs, air, age, fuel, burn, corrosion)
+    }
+
+    #[test]
+    fn complete_particle_and_chemistry_ticks_are_deterministic() {
+        let first = run_deterministic_world();
+        let second = run_deterministic_world();
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn complete_tick_sequence_keeps_all_state_finite_and_sized() {
+        let (cells, vx, vy, wetness, heat, heat_inputs, air, age, fuel, burn, corrosion) =
+            run_deterministic_world();
+        let len = 8 * 8;
+        assert_eq!(cells.len(), len);
+        assert_eq!(age.len(), len);
+        for values in [&vx, &vy, &wetness, &heat, &heat_inputs, &air, &fuel, &burn, &corrosion] {
+            assert_eq!(values.len(), len);
+            assert!(values.iter().all(|value| value.is_finite()));
+        }
+    }
+
 }
