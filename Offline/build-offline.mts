@@ -30,7 +30,9 @@ const [
   readFile('Website/pkg/pixelphyx_wasm_bg.wasm')
 ]);
 
-const stripExports = source => source.replace(/\bexport\s+(?=(?:const|function)\b)/g, '');
+const stripExports = source => source
+  .replace(/\\bexport\\s+(?=(?:const|function)\\b)/g, '')
+  .replace(/^\\s*export\\s*\\{\\s*\\};?\\s*$/gm, '');
 const physics = stripExports(physicsSource);
 const engine = stripExports(engineSource);
 const ui = stripExports(uiSource);
