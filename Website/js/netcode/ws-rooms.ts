@@ -9,14 +9,15 @@ export function createServerRooms(state, sync) {
 
   function publishLobbyList() {
     const lobbies = (client()?.cachedRoomList || [])
-      .filter(entry => entry.customProperties?.game === 'pixelphyx')
       .slice(0, 20)
       .map(entry => ({
         room: entry.name,
-        players: entry.playerCount,
-        hostName: entry.customProperties?.hostName || 'Unknown',
+        players: Number(entry.playerCount) || 0,
+        maxPlayers: Number(entry.maxPlayers) || 0,
+        hostName: entry.customProperties?.hostName || entry.hostName || 'Unknown',
         transport: 'local server'
-      }));
+      }))
+      .filter(entry => typeof entry.room === 'string' && entry.room.length > 0);
     state.callbacks.onLobbyList?.(lobbies);
   }
 
@@ -49,6 +50,15 @@ export function createServerRooms(state, sync) {
 
     client().onEvent(EVENTS.SYNC_REQUEST, ({ senderNumber }) => {
       if (state.isHost() && state.isApproved(senderNumber)) sync.queueSnapshot([senderNumber]);
+    });
+
+    client().on('error', error => {
+      if (!pendingApproval) return;
+      const pending = pendingApproval;
+      pendingApproval = null;
+      clearTimeout(pending.timer);
+      pending.reject(error instanceof Error ? error : new Error(String(error || 'Join request failed.')));
+      if (room()) leaveRoom().catch(() => {});
     });
 
     client().on('playerJoined', () => state.roster());
