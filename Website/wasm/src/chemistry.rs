@@ -501,3 +501,82 @@ pub fn step_material_thermal(
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::{step_acid, step_material_thermal, step_phase_changes};
+
+    #[test]
+    fn acid_corrosion_removes_sand_and_clears_its_state() {
+        let mut cells = vec![0u8; 9];
+        cells[4] = 7; // Acid
+        cells[5] = 1; // Sand
+        let mut corrosion = vec![0.0f32; 9];
+        let mut burn = vec![0.0f32; 9];
+        let mut heat = vec![0.0f32; 9];
+        let mut wetness = vec![0.0f32; 9];
+        let mut fuel = vec![0.0f32; 9];
+        let mut age = vec![0u16; 9];
+        burn[5] = 0.5;
+        heat[5] = 100.0;
+        wetness[5] = 0.75;
+        fuel[5] = 0.8;
+        age[5] = 12;
+
+        for _ in 0..15 {
+            step_acid(&mut cells, &mut corrosion, &mut burn, &mut heat,
+                &mut wetness, &mut fuel, &mut age, 3, 3);
+        }
+
+        assert_eq!(cells[5], 0);
+        assert_eq!(corrosion[5], 0.0);
+        assert_eq!(burn[5], 0.0);
+        assert_eq!(heat[5], 0.0);
+        assert_eq!(wetness[5], 0.0);
+        assert_eq!(fuel[5], 0.0);
+        assert_eq!(age[5], 0);
+    }
+
+    #[test]
+    fn phase_changes_are_deterministic_for_identical_worlds() {
+        let mut first = vec![0u8; 64];
+        first[18] = 2;
+        first[27] = 8;
+        first[36] = 9;
+        let mut second = first.clone();
+        let age = vec![17u16; 64];
+
+        for _ in 0..500 {
+            step_phase_changes(&mut first, &age, 240.0, 8, 8);
+            step_phase_changes(&mut second, &age, 240.0, 8, 8);
+        }
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn thermal_step_advances_age_and_keeps_air_temperatures_finite() {
+        let mut cells = vec![0u8; 25];
+        cells[12] = 5; // Fire
+        cells[13] = 1; // Sand
+        let mut wetness = vec![0.0f32; 25];
+        let mut heat = vec![20.0f32; 25];
+        let mut air = vec![20.0f32; 25];
+        let mut next_air = vec![20.0f32; 25];
+        let mut fuel = vec![0.0f32; 25];
+        let mut burn = vec![0.0f32; 25];
+        let mut age = vec![0u16; 25];
+        let mut corrosion = vec![0.0f32; 25];
+
+        step_material_thermal(&cells, &mut wetness, &mut heat, &mut air,
+            &mut next_air, &mut fuel, &mut burn, &mut age, &mut corrosion,
+            20.0, 5, 5);
+
+        assert_eq!(age[12], 1);
+        assert_eq!(age[13], 1);
+        assert!(air.iter().all(|value| value.is_finite()));
+        assert!(heat.iter().all(|value| value.is_finite()));
+        assert!(air[12] > 20.0);
+    }
+}
