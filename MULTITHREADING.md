@@ -4,7 +4,7 @@
 
 The persistent Web Workers in `Website/js/parallel-worker.ts` are auxiliary workers for HUD summaries only. They count occupied cells and sum air temperature values. They do not execute physics, chemistry, life, ropes, or rendering. Do not describe the simulation as multithreaded yet.
 
-The simulation remains authoritative on the main thread. Rust/WASM accelerates kernels, but a WASM call is synchronous and does not itself create another thread. The ordered tick dispatcher is now extracted into `Website/js/simulation-core.ts`, and typed-array allocation is centralized in `Website/js/simulation-state.ts`, and a versioned worker message contract is defined in `Website/js/simulation-protocol.ts`; the dispatcher and state factory are shared by browser and offline builds. The dispatcher receives stage callbacks and the state factory is still instantiated by the main thread, so this is not yet a headless state-owning simulation core.
+The simulation remains authoritative on the main thread. Rust/WASM accelerates kernels, but a WASM call is synchronous and does not itself create another thread. The ordered tick dispatcher is now extracted into `Website/js/simulation-core.ts`, typed-array allocation is centralized in `Website/js/simulation-state.ts`, and a versioned worker message contract is defined in `Website/js/simulation-protocol.ts`. The life subsystem now exposes copied `getState()` / `setState()` snapshots for its seed-burial progress, with regression coverage; this is a prerequisite for moving its hidden state into a persistent worker. The dispatcher receives stage callbacks and the state factory is still instantiated by the main thread, so this is not yet a headless state-owning simulation core.
 
 ## Authoritative tick order
 
