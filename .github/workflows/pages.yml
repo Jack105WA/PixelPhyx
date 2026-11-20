@@ -31,21 +31,10 @@ jobs:
         with:
           node-version: 22
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-pack
-
       - name: Compile TypeScript sources
         run: |
           npx --yes --package typescript@5.9.3 tsc -p Website/tsconfig.json
           npx --yes --package typescript@5.9.3 tsc -p Server/tsconfig.json
-
-      - name: Build browser WebAssembly package
-        run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
 
       - name: Validate browser JavaScript modules
         run: |
@@ -53,26 +42,6 @@ jobs:
           for file in Website/js/*.js Website/js/netcode/*.js Website/pkg/*.js; do
             node --input-type=module --check < "$file"
           done
-
-      - name: Generate and validate standalone offline edition
-        run: |
-          node --check Offline/build-offline.mjs
-          node Offline/build-offline.mjs
-          test -s Offline/offline.html
-          ! grep -Eiq 'pixelphyx-offline-updater|raw.githubusercontent.com' Offline/offline.html
-          ! grep -Eiq '<script[^>]+src=' Offline/offline.html
-
-      - name: Commit generated offline edition
-        run: |
-          if [ -z "$(git status --porcelain -- Offline/offline.html)" ]; then
-            echo "Offline edition is already up to date."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+Jack105WA@users.noreply.github.com"
-          git add Offline/offline.html
-          git commit -m "[skip ci] Build offline edition"
-          git push origin HEAD:main
 
       - uses: actions/configure-pages@v5
 
