@@ -47,9 +47,9 @@ if (mainStart === mainSource) {
   throw new Error('Could not remove the online module imports from main.js.');
 }
 
-const multiplayerImport = "const {createMultiplayer}=await import('./netcode/multiplayer.js?v='+encodeURIComponent(cacheVersion));";
+// Replace the current lazy-loaded multiplayer import wherever it appears.
 const offlineMain = mainStart.replace(
-  multiplayerImport,
+  /const\s+\{\s*createMultiplayer\s*\}\s*=\s*await\s+import\(['"]\.\/netcode\/multiplayer\.js[^'"]*['"]\s*\);/,
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
 );
 if (offlineMain === mainStart) {
