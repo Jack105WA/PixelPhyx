@@ -42,6 +42,22 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo.
+echo Windows Firewall setup:
+echo   [T] Allow Tailscale connections only (recommended)
+echo   [A] Allow connections from all networks
+echo   [N] Skip firewall changes
+choice /c TAN /n /m "Select T, A, or N: "
+if errorlevel 3 goto firewall_done
+if errorlevel 2 (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Configure Firewall.ps1" -Mode All
+  goto firewall_done
+)
+if errorlevel 1 (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Configure Firewall.ps1" -Mode Tailscale
+)
+:firewall_done
+
 if not exist "node_modules\ws\package.json" (
   echo Installing server dependencies...
   call npm install --omit=dev --no-audit --no-fund
