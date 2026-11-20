@@ -55,6 +55,9 @@ jobs:
       - name: Test simulation tick orchestration
         run: node --test Website/js/simulation-core.test.mjs
 
+      - name: Test simulation state allocation
+        run: node --test Website/js/simulation-state.test.mjs
+
       - name: Test parallel worker aggregation and fallback
         run: node --test Website/js/parallel-worker.test.mjs
 
