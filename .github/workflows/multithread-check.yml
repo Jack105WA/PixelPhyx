@@ -36,6 +36,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify compiled JavaScript is committed
+        run: git diff --exit-code -- Website/js
+
       - name: Install Rust WebAssembly target
         uses: dtolnay/rust-toolchain@stable
         with:
