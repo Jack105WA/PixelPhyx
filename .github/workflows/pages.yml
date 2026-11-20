@@ -43,7 +43,6 @@ jobs:
         run: |
           npx --yes --package typescript@5.9.3 tsc -p Website/tsconfig.json
           npx --yes --package typescript@5.9.3 tsc -p Server/tsconfig.json
-          npx --yes --package typescript@5.9.3 tsc -p Offline/tsconfig.json
 
       - name: Build browser WebAssembly package
         run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
@@ -57,6 +56,7 @@ jobs:
 
       - name: Generate and validate standalone offline edition
         run: |
+          node --check Offline/build-offline.mjs
           node Offline/build-offline.mjs
           test -s Offline/offline.html
           ! grep -Eiq 'pixelphyx-offline-updater|raw.githubusercontent.com' Offline/offline.html
