@@ -12,8 +12,8 @@ server:
 
 network:
   heartbeat_ms: 15000
-  # Full compressed world state refresh interval. Lower values sync more often.
-  snapshot_interval_ms: 400
+  # Full compressed world state refresh interval. Larger worlds automatically use slower intervals.
+  snapshot_interval_ms: 1000
   # Rope position refresh interval.
   rope_update_interval_ms: 50
   # Restore the original live multiplayer mouse cursors.
