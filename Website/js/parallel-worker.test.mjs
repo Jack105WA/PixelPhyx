@@ -66,7 +66,7 @@ test('parallel worker summary and recovery behavior', async t => {
       heat.fill(2.5);
       const result = await workers.summarize(cells, heat);
       assert.deepEqual(result, { particleCount: 2, heatSum: 320 * 180 * 2.5 });
-      assert.equal(env.counts().posted, 0);
+      assert.deepEqual(env.counts(), { created: 0, posted: 0 });
       workers.dispose();
     } finally { env.restore(); }
   });
