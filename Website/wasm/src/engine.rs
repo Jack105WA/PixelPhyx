@@ -141,3 +141,45 @@ impl World {
     fn index_signed(&self,x:isize,y:isize)->Option<usize> { if x>=0&&y>=0 {self.index(x as usize,y as usize)} else {None} }
 }
 fn two_mut<T>(v:&mut [T],i:usize,j:usize)->(&mut T,&mut T) { assert!(i<j); let (a,b)=v.split_at_mut(j); (&mut a[i],&mut b[0]) }
+
+
+#[cfg(test)]
+mod tests {
+    use super::World;
+
+    #[test]
+    fn world_dimensions_and_particle_count_track_mutations() {
+        let mut world = World::new(8, 6);
+        assert_eq!(world.dimensions(), vec![8, 6]);
+        assert_eq!(world.particle_count(), 0);
+        world.set_cell(2, 3, 1);
+        world.set_cell(7, 5, 2);
+        world.set_cell(8, 5, 3); // Out of bounds.
+        assert_eq!(world.particle_count(), 2);
+        assert_eq!(world.get_cells()[3 * 8 + 2], 1);
+        world.clear();
+        assert_eq!(world.particle_count(), 0);
+    }
+
+    #[test]
+    fn paused_world_does_not_advance_until_resumed() {
+        let mut world = World::new(8, 8);
+        world.set_cell(3, 2, 1);
+        world.set_paused(true);
+        let before = world.get_cells();
+        world.step(8);
+        assert_eq!(world.get_cells(), before);
+        world.set_paused(false);
+        world.step(8);
+        assert_eq!(world.particle_count(), 1);
+    }
+
+    #[test]
+    fn world_clamps_dimensions_and_limits_iteration_count() {
+        let world = World::new(0, 5000);
+        assert_eq!(world.dimensions(), vec![1, 2048]);
+        let mut world = World::new(4, 4);
+        world.step(1000);
+        assert_eq!(world.particle_count(), 0);
+    }
+}
