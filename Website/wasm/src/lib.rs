@@ -91,3 +91,55 @@ pub fn map_pointer(client_x:f64,client_y:f64,left:f64,top:f64,css_width:f64,css_
 pub fn paint_segment(cells:&mut[u8],x0:i32,y0:i32,x1:i32,y1:i32,radius:i32,material:u8,width:u32,height:u32){
  input::paint_segment(cells,x0,y0,x1,y1,radius,material,width,height)
 }
+
+#[cfg(test)]
+mod exported_api_tests {
+    use super::{count_particles, prepare_velocity, step_chemistry};
+
+    #[test]
+    fn particle_count_matches_non_empty_material_cells() {
+        assert_eq!(count_particles(&[]), 0);
+        assert_eq!(count_particles(&[0, 1, 0, 2, 255, 0]), 3);
+    }
+
+    #[test]
+    fn velocity_wrapper_applies_gravity_and_clears_unmatched_tail() {
+        let cells = [1u8, 0, 1];
+        let mut velocity_x = [1.0f32, 8.0, 9.0];
+        let mut velocity_y = [1.0f32];
+
+        prepare_velocity(&cells, &mut velocity_x, &mut velocity_y, 1.0);
+
+        assert!((velocity_x[0] - 0.965).abs() < 0.0001);
+        assert!((velocity_y[0] - 1.018075).abs() < 0.0001);
+        assert_eq!(velocity_x[1], 0.0);
+        assert_eq!(velocity_x[2], 0.0);
+    }
+
+    #[test]
+    fn chemistry_wrapper_consumes_heat_inputs() {
+        let mut cells = vec![0u8; 9];
+        cells[4] = 5; // Fire.
+        let mut wetness = vec![0.0f32; 9];
+        let mut heat = vec![0.0f32; 9];
+        let mut heat_inputs = vec![0.0f32; 9];
+        let mut air = vec![20.0f32; 9];
+        let mut next_air = vec![20.0f32; 9];
+        let mut fuel = vec![0.0f32; 9];
+        let mut burn = vec![0.0f32; 9];
+        let mut age = vec![0u16; 9];
+        let mut corrosion = vec![0.0f32; 9];
+        heat_inputs[4] = 125.0;
+
+        step_chemistry(
+            &mut cells, &mut wetness, &mut heat, &mut heat_inputs,
+            &mut air, &mut next_air, &mut fuel, &mut burn, &mut age,
+            &mut corrosion, 20.0, 3, 3,
+        );
+
+        assert_eq!(heat_inputs[4], 0.0);
+        assert!(heat[4] >= 125.0);
+        assert!(heat.iter().all(|value| value.is_finite()));
+        assert!(air.iter().all(|value| value.is_finite()));
+    }
+}
