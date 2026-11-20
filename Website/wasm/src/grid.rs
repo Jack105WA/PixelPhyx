@@ -201,3 +201,85 @@ pub fn step_particles(
     }
     moves
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::step_particles;
+
+    fn run_fixture() -> (Vec<u8>, Vec<u8>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<u16>, Vec<f32>, Vec<u32>) {
+        let mut cells = vec![0u8; 25];
+        cells[2] = 1; // Sand, away from the world edges.
+        let mut updated = vec![0u8; 25];
+        let mut vx = vec![0.0f32; 25];
+        let mut vy = vec![0.0f32; 25];
+        let mut wet = vec![0.0f32; 25];
+        let mut heat = vec![0.0f32; 25];
+        let mut heat_inputs = vec![0.0f32; 25];
+        let mut fuel = vec![0.0f32; 25];
+        let mut burn = vec![0.0f32; 25];
+        let mut age = vec![0u16; 25];
+        let mut corrosion = vec![0.0f32; 25];
+        // Distinct state markers prove that a material swap moves every
+        // per-cell array together with its material.
+        wet[2] = 0.25;
+        heat[2] = 123.0;
+        heat_inputs[2] = 4.0;
+        fuel[2] = 0.75;
+        burn[2] = 0.5;
+        age[2] = 42;
+        corrosion[2] = 3.0;
+        let blocked = vec![0u8; 25];
+
+        let moves = step_particles(
+            &mut cells, &mut updated, &mut vx, &mut vy, &mut wet,
+            &mut heat, &mut heat_inputs, &mut fuel, &mut burn, &mut age,
+            &mut corrosion, &blocked, 5, 5, 1.0, 12345,
+        );
+        (cells, updated, vx, vy, wet, heat, heat_inputs, fuel, burn, age, corrosion, moves)
+    }
+
+    #[test]
+    fn particle_step_is_deterministic_for_identical_inputs() {
+        let first = run_fixture();
+        let second = run_fixture();
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn particle_state_arrays_follow_the_moving_material() {
+        let (cells, _, _, _, wet, heat, heat_inputs, fuel, burn, age, corrosion, _) = run_fixture();
+        let sand_positions: Vec<usize> = cells.iter().enumerate()
+            .filter_map(|(index, &material)| (material == 1).then_some(index))
+            .collect();
+        assert_eq!(sand_positions.len(), 1);
+        let sand = sand_positions[0];
+        assert!(sand >= 5, "sand should have moved down at least one row");
+        assert_eq!(wet[sand], 0.25);
+        assert_eq!(heat[sand], 123.0);
+        assert_eq!(heat_inputs[sand], 4.0);
+        assert_eq!(fuel[sand], 0.75);
+        assert_eq!(burn[sand], 0.5);
+        assert_eq!(age[sand], 42);
+        assert_eq!(corrosion[sand], 3.0);
+    }
+
+    #[test]
+    fn empty_or_invalid_dimensions_do_not_mutate_the_grid() {
+        let mut cells = vec![0u8; 4];
+        let mut updated = vec![0u8; 4];
+        let mut vx = vec![0.0f32; 4];
+        let mut vy = vec![0.0f32; 4];
+        let mut state = vec![0.0f32; 4];
+        let mut age = vec![0u16; 4];
+        let blocked = vec![0u8; 4];
+        let moves = step_particles(
+            &mut cells, &mut updated, &mut vx, &mut vy, &mut state,
+            &mut state.clone(), &mut state.clone(), &mut state.clone(),
+            &mut state.clone(), &mut age, &mut state.clone(), &blocked,
+            0, 2, 1.0, 1,
+        );
+        assert!(moves.is_empty());
+        assert_eq!(cells, vec![0; 4]);
+    }
+}
