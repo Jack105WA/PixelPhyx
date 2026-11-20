@@ -1,16 +1,13 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createWasmEngine }, { initializeUiShell }, { createLifeSystem, LIFE_MATERIALS }, { createParallelWorkers }] = await Promise.all([
+const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createWasmEngine }, { initializeUiShell }, { createLifeSystem, LIFE_MATERIALS }] = await Promise.all([
   import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./wasm-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./ui.js?v=${encodeURIComponent(cacheVersion)}`),
-  import(`./life.js?v=${encodeURIComponent(cacheVersion)}`),
-  import(`./parallel-worker.js?v=${encodeURIComponent(cacheVersion)}`)
+  import(`./life.js?v=${encodeURIComponent(cacheVersion)}`)
 ]);
 const wasmEngine = await createWasmEngine();
-const parallelWorkers = createParallelWorkers();
-let latestParticleCount = 0, parallelSummaryPending = false;
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
@@ -486,7 +483,7 @@ function render(){
  let count=0;
  frameImage.data.set(wasmEngine.render_composited_frame(cells,materialState.wetness,materialState.heat,colorLut,movingDestinations,W,H));
   for(const move of movingParticles)if(cells[move.toIndex]===move.material){const p=move.toIndex*4;frameImage.data[p]=27;frameImage.data[p+1]=38;frameImage.data[p+2]=52;}
- count=latestParticleCount;
+ count=wasmEngine.count_particles(cells);
  ctx.putImageData(frameImage,0,0);
  drawInterpolatedCells();
  drawAirborneParticles();
@@ -554,17 +551,7 @@ requestAnimationFrame(loop);
 
 function formatTemperature(c){const value=temperatureUnit==='F'?c*9/5+32:c;return Math.round(value)+'°'+temperatureUnit}
 function updateTemperature(){const slider=document.querySelector('#temperatureControl');document.querySelector('#tempOut').textContent=formatTemperature(ambient);slider.min=temperatureUnit==='F'?-148:-100;slider.max=temperatureUnit==='F'?2192:1200;slider.step=1;slider.value=temperatureUnit==='F'?Math.round(ambient*9/5+32):ambient;document.querySelector('#temperatureUnit').textContent='°'+temperatureUnit;document.querySelector('#temperatureUnit').title='Switch temperature units';updateCurrentAirTemperature()}
-function updateCurrentAirTemperature(){
- if(parallelSummaryPending)return;
- parallelSummaryPending=true;
- parallelWorkers.summarize(cells,materialState.airHeat).then(summary=>{
-  latestParticleCount=summary.particleCount;
-  const average=materialState.airHeat.length?summary.heatSum/materialState.airHeat.length:0;
-  const value=document.querySelector('#currentAirTemp');
-  if(value)value.textContent=formatTemperature(ambient+average);
- }).catch(error=>console.error('PixelPhyx parallel summary failed:',error)).finally(()=>{parallelSummaryPending=false});
-}
-window.addEventListener('pagehide',()=>parallelWorkers.dispose(),{once:true});
+function updateCurrentAirTemperature(){let total=0;for(let i=0;i<materialState.airHeat.length;i++)total+=materialState.airHeat[i];const average=materialState.airHeat.length?total/materialState.airHeat.length:0;const value=document.querySelector('#currentAirTemp');if(value)value.textContent=formatTemperature(ambient+average)}
 document.querySelector('#canvasSize').title='Current resolution: '+W+' × '+H;
 document.querySelector('#canvasSize').addEventListener('change',e=>{const size=e.target.value;if(resizeCanvas(size))publishOperation({type:'canvasSize',size});else e.target.title='Current resolution: '+W+' × '+H});
 document.querySelector('#play').onclick=()=>{running=!running;document.querySelector('#play').textContent=running?'Ⅱ Pause':'▶ Resume';publishOperation({type:'simulation',running})};
