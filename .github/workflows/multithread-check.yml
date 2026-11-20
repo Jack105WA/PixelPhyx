@@ -39,6 +39,9 @@ jobs:
       - name: Verify shared simulation sources are synchronized
         run: node Website/js/check-source-sync.mjs
 
+      - name: Run native Rust physics regression tests
+        run: cargo test --manifest-path Website/wasm/Cargo.toml
+
       - name: Install Rust WebAssembly target
         uses: dtolnay/rust-toolchain@stable
         with:
