@@ -270,14 +270,18 @@ mod tests {
         let mut updated = vec![0u8; 4];
         let mut vx = vec![0.0f32; 4];
         let mut vy = vec![0.0f32; 4];
-        let mut state = vec![0.0f32; 4];
+        let mut wet = vec![0.0f32; 4];
+        let mut heat = vec![0.0f32; 4];
+        let mut heat_inputs = vec![0.0f32; 4];
+        let mut fuel = vec![0.0f32; 4];
+        let mut burn = vec![0.0f32; 4];
         let mut age = vec![0u16; 4];
+        let mut corrosion = vec![0.0f32; 4];
         let blocked = vec![0u8; 4];
         let moves = step_particles(
-            &mut cells, &mut updated, &mut vx, &mut vy, &mut state,
-            &mut state.clone(), &mut state.clone(), &mut state.clone(),
-            &mut state.clone(), &mut age, &mut state.clone(), &blocked,
-            0, 2, 1.0, 1,
+            &mut cells, &mut updated, &mut vx, &mut vy, &mut wet,
+            &mut heat, &mut heat_inputs, &mut fuel, &mut burn, &mut age,
+            &mut corrosion, &blocked, 0, 2, 1.0, 1,
         );
         assert!(moves.is_empty());
         assert_eq!(cells, vec![0; 4]);
