@@ -94,7 +94,7 @@ pub fn paint_segment(cells:&mut[u8],x0:i32,y0:i32,x1:i32,y1:i32,radius:i32,mater
 
 #[cfg(test)]
 mod exported_api_tests {
-    use super::{count_particles, prepare_velocity, step_chemistry};
+    use super::{count_particles, prepare_velocity, step_chemistry, step_particles};
 
     #[test]
     fn particle_count_matches_non_empty_material_cells() {
