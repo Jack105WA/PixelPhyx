@@ -352,10 +352,13 @@ function handle(client, message) {
       if (client.approved) return;
       const owner = room.players.get(room.approvalHostId || room.hostId);
       if (!owner || owner.isSimulation) throw new Error('The room owner is unavailable.');
-      send(owner.socket, 'join-request', {
+      if (!send(owner.socket, 'join-request', {
         senderNumber: client.number,
         data: { clientId: client.id, name: client.name }
-      });
+      })) {
+        throw new Error('The room owner is not currently reachable.');
+      }
+      send(client.socket, 'join-request-sent', { room: room.name });
       break;
     }
     case 'approve-join-request': {
