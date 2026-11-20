@@ -10,7 +10,7 @@ const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createW
 ]);
 const wasmEngine = await createWasmEngine();
 const parallelWorkers = createParallelWorkers();
-let parallelSummaryPending = false;
+let latestParticleCount = 0, parallelSummaryPending = false;
 
 const CANVAS_SIZES={small:{width:160,height:90},medium:{width:320,height:180},large:{width:640,height:360}};
 let canvasSize='medium',W=CANVAS_SIZES.medium.width,H=CANVAS_SIZES.medium.height,N=W*H;
@@ -557,7 +557,8 @@ function updateTemperature(){const slider=document.querySelector('#temperatureCo
 function updateCurrentAirTemperature(){
  if(parallelSummaryPending)return;
  parallelSummaryPending=true;
- parallelWorkers.summarize(materialState.airHeat).then(summary=>{
+ parallelWorkers.summarize(cells,materialState.airHeat).then(summary=>{
+  latestParticleCount=summary.particleCount;
   const average=materialState.airHeat.length?summary.heatSum/materialState.airHeat.length:0;
   const value=document.querySelector('#currentAirTemp');
   if(value)value.textContent=formatTemperature(ambient+average);
