@@ -13,3 +13,33 @@ pub fn paint_segment(cells:&mut[u8],x0:i32,y0:i32,x1:i32,y1:i32,radius:i32,mater
  let max_steps=(w as i64+h as i64)*2+1;let mut steps=0i64;
  loop{paint_disk(cells,x,y,radius,material,w,h);if x==x1&&y==y1{break}let e2=2*err;if e2>=dy{err+=dy;x+=sx}if e2<=dx{err+=dx;y+=sy}steps+=1;if steps>max_steps{break}}
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::{map_pointer, paint_segment};
+
+    #[test]
+    fn pointer_mapping_handles_offsets_and_invalid_dimensions() {
+        assert_eq!(map_pointer(60.0, 45.0, 10.0, 5.0, 100.0, 80.0, 200, 160), vec![100, 80]);
+        assert_eq!(map_pointer(10.0, 5.0, 10.0, 5.0, 0.0, 80.0, 200, 160), vec![-1, -1]);
+        assert_eq!(map_pointer(f64::NAN, 5.0, 10.0, 5.0, 100.0, 80.0, 200, 160), vec![-1, -1]);
+    }
+
+    #[test]
+    fn brush_segment_paints_continuously_and_clips_to_grid() {
+        let mut cells = vec![0u8; 7 * 5];
+        paint_segment(&mut cells, -2, 2, 5, 2, 0, 3, 7, 5);
+        assert_eq!(&cells[14..21], &[3, 3, 3, 3, 3, 3, 0]);
+        assert_eq!(cells.iter().filter(|&&cell| cell != 0).count(), 6);
+    }
+
+    #[test]
+    fn brush_radius_is_bounded_and_empty_world_is_safe() {
+        let mut cells = vec![0u8; 4];
+        paint_segment(&mut cells, 0, 0, 0, 0, 1000, 9, 2, 2);
+        assert_eq!(cells, vec![9; 4]);
+        paint_segment(&mut cells, 0, 0, 1, 1, 1, 2, 0, 2);
+        assert_eq!(cells, vec![9; 4]);
+    }
+}
