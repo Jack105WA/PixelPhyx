@@ -1,66 +1,114 @@
-// Soil moisture, seed burial, germination, and gradual plant growth.
+// Distinct, large-form plants for the cellular life simulation.
 export const LIFE_MATERIALS = [
- {name:'Oak',icon:'♣',seedId:23,plantId:18,accentId:29,color:'#4f9b45',accentColor:'#78bd55',rgb:[79,155,69],accentRgb:[120,189,85],growth:72,maxHeight:30,branchEvery:4,style:'tree'},
- {name:'Fern',icon:'❧',seedId:24,plantId:19,accentId:30,color:'#65bd62',accentColor:'#9bdc78',rgb:[101,189,98],accentRgb:[155,220,120],growth:42,maxHeight:13,branchEvery:3,style:'fern'},
- {name:'Flower',icon:'✿',seedId:25,plantId:20,accentId:31,color:'#e58cae',accentColor:'#ffd36d',rgb:[229,140,174],accentRgb:[255,211,109],growth:58,maxHeight:15,branchEvery:5,style:'flower'},
- {name:'Vine',icon:'〰',seedId:26,plantId:21,accentId:32,color:'#6fae55',accentColor:'#a2ce65',rgb:[111,174,85],accentRgb:[162,206,101],growth:48,maxHeight:22,branchEvery:3,style:'vine'},
- {name:'Cactus',icon:'♠',seedId:27,plantId:22,accentId:33,color:'#4caa86',accentColor:'#d7df8a',rgb:[76,170,134],accentRgb:[215,223,138],growth:105,maxHeight:17,branchEvery:5,style:'cactus'}
+ {name:'Oak',icon:'♣',seedId:23,plantId:18,accentId:29,color:'#4f9b45',accentColor:'#9bd36b',rgb:[79,155,69],accentRgb:[155,211,107],growth:54,maxHeight:48,branchEvery:4,style:'tree'},
+ {name:'Fern',icon:'❧',seedId:24,plantId:19,accentId:30,color:'#4b9d55',accentColor:'#a9df78',rgb:[75,157,85],accentRgb:[169,223,120],growth:32,maxHeight:31,branchEvery:3,style:'fern'},
+ {name:'Flower',icon:'✿',seedId:25,plantId:20,accentId:31,color:'#ed7eaa',accentColor:'#ffd65e',rgb:[237,126,170],accentRgb:[255,214,94],growth:40,maxHeight:29,branchEvery:5,style:'flower'},
+ {name:'Vine',icon:'〰',seedId:26,plantId:21,accentId:32,color:'#4e9a48',accentColor:'#b1d96a',rgb:[78,154,72],accentRgb:[177,217,106],growth:34,maxHeight:43,branchEvery:3,style:'vine'},
+ {name:'Cactus',icon:'♠',seedId:27,plantId:22,accentId:33,color:'#329d83',accentColor:'#d9e99a',rgb:[50,157,131],accentRgb:[217,233,154],growth:62,maxHeight:35,branchEvery:5,style:'cactus'}
 ];
 const bySeed=new Map(LIFE_MATERIALS.map(p=>[p.seedId,p]));
 const byPlant=new Map(LIFE_MATERIALS.map(p=>[p.plantId,p]));
-const EMPTY=0,WATER=2,FIRE=5,STEAM=8,SMOKE=9,LAVA=11,SOIL=28;
+const EMPTY=0,WATER=2,FIRE=5,SOIL=28;
 function noise(x,y,tick,salt=0){let v=(Math.imul(x+1,0x9e3779b1)^Math.imul(y+1,0x85ebca6b)^tick^salt)>>>0;v^=v>>>16;v=Math.imul(v,0x7feb352d)>>>0;v^=v>>>15;v=Math.imul(v,0x846ca68b)>>>0;v^=v>>>16;return v/0xffffffff}
 function swapState(cells,age,wetness,a,b){const c=cells[a];cells[a]=cells[b];cells[b]=c;let v=age[a];age[a]=age[b];age[b]=v;v=wetness[a];wetness[a]=wetness[b];wetness[b]=v}
 function add(cells,age,x,y,id,w,h){if(x<0||x>=w||y<0||y>=h)return false;const i=y*w+x;if(cells[i]!==EMPTY)return false;cells[i]=id;age[i]=0;return true}
-function soilMoisture(cells,wetness,w,h,tick){
+function soilMoisture(cells,wetness,w,h){
  const len=Math.min(cells.length,wetness.length,w*h);
- {
-  for(let i=0;i<len;i++)if(cells[i]===SOIL){
-   const x=i%w,y=(i/w)|0;let water=false;
-   for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){
-    const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&cells[ny*w+nx]===WATER){water=true;break}
-   }
-   if(water)wetness[i]=Math.min(1,(wetness[i]||0)+.12);
-   else wetness[i]=Math.max(0,(wetness[i]||0)-.0008);
-  }
-  // Moisture slowly wicks through neighboring soil instead of instantly flooding it.
-  for(let y=h-1;y>=0;y--)for(let x=0;x<w;x++){
-   const i=y*w+x;if(cells[i]!==SOIL)continue;
-   const own=wetness[i]||0;
-   for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){
-    const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
-    const n=ny*w+nx;if(cells[n]===SOIL&&own-(wetness[n]||0)>.08)wetness[n]=Math.min(1,(wetness[n]||0)+.008);
-   }
-  }
+ for(let i=0;i<len;i++)if(cells[i]===SOIL){
+  const x=i%w,y=(i/w)|0;let water=false;
+  for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&cells[ny*w+nx]===WATER){water=true;break}}
+  wetness[i]=water?Math.min(1,(wetness[i]||0)+.12):Math.max(0,(wetness[i]||0)-.0008);
+ }
+ // Slow lateral and vertical moisture transfer through connected soil.
+ for(let y=h-1;y>=0;y--)for(let x=0;x<w;x++){
+  const i=y*w+x;if(cells[i]!==SOIL)continue;const own=wetness[i]||0;
+  for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const n=ny*w+nx;if(cells[n]===SOIL&&own-(wetness[n]||0)>.08)wetness[n]=Math.min(1,(wetness[n]||0)+.008)}
  }
 }
 function moistureNear(cells,wetness,x,y,w,h,r=4){
  for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
-  if(Math.abs(dx)+Math.abs(dy)>r+1)continue;
-  const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
+  if(Math.abs(dx)+Math.abs(dy)>r+1)continue;const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
   const i=ny*w+nx;if(cells[i]===WATER||(wetness[i]||0)>=.12)return true;
  }
  return false;
 }
+function leafCluster(cells,age,cx,cy,p,w,h,r=2){
+ for(let dy=-r;dy<=r;dy++)for(let dx=-r*2;dx<=r*2;dx++){
+  const shape=(Math.abs(dx)/(r*2+0.01))**2+(Math.abs(dy)/(r+0.01))**2;
+  if(shape<=1.12&&noise(cx+dx,cy+dy,r,p.plantId)<.88)add(cells,age,cx+dx,cy+dy,p.accentId,w,h);
+ }
+}
+function decorate(cells,age,x,y,p,w,h,tick,height){
+ const stage=Math.floor(tick/p.growth),side=noise(x,height,stage,p.plantId)<.5?-1:1;
+ if(p.style==='tree'){
+  // Alternating, rising limbs with broad, irregular crowns.
+  if(height>4&&height%p.branchEvery===0){
+   const length=3+Math.floor(noise(x,y,stage,17)*4);
+   for(let k=1;k<=length;k++)add(cells,age,x+side*k,y-Math.ceil(k*.62),p.plantId,w,h);
+   leafCluster(cells,age,x+side*length,y-Math.ceil(length*.62),p,w,h,2+Math.floor(noise(x,y,stage,18)*2));
+   if(height%8===0){for(let k=1;k<=length-1;k++)add(cells,age,x-side*k,y-Math.ceil(k*.55),p.plantId,w,h);leafCluster(cells,age,x-side*length,y-Math.ceil(length*.55),p,w,h,2)}
+  }
+  // Exposed roots and a thick lower trunk make the tree read as a tree.
+  if(height<8){add(cells,age,x-1,y,p.plantId,w,h);add(cells,age,x+1,y,p.plantId,w,h)}
+  if(height>p.maxHeight-8)leafCluster(cells,age,x,y-1,p,w,h,3);
+ }else if(p.style==='fern'){
+  // Repeated feathered fronds arch out from a central stem.
+  if(height>2&&height%3===0){
+   const length=5+Math.floor(noise(x,y,stage,23)*5);
+   for(const dir of [-1,1]){
+    for(let k=1;k<=length;k++){
+     const fx=x+dir*k,fy=y-Math.floor(k*.58);
+     add(cells,age,fx,fy,p.plantId,w,h);
+     for(const feather of [-1,1])if(k>1)add(cells,age,fx+dir,fy+feather,p.accentId,w,h);
+     add(cells,age,fx,fy-1,p.accentId,w,h);
+    }
+   }
+  }
+ }else if(p.style==='flower'){
+  // Broad alternating leaves along a sturdy stem.
+  if(height>3&&height%6===0){
+   for(let k=1;k<=4;k++){add(cells,age,x+side*k,y-Math.floor(k*.35),p.plantId,w,h);add(cells,age,x+side*k,y-Math.floor(k*.35)-1,p.accentId,w,h)}
+  }
+  if(height>=p.maxHeight-2){
+   // A layered 13x9 blossom with a bright, multi-cell centre.
+   for(let dy=-4;dy<=4;dy++)for(let dx=-6;dx<=6;dx++){
+    const ellipse=(dx*dx)/36+(dy*dy)/16;
+    if(ellipse<=1.18&&Math.max(Math.abs(dx),Math.abs(dy))>1)add(cells,age,x+dx,y-2+dy,p.plantId,w,h);
+   }
+   for(const [dx,dy] of [[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]])add(cells,age,x+dx,y-2+dy,p.accentId,w,h);
+  }
+ }else if(p.style==='vine'){
+  // Long looping tendrils, alternating paired leaves, and side shoots.
+  if(height>2&&height%3===0){
+   for(let k=1;k<=4;k++){const bend=side*Math.floor(k/2);add(cells,age,x+bend,y-k,p.plantId,w,h)}
+   for(const dir of [-1,1]){
+    const leafX=x+dir*(2+(height%4)),leafY=y-2;
+    add(cells,age,leafX,leafY,p.accentId,w,h);add(cells,age,leafX+dir,leafY-1,p.accentId,w,h);add(cells,age,leafX-dir,leafY-1,p.accentId,w,h);
+   }
+  }
+ }else if(p.style==='cactus'){
+  // Ribbed, broad column with unmistakable upward arms.
+  add(cells,age,x-1,y,p.plantId,w,h);add(cells,age,x+1,y,p.plantId,w,h);
+  if(height%3===0){add(cells,age,x-2,y,p.accentId,w,h);add(cells,age,x+2,y,p.accentId,w,h)}
+  if(height>9&&height%8===0){
+   const dir=side;
+   for(let k=1;k<=4;k++)add(cells,age,x+dir*2,y-k,p.plantId,w,h);
+   add(cells,age,x+dir*3,y-4,p.plantId,w,h);add(cells,age,x+dir*4,y-4,p.plantId,w,h);
+   for(let k=1;k<=3;k++)add(cells,age,x+dir*4,y-4-k,p.plantId,w,h);
+   add(cells,age,x+dir*4,y-6,p.accentId,w,h);
+  }
+ }
+}
 function grow(cells,age,x,y,p,w,h,tick,wetness){
  const i=y*w+x;if(age[i]<p.growth)return;
  let height=1;for(let py=y+1;py<h&&cells[py*w+x]===p.plantId;py++)height++;
- const stage=Math.floor(tick/p.growth),side=noise(x,y,stage,p.plantId)<.5?-1:1;
- if(height<p.maxHeight){
-  const above=y>0?(y-1)*w+x:-1;
-  if(above>=0&&cells[above]===SOIL){
-   const push=noise(x,y,stage,0x5013)<.5?-1:1;
-   for(const dx of [push,-push]){const nx=x+dx;if(nx>=0&&nx<w&&cells[(y-1)*w+nx]===EMPTY){const target=(y-1)*w+nx;cells[target]=SOIL;cells[above]=EMPTY;wetness[target]=wetness[above];wetness[above]=0;age[target]=age[above];age[above]=0;break}}
-  }
-  if(add(cells,age,x,y-1,p.plantId,w,h)){
-   age[i]=0;
-   if(p.style==='tree'&&stage%p.branchEvery===0){add(cells,age,x+side,y-1,p.accentId,w,h);if(stage%(p.branchEvery*2)===0)add(cells,age,x-side,y-2,p.accentId,w,h)}
-   else if(p.style==='fern'&&stage%p.branchEvery===0){add(cells,age,x-1,y-1,p.accentId,w,h);add(cells,age,x+1,y-1,p.accentId,w,h)}
-   else if(p.style==='flower'&&height>=p.maxHeight-2){add(cells,age,x-1,y-1,p.accentId,w,h);add(cells,age,x+1,y-1,p.accentId,w,h);add(cells,age,x,y-2,p.accentId,w,h)}
-   else if(p.style==='vine'&&stage%p.branchEvery===0)add(cells,age,x+side,y,p.accentId,w,h);
-   else if(p.style==='cactus'&&stage%p.branchEvery===0&&height>3){add(cells,age,x+side,y,p.accentId,w,h);add(cells,age,x+side,y-1,p.accentId,w,h)}
-   return;
-  }
+ const above=y>0?(y-1)*w+x:-1;
+ if(height<p.maxHeight&&above>=0&&cells[above]===SOIL){
+  const push=noise(x,y,tick,0x5013)<.5?-1:1;
+  for(const dx of [push,-push]){const nx=x+dx;if(nx>=0&&nx<w&&cells[(y-1)*w+nx]===EMPTY){const target=(y-1)*w+nx;cells[target]=SOIL;cells[above]=EMPTY;wetness[target]=wetness[above];wetness[above]=0;age[target]=age[above];age[above]=0;break}}
+ }
+ if(height<p.maxHeight&&add(cells,age,x,y-1,p.plantId,w,h)){
+  age[i]=0;decorate(cells,age,x,y-1,p,w,h,tick,height);return;
  }
  age[i]=0;
 }
@@ -69,42 +117,29 @@ export function createLifeSystem(){
  function step({cells,age,wetness,width,height,tick}){
   const length=Math.min(cells.length,age.length,wetness.length,width*height);
   if(seedBurrowDepth.length!==length)seedBurrowDepth=new Uint8Array(length);
-  soilMoisture(cells,wetness,width,height,tick);
-  // Seeds fall normally, then displace one soil cell as they burrow into loose soil.
+  soilMoisture(cells,wetness,width,height);
+  // Seeds settle, burrow into loose soil, then germinate only in damp earth.
   for(let y=height-1;y>=0;y--){
    const reverse=(tick+y)&1;
    for(let k=0;k<width;k++){
     const x=reverse?width-1-k:k,i=y*width+x;if(i>=length)continue;
-    const p=bySeed.get(cells[i]);if(!p)continue;
-    const below=i+width;
-    if(y+1<height&&cells[below]===EMPTY){
-     cells[below]=cells[i];cells[i]=EMPTY;age[below]=age[i];age[i]=0;wetness[below]=wetness[i];wetness[i]=0;seedBurrowDepth[below]=seedBurrowDepth[i];seedBurrowDepth[i]=0;continue;
-    }
-    if(y+1<height&&cells[below]===SOIL&&y>0&&seedBurrowDepth[i]<2&&(cells[i-width]===EMPTY||cells[i-width]===SOIL)&&noise(x,y,tick,p.seedId)<.82){
-     swapState(cells,age,wetness,i,below);seedBurrowDepth[below]=seedBurrowDepth[i]+1;seedBurrowDepth[i]=0;
-     continue;
-    }
+    const p=bySeed.get(cells[i]);if(!p)continue;const below=i+width;
+    if(y+1<height&&cells[below]===EMPTY){cells[below]=cells[i];cells[i]=EMPTY;age[below]=age[i];age[i]=0;wetness[below]=wetness[i];wetness[i]=0;seedBurrowDepth[below]=seedBurrowDepth[i];seedBurrowDepth[i]=0;continue}
+    if(y+1<height&&cells[below]===SOIL&&y>0&&seedBurrowDepth[i]<2&&(cells[i-width]===EMPTY||cells[i-width]===SOIL)&&noise(x,y,tick,p.seedId)<.82){swapState(cells,age,wetness,i,below);seedBurrowDepth[below]=seedBurrowDepth[i]+1;seedBurrowDepth[i]=0;continue}
     const support=y+1<height?cells[below]:FIRE;
     const buried=support===SOIL||((x>0&&cells[i-1]===SOIL)||(x+1<width&&cells[i+1]===SOIL));
     if(buried&&moistureNear(cells,wetness,x,y,width,height,3)&&age[i]<65535)age[i]++;
-    if(buried&&age[i]>=90){
-     cells[i]=p.plantId;age[i]=0;wetness[i]=Math.max(wetness[i]||0,.18);seedBurrowDepth[i]=0;
-     // Establish a short root below the seed without deleting the surrounding soil.
-     if(y+1<height&&cells[below]===SOIL){cells[below]=p.plantId;age[below]=0;wetness[below]=Math.max(wetness[below]||0,.18)}
-    }
+    if(buried&&age[i]>=90){cells[i]=p.plantId;age[i]=0;wetness[i]=Math.max(wetness[i]||0,.18);seedBurrowDepth[i]=0;if(y+1<height&&cells[below]===SOIL){cells[below]=p.plantId;age[below]=0;wetness[below]=Math.max(wetness[below]||0,.18)}}
    }
   }
-  // Only the growing tips advance. Dry plants pause rather than growing at a fixed rate.
+  // Tips grow slowly and pause whenever the surrounding soil is dry.
   for(let y=height-1;y>=0;y--)for(let x=0;x<width;x++){
    const i=y*width+x;if(i>=length)continue;const p=byPlant.get(cells[i]);if(!p)continue;
    const above=y>0?cells[i-width]:EMPTY,below=y+1<height?cells[i+width]:EMPTY;
-   const damp=moistureNear(cells,wetness,x,Math.min(height-1,y+2),width,height,4);
+   const damp=moistureNear(cells,wetness,x,Math.min(height-1,y+2),width,height,5);
    if(above===p.plantId&&below===SOIL&&damp){
     if(age[i]<65535)age[i]++;
-    if(age[i]>=p.growth*2){cells[i+width]=p.plantId;age[i+width]=0;wetness[i+width]=Math.max(wetness[i+width]||0,.12);age[i]=0;
-     const side=noise(x,y,tick,p.plantId+91)<.5?-1:1,nx=x+side;
-     if(nx>=0&&nx<width&&cells[i+side]===SOIL&&noise(x,y,tick,p.plantId+92)<.18){cells[i+side]=p.plantId;age[i+side]=0}
-    }
+    if(age[i]>=p.growth*2){cells[i+width]=p.plantId;age[i+width]=0;wetness[i+width]=Math.max(wetness[i+width]||0,.12);age[i]=0}
    }
    if(above!==p.plantId&&damp){if(age[i]<65535)age[i]++;grow(cells,age,x,y,p,width,height,tick,wetness)}
   }
