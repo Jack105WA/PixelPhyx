@@ -69,9 +69,15 @@ mod tests {
 
     #[test]
     fn invalid_or_empty_rope_inputs_are_safe() {
-        let mut values = vec![0.0f32; 1];
-        step_ropes(&mut values, &mut values.clone(), &mut values.clone(),
-            &mut values.clone(), &mut values.clone(), &mut values.clone(),
+        let mut x = vec![0.0f32; 1];
+        let mut y = vec![0.0f32; 1];
+        let mut px = vec![0.0f32; 1];
+        let mut py = vec![0.0f32; 1];
+        let mut ox = vec![0.0f32; 1];
+        let mut oy = vec![0.0f32; 1];
+        step_ropes(&mut x, &mut y, &mut px, &mut py, &mut ox, &mut oy,
             &[0], &[0], &[0, 1], &[1.0], &[0], 0, 4, 1.0);
+        assert_eq!(x, vec![0.0]);
+        assert_eq!(y, vec![0.0]);
     }
 }
