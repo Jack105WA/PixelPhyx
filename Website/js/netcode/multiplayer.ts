@@ -80,18 +80,25 @@ function createClient() {
           }
           if (message.type === 'error') { client.emit('error', new Error(message.message)); return; }
           if (message.type === 'lobbies') {
-            client.cachedRoomList = (message.lobbies || []).map(item => ({ name: item.room, playerCount: item.players, customProperties: { game: 'pixelphyx', hostName: item.hostName } }));
+            client.cachedRoomList = (message.lobbies || []).map(item => ({
+              name: String(item.room || ''),
+              playerCount: Number(item.players) || 0,
+              maxPlayers: Number(item.maxPlayers) || 0,
+              hostName: item.hostName || 'Unknown',
+              customProperties: { game: 'pixelphyx', hostName: item.hostName || 'Unknown' }
+            })).filter(item => item.name);
             client.emit('roomListUpdated');
           } else if (message.type === 'room-joined') {
             const players = (message.players || []).map(p => ({ number: p.number, name: p.name, isMasterClient: !!p.isHost,
               customProperties: { clientId: p.clientId, name: p.name, color: p.color, approved: p.approved } }));
             const host = players.find(p => p.isMasterClient);
+            client.isInLobby = false;
             client.room = { name: message.room, isMasterClient: !!message.isHost, isRoomOwner: !!message.isRoomOwner, masterClientNumber: host?.number || message.number,
               players, getPlayer(number) { return this.players.find(p => p.number === number) || null; } };
             client.localPlayer = client.room.getPlayer(message.number);
             client.emit('playerJoined'); client.resolveWait('room-joined', message); return;
           } else if (message.type === 'room-left') {
-            client.room = null; client.emit('roomLeft'); client.resolveWait('room-left', message); return;
+            client.room = null; client.isInLobby = false; client.emit('roomLeft'); client.resolveWait('room-left', message); return;
           } else if (message.type === 'roster') {
             if (client.room) {
               client.room.players = Object.entries(message.players || {}).map(([id, p]) => ({ number: p.serverNumber, name: p.name, isMasterClient: !!p.isHost,
@@ -131,7 +138,11 @@ function createClient() {
     async disconnect() { if (socket) socket.close(); client.isConnected = false; client.room = null; },
     dispose() { if (socket) socket.close(); socket = null; client.isConnected = false; client.room = null; },
     async reconnect() { client.dispose(); await client.connect(); },
-    async joinLobby() { client.isInLobby = true; client.send('list'); },
+    async joinLobby() {
+      if (client.room) return;
+      client.isInLobby = true;
+      client.send('list');
+    },
     setPlayerProperties(properties) {
       if (client.localPlayer) Object.assign(client.localPlayer.customProperties, properties);
       client.send('identity', { name: properties.name, color: properties.color }); client.emit('playerPropertiesChanged');
