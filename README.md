@@ -1,10 +1,11 @@
-# PixelPhyx
+# PixelPhyx ![Logo](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/PixelPhyxLOGO.png?raw=true)
 
-Pixelphyx is a online 2D Physics Simulator featuring multiplayer, Simulated Reactions and more!
+Pixelphyx is a online 2D Physics Simulator ![pencil](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/pencil.png?raw=true) featuring multiplayer ![globe](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/globe.png?raw=true), Simulated Reactions and more!
+
 
 ## Play online
 
-Production: https://jack105wa.github.io/PixelPhyx/
+Production Site: https://jack105wa.github.io/PixelPhyx/
 
 The production game runs its simulation engine compiled from Rust to WebAssembly.
 
