@@ -1,13 +1,14 @@
 // Reuse the cache-busting version from the entry URL for every local module.
 const cacheVersion = new URL(import.meta.url).searchParams.get('v') || 'dev';
-const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createWasmEngine }, { initializeUiShell }, { createLifeSystem, LIFE_MATERIALS }, { createParallelWorkers }, { runSimulationTick }] = await Promise.all([
+const [{ materialState, resetMaterialState }, { createPhysicsEngine }, { createWasmEngine }, { initializeUiShell }, { createLifeSystem, LIFE_MATERIALS }, { createParallelWorkers }, { runSimulationTick }, { createSimulationState }] = await Promise.all([
   import(`./material-physics.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./physics-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./wasm-engine.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./ui.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./life.js?v=${encodeURIComponent(cacheVersion)}`),
   import(`./parallel-worker.js?v=${encodeURIComponent(cacheVersion)}`),
-  import(`./simulation-core.js?v=${encodeURIComponent(cacheVersion)}`)
+  import(`./simulation-core.js?v=${encodeURIComponent(cacheVersion)}`),
+  import(`./simulation-state.js?v=${encodeURIComponent(cacheVersion)}`)
 ]);
 const wasmEngine = await createWasmEngine();
 const parallelWorkers = createParallelWorkers();
@@ -86,7 +87,7 @@ const materials=[
  {id:28,name:'Soil',icon:'▧',color:'#79543b',rgb:[121,84,59],type:'powder'}
 ];
 let colorLut=new Uint8Array(256*3);
-let simulationTick=0,cells=new Uint8Array(N),updated=new Uint8Array(N),movementBlocks=new Uint8Array(N),airborneParticles=[],movingParticles=[],moveByDestination=new Int32Array(N),movingDestinations=new Uint8Array(N),particleVelocityX=new Float32Array(N),particleVelocityY=new Float32Array(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
+let {simulationTick,cells,updated,movementBlocks,airborneParticles,movingParticles,moveByDestination,movingDestinations,particleVelocityX,particleVelocityY}=createSimulationState(N),cellRenderAlpha=1,running=true,selected=1,tool='draw',brush=5,gravity=1,speed=1,ambient=20;
 let snapshotMoves=new Map();
 let temperatureUnit='C',lastAirTemperatureUpdate=0;
 let leafblower={active:false,x:0,y:0,dx:1,dy:0,lastPublish:0};
@@ -177,7 +178,7 @@ refreshCustomMaterialButtons();
 function resizeCanvas(size){
  const dimensions=CANVAS_SIZES[size];if(!dimensions||size===canvasSize)return false;
  W=dimensions.width;H=dimensions.height;N=W*H;canvasSize=size;
- cells=new Uint8Array(N);updated=new Uint8Array(N);movementBlocks=new Uint8Array(N);particleVelocityX=new Float32Array(N);particleVelocityY=new Float32Array(N);movingParticles=[];snapshotMoves.clear();moveByDestination=new Int32Array(N);movingDestinations=new Uint8Array(N);visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
+ const resizedState=createSimulationState(N,simulationTick);({cells,updated,movementBlocks,particleVelocityX,particleVelocityY,movingParticles,airborneParticles,moveByDestination,movingDestinations}=resizedState);snapshotMoves.clear();visualParticles.length=0;airborneParticles.length=0;resetMaterialState(N);ropes=[];frameImage=ctx.createImageData(W,H);
  canvas.width=W;canvas.height=H;localCursorCanvas.width=W;localCursorCanvas.height=H;document.querySelector('#canvasSize').value=size;
  document.querySelector('#canvasSize').title='Current resolution: '+W+' × '+H;
  strokePoints=[];drawing=false;ropeStart=null;ropeDrag=null;lastPoint=null;
