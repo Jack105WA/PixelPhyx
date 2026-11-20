@@ -61,3 +61,57 @@ pub fn step_rigid_bodies(state:&mut[f32],gravity:f32,dt:f32){
 fn two_mut(v:&mut[f32],a:usize,b:usize,stride:usize)->(&mut[f32],&mut[f32]){
  assert!(a<b);let (left,right)=v.split_at_mut(b);(&mut left[a..a+stride],&mut right[..stride])
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::step_rigid_bodies;
+
+    #[test]
+    fn rigid_body_gravity_advances_position_and_velocity() {
+        let mut body = [0.0f32; 13];
+        body[0] = 10.0;
+        body[1] = 10.0;
+        body[6] = 4.0;
+        body[7] = 4.0;
+        body[8] = 1.0;
+        step_rigid_bodies(&mut body, 1.0, 1.0);
+        assert!(body[3] > 0.0);
+        assert!(body[1] > 10.0);
+        assert!(body.iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn sleeping_bodies_do_not_drift() {
+        let mut body = [0.0f32; 13];
+        body[0] = 12.0;
+        body[1] = 8.0;
+        body[2] = 3.0;
+        body[3] = 2.0;
+        body[5] = 0.2;
+        body[12] = 13.0;
+        step_rigid_bodies(&mut body, 1.0, 1.0);
+        assert_eq!(body[0], 12.0);
+        assert_eq!(body[1], 8.0);
+        assert_eq!(body[2], 0.0);
+        assert_eq!(body[3], 0.0);
+        assert_eq!(body[5], 0.0);
+    }
+
+    #[test]
+    fn overlapping_bodies_are_separated_without_non_finite_values() {
+        let mut state = vec![0.0f32; 26];
+        for i in 0..2 {
+            let b = &mut state[i * 13..(i + 1) * 13];
+            b[0] = 10.0 + i as f32 * 1.0;
+            b[1] = 10.0;
+            b[6] = 4.0;
+            b[7] = 4.0;
+            b[8] = 1.0;
+            b[9] = 0.2;
+        }
+        step_rigid_bodies(&mut state, 0.0, 0.0);
+        assert!(state.iter().all(|value| value.is_finite()));
+        assert_ne!(state[0], state[13]);
+    }
+}
