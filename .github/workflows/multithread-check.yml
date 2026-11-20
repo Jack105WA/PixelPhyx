@@ -36,8 +36,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Verify compiled JavaScript is committed
-        run: git diff --exit-code -- Website/js
+      - name: Verify shared simulation sources are synchronized
+        run: node Website/js/check-source-sync.mjs
 
       - name: Install Rust WebAssembly target
         uses: dtolnay/rust-toolchain@stable
