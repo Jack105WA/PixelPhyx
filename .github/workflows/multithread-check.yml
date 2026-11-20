@@ -52,6 +52,9 @@ jobs:
         with:
           tool: wasm-pack
 
+      - name: Test worker-portable life subsystem state
+        run: node --test Website/js/life-worker-state.test.mjs
+
       - name: Test simulation tick orchestration
         run: node --test Website/js/simulation-core.test.mjs
 
