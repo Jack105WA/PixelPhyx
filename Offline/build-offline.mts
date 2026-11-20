@@ -47,7 +47,7 @@ if (/\bexport\s/.test(physics) || /\bexport\s/.test(engine) ||
 const mainStart = mainSource.replace(
   /^\/\/ Reuse the cache-busting version[\s\S]*?\n\]\);\s*/,
   ''
-);
+).replace(/^\s*export\s*\{\s*\};?\s*$/gm, '');
 if (mainStart === mainSource) {
   throw new Error('Could not remove the online module imports from main.js.');
 }
