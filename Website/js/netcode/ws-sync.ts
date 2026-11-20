@@ -125,8 +125,16 @@ export function createServerSync(state) {
   }
 
   function handleOperation(senderNumber, operation) {
-    if (!operation || typeof operation.type !== 'string' || !rememberOperation(operation.operationId)) return;
+    if (!operation || typeof operation.type !== 'string') return;
     const masterNumber = room()?.masterClientNumber;
+    if (!rememberOperation(operation.operationId)) {
+      // The origin already applied this edit. Consume its host revision so an
+      // older in-flight snapshot cannot undo the edit.
+      if (!state.isHost() && senderNumber === masterNumber && Number.isInteger(operation.revision)) {
+        lastAppliedOperationRevision = Math.max(lastAppliedOperationRevision, operation.revision);
+      }
+      return;
+    }
     // The drawing client already applied its own stroke locally. Never replay an
     // echoed copy from the room host, even if Local server delivers it to the sender.
     if (!state.isHost() && operation.by === state.playerId) return;
@@ -152,8 +160,15 @@ export function createServerSync(state) {
   }
 
   function handleStroke(senderNumber, operation) {
-    if (!operation || operation.type !== 'stroke' || !rememberOperation(operation.operationId)) return;
+    if (!operation || operation.type !== 'stroke') return;
     const masterNumber = room()?.masterClientNumber;
+    if (!rememberOperation(operation.operationId)) {
+      // Do not replay the local stroke, but still advance the authority revision.
+      if (!state.isHost() && senderNumber === masterNumber && Number.isInteger(operation.revision)) {
+        lastAppliedOperationRevision = Math.max(lastAppliedOperationRevision, operation.revision);
+      }
+      return;
+    }
     if (state.isHost() && senderNumber !== masterNumber) {
       if (!state.isApproved(senderNumber)) return;
       const decoded = unpackOperation(operation);
