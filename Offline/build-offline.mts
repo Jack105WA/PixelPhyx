@@ -52,7 +52,7 @@ if (mainStart === mainSource) {
 
 const multiplayerImport = "const {createMultiplayer}=await import('./netcode/multiplayer.js?v='+encodeURIComponent(cacheVersion));";
 const offlineMain = mainStart.replace(
-  multiplayerImport,
+  /const\s*\{\s*createMultiplayer\s*\}\s*=\s*await\s+import\(\s*['"]\.\/netcode\/multiplayer\.js\?v=['"]\s*\+\s*encodeURIComponent\(cacheVersion\)\s*\);/,
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
 );
 if (offlineMain === mainStart) {
