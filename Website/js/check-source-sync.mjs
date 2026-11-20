@@ -7,7 +7,8 @@ const pairs = [
   ['material-physics.ts', 'material-physics.js'],
   ['wasm-engine.ts', 'wasm-engine.js'],
   ['simulation-core.ts', 'simulation-core.js'],
-  ['simulation-state.ts', 'simulation-state.js']
+  ['simulation-state.ts', 'simulation-state.js'],
+  ['simulation-protocol.ts', 'simulation-protocol.js']
 ];
 
 for (const [sourceName, runtimeName] of pairs) {
