@@ -526,7 +526,7 @@ const fpsHud=document.querySelector('#fpsHud');
  cellRenderAlpha=Math.max(0,Math.min(1,simulationAccumulator/SIMULATION_STEP));
  if(multiplayer?.joined&&multiplayer.isHost){
   const network=multiplayer.networkSettings;
-  const syncInterval=network.snapshotIntervalMs;
+  const syncInterval=Math.max(network.snapshotIntervalMs,N>100000?2000:N>30000?1250:750);
   remoteSnapshotInterval=syncInterval;
   if(now-lastWorldPublish>=syncInterval){lastWorldPublish=now;multiplayer.publishWorld(serialize())}
   if(now-lastRopePublish>=network.ropeUpdateIntervalMs){lastRopePublish=now;multiplayer.publishRopes(ropes.map(r=>({id:r.id,points:r.points.map(p=>[p.x,p.y,!!p.anchor])})))}
