@@ -60,6 +60,9 @@ jobs:
             node --input-type=module --check < "$file"
           done
 
+      - name: Test parallel worker aggregation and fallback
+        run: node --test Website/js/parallel-worker.test.mjs
+
       - name: Build and validate standalone offline edition
         run: |
           node Offline/build-offline.mjs
