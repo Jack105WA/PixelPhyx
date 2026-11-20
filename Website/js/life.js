@@ -1,10 +1,10 @@
 // Soil moisture, seed burial, germination, and gradual plant growth.
 export const LIFE_MATERIALS = [
- {name:'Oak',icon:'♣',seedId:23,plantId:18,color:'#4f9b45',rgb:[79,155,69],growth:72,maxHeight:30,branchEvery:4,style:'tree'},
- {name:'Fern',icon:'❧',seedId:24,plantId:19,color:'#65bd62',rgb:[101,189,98],growth:42,maxHeight:13,branchEvery:3,style:'fern'},
- {name:'Flower',icon:'✿',seedId:25,plantId:20,color:'#e58cae',rgb:[229,140,174],growth:58,maxHeight:15,branchEvery:5,style:'flower'},
- {name:'Vine',icon:'〰',seedId:26,plantId:21,color:'#6fae55',rgb:[111,174,85],growth:48,maxHeight:22,branchEvery:3,style:'vine'},
- {name:'Cactus',icon:'♠',seedId:27,plantId:22,color:'#4caa86',rgb:[76,170,134],growth:105,maxHeight:17,branchEvery:5,style:'cactus'}
+ {name:'Oak',icon:'♣',seedId:23,plantId:18,accentId:29,color:'#4f9b45',accentColor:'#78bd55',rgb:[79,155,69],accentRgb:[120,189,85],growth:72,maxHeight:30,branchEvery:4,style:'tree'},
+ {name:'Fern',icon:'❧',seedId:24,plantId:19,accentId:30,color:'#65bd62',accentColor:'#9bdc78',rgb:[101,189,98],accentRgb:[155,220,120],growth:42,maxHeight:13,branchEvery:3,style:'fern'},
+ {name:'Flower',icon:'✿',seedId:25,plantId:20,accentId:31,color:'#e58cae',accentColor:'#ffd36d',rgb:[229,140,174],accentRgb:[255,211,109],growth:58,maxHeight:15,branchEvery:5,style:'flower'},
+ {name:'Vine',icon:'〰',seedId:26,plantId:21,accentId:32,color:'#6fae55',accentColor:'#a2ce65',rgb:[111,174,85],accentRgb:[162,206,101],growth:48,maxHeight:22,branchEvery:3,style:'vine'},
+ {name:'Cactus',icon:'♠',seedId:27,plantId:22,accentId:33,color:'#4caa86',accentColor:'#d7df8a',rgb:[76,170,134],accentRgb:[215,223,138],growth:105,maxHeight:17,branchEvery:5,style:'cactus'}
 ];
 const bySeed=new Map(LIFE_MATERIALS.map(p=>[p.seedId,p]));
 const byPlant=new Map(LIFE_MATERIALS.map(p=>[p.plantId,p]));
@@ -54,11 +54,11 @@ function grow(cells,age,x,y,p,w,h,tick,wetness){
   }
   if(add(cells,age,x,y-1,p.plantId,w,h)){
    age[i]=0;
-   if(p.style==='tree'&&stage%p.branchEvery===0){add(cells,age,x+side,y-1,p.plantId,w,h);if(stage%(p.branchEvery*2)===0)add(cells,age,x-side,y-2,p.plantId,w,h)}
-   else if(p.style==='fern'&&stage%p.branchEvery===0){add(cells,age,x-1,y-1,p.plantId,w,h);add(cells,age,x+1,y-1,p.plantId,w,h)}
-   else if(p.style==='flower'&&height>=p.maxHeight-2){add(cells,age,x-1,y-1,p.plantId,w,h);add(cells,age,x+1,y-1,p.plantId,w,h);add(cells,age,x,y-2,p.plantId,w,h)}
-   else if(p.style==='vine'&&stage%p.branchEvery===0)add(cells,age,x+side,y,p.plantId,w,h);
-   else if(p.style==='cactus'&&stage%p.branchEvery===0&&height>3){add(cells,age,x+side,y,p.plantId,w,h);add(cells,age,x+side,y-1,p.plantId,w,h)}
+   if(p.style==='tree'&&stage%p.branchEvery===0){add(cells,age,x+side,y-1,p.accentId,w,h);if(stage%(p.branchEvery*2)===0)add(cells,age,x-side,y-2,p.accentId,w,h)}
+   else if(p.style==='fern'&&stage%p.branchEvery===0){add(cells,age,x-1,y-1,p.accentId,w,h);add(cells,age,x+1,y-1,p.accentId,w,h)}
+   else if(p.style==='flower'&&height>=p.maxHeight-2){add(cells,age,x-1,y-1,p.accentId,w,h);add(cells,age,x+1,y-1,p.accentId,w,h);add(cells,age,x,y-2,p.accentId,w,h)}
+   else if(p.style==='vine'&&stage%p.branchEvery===0)add(cells,age,x+side,y,p.accentId,w,h);
+   else if(p.style==='cactus'&&stage%p.branchEvery===0&&height>3){add(cells,age,x+side,y,p.accentId,w,h);add(cells,age,x+side,y-1,p.accentId,w,h)}
    return;
   }
  }
