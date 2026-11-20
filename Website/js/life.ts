@@ -109,5 +109,7 @@ export function createLifeSystem(){
    if(above!==p.plantId&&damp){if(age[i]<65535)age[i]++;grow(cells,age,x,y,p,width,height,tick,wetness)}
   }
  }
- return Object.freeze({step,materials:LIFE_MATERIALS});
+ function getState(){return seedBurrowDepth.slice()}
+ function setState(state){if(!(state instanceof Uint8Array))throw new TypeError('Life state must be a Uint8Array.');seedBurrowDepth=state.slice()}
+ return Object.freeze({step,materials:LIFE_MATERIALS,getState,setState});
 }
