@@ -44,6 +44,8 @@ export function createParallelWorkers() {
   });
   return Object.freeze({
     async summarize(cells, airHeat) {
+      // Worker startup/message overhead outweighs parallel work at small resolutions.
+      if (cells.length < 100_000) return summarizeLocally(cells, airHeat);
       if (disposed) throw new Error('Parallel workers have been disposed.');
       if (workerFailure || workers.length !== workerCount) return summarizeLocally(cells, airHeat);
       const id = ++nextJobId, totalLength = Math.max(cells.length, airHeat.length);
