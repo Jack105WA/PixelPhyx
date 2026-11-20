@@ -1,0 +1,68 @@
+name: Validate multithread branch
+
+on:
+  push:
+    branches: [multithread]
+    paths:
+      - "Website/**"
+      - "Offline/**"
+      - ".github/workflows/multithread-check.yml"
+  pull_request:
+    branches: [multithread]
+    paths:
+      - "Website/**"
+      - "Offline/**"
+      - ".github/workflows/multithread-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pixelphyx-multithread-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out multithread
+        uses: actions/checkout@v4
+        with:
+          ref: multithread
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust WebAssembly target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - name: Compile TypeScript
+        run: npx --yes --package typescript@5.9.3 tsc -p Website/tsconfig.json
+
+      - name: Build Rust WebAssembly
+        run: wasm-pack build Website/wasm --target web --release --out-dir ../pkg
+
+      - name: Check browser JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in Website/js/*.js Website/js/netcode/*.js Website/pkg/*.js; do
+            node --input-type=module --check < "$file"
+          done
+
+      - name: Build and validate standalone offline edition
+        run: |
+          node Offline/build-offline.mjs
+          test -s Offline/offline.html
+          ! grep -Eiq 'pixelphyx-offline-updater|raw.githubusercontent.com' Offline/offline.html
+          ! grep -Eiq '<script[^>]+src=' Offline/offline.html
