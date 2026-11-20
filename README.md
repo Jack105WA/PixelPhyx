@@ -2,6 +2,14 @@
 
 Pixelphyx is a online 2D Physics Simulator ![pencil](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/pencil.png?raw=true) featuring multiplayer ![globe](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/globe.png?raw=true), Simulated Reactions and more!
 
+<p align="center">
+  <a href="https://jack105wa.github.io/PixelPhyx/">
+    <img src="https://shields.io" alt="Websites" />
+  </a>
+  <a href="https://github.com/Jack105WA/PixelPhyx/blob/main/Offline/PixelPhyx-Offline-Loader.html">
+    <img src="https://shields.io" alt="Download Offline" />
+  </a>
+</p>
 
 ## Play online
 
