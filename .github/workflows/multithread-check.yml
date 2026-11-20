@@ -52,6 +52,9 @@ jobs:
         with:
           tool: wasm-pack
 
+      - name: Test simulation tick orchestration
+        run: node --test Website/js/simulation-core.test.mjs
+
       - name: Test parallel worker aggregation and fallback
         run: node --test Website/js/parallel-worker.test.mjs
 
