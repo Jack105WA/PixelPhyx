@@ -53,6 +53,7 @@ export function createParallelWorkers() {
       if (workerFailure || workers.length !== workerCount) return summarizeLocally(cells, airHeat);
       const id = ++nextJobId, totalLength = Math.max(cells.length, airHeat.length);
       const jobs = workers.map((worker, index) => {
+        if (workerFailure) return Promise.reject(workerFailure);
         const start = Math.floor(totalLength * index / workerCount);
         const end = Math.floor(totalLength * (index + 1) / workerCount);
         const cellChunk = cells.slice(start, Math.min(end, cells.length));
