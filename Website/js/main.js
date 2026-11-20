@@ -548,8 +548,8 @@ document.querySelector('#save').onclick=()=>{const a=document.createElement('a')
 document.querySelector('#brush').oninput=e=>{brush=+e.target.value;document.querySelector('#brushOut').textContent=brush+' px'};
 document.querySelector('#gravity').oninput=e=>{gravity=+e.target.value/10;document.querySelector('#gravityOut').textContent=gravity.toFixed(1)+'×';document.querySelector('#gravityRead').textContent=gravity.toFixed(1)+'×';publishOperation({type:'settings',gravity,ambient,speed,canvasSize})};
 document.querySelector('#speed').oninput=e=>{speed=+e.target.value;document.querySelector('#speedOut').textContent=speed+'×';publishOperation({type:'settings',gravity,ambient,speed,canvasSize})};
-document.querySelector('#temperatureControl').oninput=e=>{const value=+e.target.value;ambient=temperatureUnit==='F'?(value-32)*5/9:value;updateTemperature();publishOperation({type:'settings',gravity,ambient})};
-document.querySelector('#defaultTemperature').onclick=()=>{ambient=20;updateTemperature();publishOperation({type:'settings',gravity,ambient})};
+document.querySelector('#temperatureControl').oninput=e=>{const value=+e.target.value;ambient=temperatureUnit==='F'?(value-32)*5/9:value;updateTemperature();publishOperation({type:'settings',gravity,ambient,speed,canvasSize})};
+document.querySelector('#defaultTemperature').onclick=()=>{ambient=20;updateTemperature();publishOperation({type:'settings',gravity,ambient,speed,canvasSize})};
 document.querySelector('#temperatureUnit').onclick=()=>{temperatureUnit=temperatureUnit==='C'?'F':'C';updateTemperature()};
 const {openModal,closeOnlineModal}=initializeUiShell({
  onToggleSimulation:()=>document.querySelector('#play').click(),
