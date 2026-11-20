@@ -35,10 +35,10 @@ export function createParallelWorkers() {
     } catch (cause) { failWorkers(cause instanceof Error ? cause : new Error(String(cause))); }
     workers.forEach((worker, index) => {
       worker.onmessage = event => {
-      const task = pending[index];
-      if (!task || event.data.id !== task.id) return;
-      pending[index] = null; task.resolve(event.data);
-    };
+        const task = pending[index];
+        if (!task || event.data.id !== task.id) return;
+        pending[index] = null; task.resolve(event.data);
+      };
       worker.onerror = event => {
         event.preventDefault();
         failWorkers(event.error instanceof Error ? event.error : new Error(event.message || 'Parallel worker failed.'));
