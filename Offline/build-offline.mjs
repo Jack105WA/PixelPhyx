@@ -6,6 +6,7 @@ const websiteDir = 'Website/';
 const offlineDir = 'Offline/';
 const pencilSvg = await readFile('assets/pencil.svg', 'utf8');
 const pencilDataUrl = 'data:image/svg+xml,' + encodeURIComponent(pencilSvg);
+const asepriteFont = await readFile('assets/aseprite.otf.woff2');
 const read = path => readFile(websiteDir + path, 'utf8');
 
 const [
@@ -122,6 +123,8 @@ let builtHtml = withoutUpdater.replace(
   '<script>\n' + gameScript + '\n</script>'
 );
 
+builtHtml = builtHtml.replace(/(@font-face\\{font-family:'Aseprite';src:)url\\([^)]*\\)( format\\('woff2'\\);[^}]*\\})/, '$1' + 'url(data:font/woff2;base64,' + asepriteFont.toString('base64') + ')$2');
+
 builtHtml = builtHtml
   .replace('<span class="status-dot"></span>', '')
   .replace('<button class="btn" id="downloadOffline" type="button">Download offline copy</button>', '')
@@ -136,6 +139,7 @@ const buildId = createHash('sha256')
   .update(lifeSource)
   .update(wasmGlueSource)
   .update(wasmBinary)
+  .update(asepriteFont)
   .digest('hex')
   .slice(0, 16);
 

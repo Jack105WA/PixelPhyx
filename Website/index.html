@@ -8,7 +8,7 @@
 <title>PixelPhyx — Online Physics Lab</title>
 <meta name="description" content="A multiplayer pixel physics and chemistry sandbox. Build, experiment, and break things together.">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap');
+500&family=Inter:wght@400;500;600;700;800&family=Press+Start+2P&display=swap');
 :root{color-scheme:dark;--bg:#0d1118;--surface:#151c27;--surface2:#1c2634;--surface3:#253245;--line:#2b394d;--text:#edf3fb;--muted:#91a1b7;--mint:#b58cff;--mint2:#8654d8;--orange:#ffb86a;--danger:#ff7777;--shadow:0 16px 40px #0005}
 *{box-sizing:border-box;-webkit-user-select:none;user-select:none}input,textarea,[contenteditable="true"]{-webkit-user-select:text;user-select:text}html,body{height:100%;margin:0}body{background:radial-gradient(ellipse at 50% -30%,#23364a 0,transparent 55%),var(--bg);color:var(--text);font:13px Inter,system-ui;overflow:hidden}
 button,input{font:inherit}button{color:inherit}.app{height:100%;display:flex;flex-direction:column;min-height:0}
@@ -53,6 +53,9 @@ header{height:64px;flex:none;display:flex;align-items:center;gap:18px;padding:0 
 .canvas-shell canvas.local-cursor{z-index:4}
 .canvas-shell canvas.cursor-names{z-index:5}
 .custom-create{border-style:dashed;border-color:#8654d8;color:#d5c0ff;background:#241d32}.custom-material-dialog{width:min(540px,100%)}.custom-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.custom-form-grid .control.full{grid-column:1/-1}.custom-form-grid select,.custom-form-grid input[type=color]{width:100%;padding:9px;background:#0e151f;border:1px solid var(--line);border-radius:7px;color:#edf3fb}.custom-form-grid input[type=range]{width:100%;accent-color:var(--mint)}.custom-properties{display:flex;gap:16px;flex-wrap:wrap;color:#cbd7e5;font-size:11px}.custom-properties label{display:flex;align-items:center;gap:7px}.custom-properties input{accent-color:var(--mint)}.custom-particle-picker{display:flex;gap:7px}.custom-particle-picker select{flex:1;min-width:0}.custom-particle-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;min-height:22px}.custom-particle-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 8px;background:#263448;border:1px solid #40516a;border-radius:7px;font-size:10px}.custom-particle-chip button{border:0;background:transparent;color:#ff9999;cursor:pointer;font-size:15px}.custom-manager-actions,.custom-manager-buttons{display:flex;gap:7px;flex-wrap:wrap}.custom-manager-actions{margin:12px 0}.custom-manager-list{display:flex;flex-direction:column;gap:7px;max-height:48vh;overflow:auto}.custom-manager-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px;background:#202b3a;border:1px solid var(--line);border-radius:8px}.custom-manager-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:700}.custom-manager-buttons .btn{padding:6px 8px;font-size:10px}.custom-manager-buttons .danger{color:#ff9999;border-color:#754044}.custom-manager-empty{padding:20px;text-align:center;color:var(--muted);font-size:11px}@media(max-width:680px){.custom-form-grid{grid-template-columns:1fr}.custom-form-grid .control.full{grid-column:auto}.custom-manager-row{align-items:flex-start;flex-direction:column}}
+
+@font-face{font-family:'Aseprite';src:url('../assets/aseprite.otf.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+*,*::before,*::after{font-family:'Aseprite',sans-serif!important}
 </style>
 </head>
 <body>
