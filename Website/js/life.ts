@@ -25,6 +25,53 @@ function soilMoisture(cells,wetness,w,h){
   for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const n=ny*w+nx;if(cells[n]===SOIL&&own-(wetness[n]||0)>.08)wetness[n]=Math.min(1,(wetness[n]||0)+.008)}
  }
 }
+
+const GRASS=34,GRASS_TIP=35;
+function grassNoise(x,y,tick,salt=0){
+ let v=(Math.imul(x+1,0x9e3779b1)^Math.imul(y+1,0x85ebca6b)^tick^salt)>>>0;
+ v^=v>>>16;v=Math.imul(v,0x7feb352d)>>>0;v^=v>>>15;
+ v=Math.imul(v,0x846ca68b)>>>0;v^=v>>>16;return v/0xffffffff;
+}
+function hasSunlight(cells,x,y,w,h){
+ for(let py=y-1;py>=Math.max(0,y-18);py--){
+  const id=cells[py*w+x];
+  if(id!==EMPTY&&id!==5&&id!==8&&id!==9&&id!==2)return false;
+ }
+ return true;
+}
+function stepGrass(cells,age,wetness,w,h,tick,ambient){
+ const len=Math.min(cells.length,age.length,wetness.length,w*h);
+ const temperatureOk=ambient>=5&&ambient<=42;
+ for(let y=h-1;y>=0;y--)for(let x=0;x<w;x++){
+  const i=y*w+x;if(i>=len)continue;
+  if(cells[i]===GRASS||cells[i]===GRASS_TIP){
+   const below=y+1<h?cells[i+w]:EMPTY;
+   if(below!==SOIL&&below!==GRASS&&below!==GRASS_TIP){cells[i]=EMPTY;age[i]=0}
+   continue;
+  }
+  if(cells[i]!==SOIL||y===0)continue;
+  const above=i-w;if(cells[above]!==EMPTY)continue;
+  const moisture=wetness[i]||0,sunny=hasSunlight(cells,x,y,w,h);
+  if(!temperatureOk||!sunny||moisture<.18){
+   if(age[i]>0)age[i]=Math.max(0,age[i]-2);
+   continue;
+  }
+  if(age[i]<65535)age[i]++;
+  const threshold=360+Math.floor(grassNoise(x,y,0,0x6A455)*240);
+  if(age[i]<threshold||grassNoise(x,y,tick,0x6A456)>.56)continue;
+  cells[above]=GRASS;age[above]=0;
+  const lean=grassNoise(x,y,tick,0x6A457)<.5?-1:1;
+  if(y>1&&grassNoise(x,y,tick,0x6A458)>.24&&cells[above-w]===EMPTY){
+   cells[above-w]=GRASS_TIP;age[above-w]=0;
+  }
+  const side=x+lean;
+  if(side>=0&&side<w&&cells[(y-1)*w+side]===EMPTY&&grassNoise(x,y,tick,0x6A459)>.32){
+   cells[(y-1)*w+side]=GRASS_TIP;age[(y-1)*w+side]=0;
+  }
+  age[i]=0;
+ }
+}
+
 function moistureNear(cells,wetness,x,y,w,h,r=4){
  for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
   if(Math.abs(dx)+Math.abs(dy)>r+1)continue;const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;
@@ -114,10 +161,11 @@ function grow(cells,age,x,y,p,w,h,tick,wetness){
 }
 export function createLifeSystem(){
  let seedBurrowDepth=new Uint8Array(0);
- function step({cells,age,wetness,width,height,tick}){
+ function step({cells,age,wetness,width,height,tick,ambient=20}){
   const length=Math.min(cells.length,age.length,wetness.length,width*height);
   if(seedBurrowDepth.length!==length)seedBurrowDepth=new Uint8Array(length);
   soilMoisture(cells,wetness,width,height);
+  stepGrass(cells,age,wetness,width,height,tick,ambient);
   // Seeds settle, burrow into loose soil, then germinate only in damp earth.
   for(let y=height-1;y>=0;y--){
    const reverse=(tick+y)&1;
