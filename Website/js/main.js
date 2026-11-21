@@ -138,7 +138,7 @@ for(const plant of LIFE_MATERIALS){
  const button=document.createElement('button');button.type='button';button.className='material life-seed';
  const icon=document.createElement('span');icon.className='mico';icon.style.color=plant.color;icon.textContent=plant.icon;
  const name=document.createElement('span');name.className='mname';name.textContent=plant.name+' Seed';
- button.append(icon,name);button.title=plant.name+' seeds grow into '+plant.name.toLowerCase()+' plants';
+ button.append(icon,name);button.title='Plant '+plant.name.toLowerCase()+' seeds on soil. Click to place one or drag to space them naturally.';
  button.addEventListener('click',()=>{selected=plant.seedId;document.querySelectorAll('.material').forEach(item=>item.classList.remove('active'));button.classList.add('active')});
  lifeSeedsEl.append(button);
 }
@@ -171,13 +171,34 @@ function put(x,y,m){if(inside(x,y))cells[idx(x,y)]=m}
 function circle(x,y,r,m){wasmEngine.paint_segment(cells,x,y,x,y,r,m,W,H)}
 function drawLine(x0,y0,x1,y1,m,r=0){wasmEngine.paint_segment(cells,x0,y0,x1,y1,r,m,W,H)}
 function canvasPoint(e){const r=canvasShell.getBoundingClientRect();const p=wasmEngine.map_pointer(e.clientX,e.clientY,r.left,r.top,r.width,r.height,W,H);return{x:p[0],y:p[1]}}
-let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null;
+let drawing=false,lastPoint=null,ropeStart=null,ropeDrag=null,lastSeedPlantPoint=null;
+function plantSeedAt(p,seedId){
+ const spacing=Math.max(3,Math.round(brush*.8));
+ if(lastSeedPlantPoint&&Math.hypot(p.x-lastSeedPlantPoint.x,p.y-lastSeedPlantPoint.y)<spacing)return false;
+ const radius=Math.max(4,Math.min(12,brush+4));
+ let best=null,bestScore=Infinity;
+ // Prefer a clear cell directly above soil, even when the pointer is on the soil itself.
+ for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
+  const x=p.x+dx,y=p.y+dy;if(!inside(x,y)||cells[idx(x,y)]!==M.EMPTY||y+1>=H||cells[idx(x,y+1)]!==28)continue;
+  const distance=dx*dx+dy*dy;
+  if(distance>radius*radius)continue;
+  const score=distance+(wasmRandom(simulationTick,idx(x,y),seedId)*.28);
+  if(score<bestScore){bestScore=score;best={x,y}}
+ }
+ // If there is no soil nearby, drop the seed at the cursor so it can settle naturally.
+ if(!best&&inside(p.x,p.y)&&cells[idx(p.x,p.y)]===M.EMPTY)best={x:p.x,y:p.y};
+ if(!best)return false;
+ put(best.x,best.y,seedId);lastSeedPlantPoint=best;return true;
+}
 function act(p,e){if(!inside(p.x,p.y))return;const erase=activeErase||e.button===2||tool==='erase',mat=erase?M.EMPTY:selected;
  if(tool==='rope'||tool==='grab')return;
  if(erase){circle(p.x,p.y,brush,M.EMPTY);lastPoint=p;return}
  if(tool==='bomb'){circle(p.x,p.y,2,M.TNT);return}
  if(tool==='heat'){circle(p.x,p.y,brush,M.FIRE);return}
  if(tool==='cool'){circle(p.x,p.y,brush,M.ICE);return}
+ if(!erase&&LIFE_MATERIALS.some(plant=>plant.seedId===selected)){
+  plantSeedAt(p,selected);lastPoint=p;return;
+ }
  if(tool==='line'&&lastPoint){drawLine(lastPoint.x,lastPoint.y,p.x,p.y,mat,Math.max(0,Math.floor(brush/4)));lastPoint=p;return}
  if(lastPoint)drawLine(lastPoint.x,lastPoint.y,p.x,p.y,mat,brush);else circle(p.x,p.y,brush,mat);lastPoint=p;
 }
@@ -191,7 +212,7 @@ canvas.parentElement.addEventListener('pointerdown',e=>{
   return;
  }
  if(tool==='leafblower'&&e.button===0){drawing=true;activeErase=false;leafblower.active=true;leafblower.x=p.x;leafblower.y=p.y;leafblower.lastPublish=0;lastPoint=p;canvas.parentElement.setPointerCapture(e.pointerId);return}
- drawing=true;activeErase=e.button===2||tool==='erase';canvas.parentElement.setPointerCapture(e.pointerId);strokePoints=[p];if(tool==='rope'){ropeStart=p;lastPoint=p;return}activeStrokeMeta={tool,material:selected,brush,erase:activeErase};lastPublishedStrokePoint=0;lastStrokePublishAt=0;lastPoint=null;act(p,e);publishStrokeBatch(true)
+ drawing=true;activeErase=e.button===2||tool==='erase';canvas.parentElement.setPointerCapture(e.pointerId);strokePoints=[p];lastSeedPlantPoint=null;if(tool==='rope'){ropeStart=p;lastPoint=p;return}activeStrokeMeta={tool,material:selected,brush,erase:activeErase};lastPublishedStrokePoint=0;lastStrokePublishAt=0;lastPoint=null;act(p,e);publishStrokeBatch(true)
 });
 canvas.parentElement.addEventListener('pointermove',e=>{
  const p=canvasPoint(e);
