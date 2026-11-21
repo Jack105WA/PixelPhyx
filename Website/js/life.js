@@ -17,7 +17,7 @@ function soilMoisture(cells,wetness,w,h){
  for(let i=0;i<len;i++)if(cells[i]===SOIL){
   const x=i%w,y=(i/w)|0;let water=false;
   for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&cells[ny*w+nx]===WATER){water=true;break}}
-  wetness[i]=water?Math.min(1,(wetness[i]||0)+.12):Math.max(0,(wetness[i]||0)-.00025);
+  const current=wetness[i]||0;\n  // Naturally moist soil can germinate grass without requiring the user to place water.\n  wetness[i]=water?Math.min(1,current+.12):Math.max(.10,current-.00025);
  }
  // Slow lateral and vertical moisture transfer through connected soil.
  for(let y=h-1;y>=0;y--)for(let x=0;x<w;x++){
