@@ -35,7 +35,7 @@ pub fn step_acid(
             let resistance = match cells[ni] {
                 1 => 18.0,  // Sand
                 28 => 18.0, // Soil
-                13 | 18..=22 => 24.0, // Plant life
+                13 | 18..=22 | 34..=35 => 24.0, // Plant life
                 4 => 42.0,  // Wood
                 3 => 95.0,  // Stone
                 15 => 125.0,// Glass
@@ -104,10 +104,10 @@ pub fn step_phase_changes(cells: &mut [u8], age: &[u16], ambient: f32, width: us
 }
 
 fn material_ignition(material: u8) -> f32 {
-    match material { 4 => 270.0, 6 | 12 => 180.0, 13 | 18..=22 => 90.0, 16 => 520.0, 17 => 85.0, _ => 0.0 }
+    match material { 4 => 270.0, 6 | 12 => 180.0, 13 | 18..=22 | 34..=35 => 90.0, 16 => 520.0, 17 => 85.0, _ => 0.0 }
 }
 fn material_fuel(material: u8) -> f32 {
-    match material { 4 | 6 | 12 => 1.0, 13 | 18..=22 => 0.65, 16 => 0.12, 17 => 0.34, _ => 0.0 }
+    match material { 4 | 6 | 12 => 1.0, 13 | 18..=22 | 34..=35 => 0.65, 16 => 0.12, 17 => 0.34, _ => 0.0 }
 }
 fn flammable(material: u8) -> bool { material_fuel(material) > 0.0 }
 fn ignite(heat: &mut [f32], fuel: &mut [f32], burn: &mut [f32], i: usize, material: u8) {
