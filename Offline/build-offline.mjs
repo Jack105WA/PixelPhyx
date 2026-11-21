@@ -4,6 +4,8 @@ import vm from 'node:vm';
 
 const websiteDir = 'Website/';
 const offlineDir = 'Offline/';
+const pencilSvg = await readFile('assets/pencil.svg', 'utf8');
+const pencilDataUrl = 'data:image/svg+xml,' + encodeURIComponent(pencilSvg);
 const read = path => readFile(websiteDir + path, 'utf8');
 
 const [
@@ -53,7 +55,7 @@ const multiplayerImportMatches = [...mainStart.matchAll(multiplayerImportPattern
 if (multiplayerImportMatches.length !== 1) {
   throw new Error(`Expected one multiplayer import for offline adaptation; found ${multiplayerImportMatches.length}. Update Offline/build-offline.mjs for the current main.js source.`);
 }
-const offlineMain = mainStart.replace(
+const offlineMain = mainStart.replaceAll('../assets/pencil.svg', pencilDataUrl).replace(
   multiplayerImportPattern,
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer'
 );

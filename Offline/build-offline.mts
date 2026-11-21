@@ -4,6 +4,8 @@ import vm from 'node:vm';
 
 const websiteDir = 'Website/';
 const offlineDir = 'Offline/';
+const pencilSvg = await readFile('assets/pencil.svg', 'utf8');
+const pencilDataUrl = 'data:image/svg+xml,' + encodeURIComponent(pencilSvg);
 const read = path => readFile(websiteDir + path, 'utf8');
 
 const [
@@ -48,7 +50,7 @@ if (mainStart === mainSource) {
 }
 
 const multiplayerImport = "const {createMultiplayer}=await import('./netcode/multiplayer.js?v='+encodeURIComponent(cacheVersion));";
-const offlineMain = mainStart.replace(
+const offlineMain = mainStart.replaceAll('../assets/pencil.svg', pencilDataUrl).replace(
   multiplayerImport,
   'const {createMultiplayer}=window.__pixelphyxOfflineMultiplayer;'
 );

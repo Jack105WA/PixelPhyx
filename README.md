@@ -1,6 +1,6 @@
-# PixelPhyx ![Logo](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/PixelPhyxLOGO.png?raw=true)
+# PixelPhyx ![Logo](https://github.com/Jack105WA/PixelPhyx/blob/main/assets/PixelPhyxLOGO.svg?raw=true)
 
-Pixelphyx is a online 2D Physics Simulator ![pencil](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/pencil.png?raw=true) featuring multiplayer ![globe](https://github.com/Jack105WA/PixelPhyx/blob/main/Website/assets/globe.png?raw=true), Simulated Reactions and more!
+Pixelphyx is a online 2D Physics Simulator ![pencil](https://github.com/Jack105WA/PixelPhyx/blob/main/assets/pencil.svg?raw=true) featuring multiplayer ![globe](https://github.com/Jack105WA/PixelPhyx/blob/main/assets/globe.svg?raw=true), Simulated Reactions and more!
 
 ## Play online
 
@@ -12,7 +12,7 @@ The production game runs its simulation engine compiled from Rust to WebAssembly
 
 Download the [standalone offline HTML edition](https://raw.githubusercontent.com/Jack105WA/PixelPhyx/main/Offline/offline.html) directly. Save the file and open it in a browser; it does not need the loader, GitHub, or a server.
 
-The offline edition is generated from Website/ by Offline/build-offline.mjs. Local offline play does not require multiplayer services.
+The offline edition is generated from Website/ by Offline/build-offline.mjs. Its tool icons are embedded as SVG data, so it remains a single self-contained file. Local offline play does not require multiplayer services.
 
 ## Self-hosted multiplayer
 
@@ -63,6 +63,7 @@ GitHub Pages must use **GitHub Actions** as its source in repository Settings â†
 ## Repository layout
 
 - `Website/` contains the browser game and published site.
+- `assets/` contains shared SVG assets used by the online site.
 - `Website/js/` contains browser-side game, simulation integration, and UI modules.
 - `Website/js/netcode/` contains WebSocket multiplayer transport, rooms, and synchronization.
 - `Website/wasm/` contains Rust source for the WebAssembly engine.
