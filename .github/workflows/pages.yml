@@ -49,6 +49,9 @@ jobs:
         run: |
           mkdir -p _site
           cp -a Website/. _site/
+          # Assets live at the repository root, outside Website/.
+          # Copy them into the published root so /assets/... works online.
+          cp -a assets _site/assets
           mkdir -p _site/Offline
           cp Offline/*.html _site/Offline/
 
