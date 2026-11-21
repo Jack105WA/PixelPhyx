@@ -17,7 +17,7 @@ function soilMoisture(cells,wetness,w,h){
  for(let i=0;i<len;i++)if(cells[i]===SOIL){
   const x=i%w,y=(i/w)|0;let water=false;
   for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&cells[ny*w+nx]===WATER){water=true;break}}
-  wetness[i]=water?Math.min(1,(wetness[i]||0)+.12):Math.max(0,(wetness[i]||0)-.0008);
+  wetness[i]=water?Math.min(1,(wetness[i]||0)+.12):Math.max(0,(wetness[i]||0)-.00025);
  }
  // Slow lateral and vertical moisture transfer through connected soil.
  for(let y=h-1;y>=0;y--)for(let x=0;x<w;x++){
@@ -52,12 +52,12 @@ function stepGrass(cells,age,wetness,w,h,tick,ambient){
   if(cells[i]!==SOIL||y===0)continue;
   const above=i-w;if(cells[above]!==EMPTY)continue;
   const moisture=wetness[i]||0,sunny=hasSunlight(cells,x,y,w,h);
-  if(!temperatureOk||!sunny||moisture<.18){
+  if(!temperatureOk||!sunny||moisture<.1){
    if(age[i]>0)age[i]=Math.max(0,age[i]-2);
    continue;
   }
   if(age[i]<65535)age[i]++;
-  const threshold=360+Math.floor(grassNoise(x,y,0,0x6A455)*240);
+  const threshold=90+Math.floor(grassNoise(x,y,0,0x6A455)*90);
   if(age[i]<threshold||grassNoise(x,y,tick,0x6A456)>.56)continue;
   cells[above]=GRASS;age[above]=0;
   const lean=grassNoise(x,y,tick,0x6A457)<.5?-1:1;
