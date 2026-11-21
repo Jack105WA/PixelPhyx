@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta name="pixelphyx-offline-build" content="87dff9a05839a2ad">
+<meta name="pixelphyx-offline-build" content="d0ec8db3a1428894">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#10151e">
@@ -414,33 +414,46 @@ function hasSunlight(cells,x,y,w,h){
 function stepGrass(cells,age,wetness,w,h,tick,ambient){
  const len=Math.min(cells.length,age.length,wetness.length,w*h);
  const temperatureOk=ambient>=5&&ambient<=42;
- for(let y=h-1;y>=0;y--)for(let x=0;x<w;x++){
-  const i=y*w+x;if(i>=len)continue;
-  if(cells[i]===GRASS||cells[i]===GRASS_TIP){
-   const below=y+1<h?cells[i+w]:EMPTY;
-   if(below!==SOIL&&below!==GRASS&&below!==GRASS_TIP){cells[i]=EMPTY;age[i]=0}
-   continue;
+ // Alternate scan direction so newly-created blades do not bias one side of a patch.
+ const reverse=tick&1;
+ for(let y=h-1;y>=0;y--){
+  for(let k=0;k<w;k++){
+   const x=reverse?w-1-k:k,i=y*w+x;
+   if(i>=len)continue;
+   if(cells[i]===GRASS||cells[i]===GRASS_TIP){
+    const below=y+1<h?cells[i+w]:EMPTY;
+    if(below!==SOIL&&below!==GRASS&&below!==GRASS_TIP){cells[i]=EMPTY;age[i]=0}
+    continue;
+   }
+   if(cells[i]!==SOIL||y===0)continue;
+   const above=i-w;
+   if(cells[above]!==EMPTY)continue;
+   const sunny=hasSunlight(cells,x,y,w,h);
+   // Damp soil can sustain growth; moisture from nearby water spreads across a soil patch.
+   const damp=(wetness[i]||0)>=.075||moistureNear(cells,wetness,x,y,w,h,8);
+   if(!temperatureOk||!sunny||!damp){
+    if(age[i]>0)age[i]=Math.max(0,age[i]-1);
+    continue;
+   }
+   if(age[i]<65535)age[i]++;
+   // Each soil cell gets its own stable random germination delay and random growth chance.
+   const delay=42+Math.floor(grassNoise(x,y,0,0x6A455)*105);
+   if(age[i]<delay||grassNoise(x,y,tick,0x6A456)>.22)continue;
+   cells[above]=GRASS;age[above]=0;
+   // Uneven blade heights, gaps, and lean create a natural, non-uniform grass line.
+   const lean=grassNoise(x,y,tick,0x6A457)<.5?-1:1;
+   if(y>1&&grassNoise(x,y,tick,0x6A458)>.18&&cells[above-w]===EMPTY){
+    cells[above-w]=GRASS_TIP;age[above-w]=0;
+   }
+   if(y>1&&grassNoise(x,y,tick,0x6A459)>.62&&cells[above-w]===EMPTY){
+    cells[above-w]=GRASS_TIP;age[above-w]=0;
+   }
+   const side=x+lean;
+   if(side>=0&&side<w&&cells[(y-1)*w+side]===EMPTY&&grassNoise(x,y,tick,0x6A45A)>.48){
+    cells[(y-1)*w+side]=GRASS_TIP;age[(y-1)*w+side]=0;
+   }
+   age[i]=0;
   }
-  if(cells[i]!==SOIL||y===0)continue;
-  const above=i-w;if(cells[above]!==EMPTY)continue;
-  const moisture=wetness[i]||0,sunny=hasSunlight(cells,x,y,w,h);
-  if(!temperatureOk||!sunny||moisture<.1){
-   if(age[i]>0)age[i]=Math.max(0,age[i]-2);
-   continue;
-  }
-  if(age[i]<65535)age[i]++;
-  const threshold=90+Math.floor(grassNoise(x,y,0,0x6A455)*90);
-  if(age[i]<threshold||grassNoise(x,y,tick,0x6A456)>.56)continue;
-  cells[above]=GRASS;age[above]=0;
-  const lean=grassNoise(x,y,tick,0x6A457)<.5?-1:1;
-  if(y>1&&grassNoise(x,y,tick,0x6A458)>.24&&cells[above-w]===EMPTY){
-   cells[above-w]=GRASS_TIP;age[above-w]=0;
-  }
-  const side=x+lean;
-  if(side>=0&&side<w&&cells[(y-1)*w+side]===EMPTY&&grassNoise(x,y,tick,0x6A459)>.32){
-   cells[(y-1)*w+side]=GRASS_TIP;age[(y-1)*w+side]=0;
-  }
-  age[i]=0;
  }
 }
 
