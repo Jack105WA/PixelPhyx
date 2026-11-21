@@ -118,7 +118,7 @@ let builtHtml = withoutUpdater.replace(
   '<script>\n' + gameScript + '\n</script>'
 );
 
-builtHtml = builtHtml.replace(/(@font-face\\{font-family:'Aseprite';src:)url\\([^)]*\\)( format\\('woff2'\\);[^}]*\\})/, '$1' + 'url(data:font/woff2;base64,' + asepriteFont.toString('base64') + ')$2');
+builtHtml = builtHtml.replace(/(@font-face\{font-family:'Aseprite';src:)url\([^)]*\)( format\('woff2'\);[^}]*\})/, '$1' + 'url(data:font/woff2;base64,' + asepriteFont.toString('base64') + ')$2');
 
 builtHtml = builtHtml
   .replace('<span class="status-dot"></span>', '')
