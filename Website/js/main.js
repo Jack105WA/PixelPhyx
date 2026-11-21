@@ -68,7 +68,7 @@ function log(message){}
 function setConnection(state){const el=document.querySelector('#connection');el.className='status '+state}
 const toolDefs=[['draw','✎','Draw'],['rope','⌁','Rope'],['grab','✋','Grab'],['leafblower','➤','Leafblower']];
 const toolsEl=document.querySelector('#tools');
-toolDefs.forEach(([id,icon,name])=>{const b=document.createElement('button');b.className='tool'+(id==='draw'?' active':'');const image=id==='draw'?'<img class="tool-image" src="../assets/pencil.svg" alt="">':'<span class="ico">'+icon+'</span>';b.innerHTML=image+'<span>'+name+'</span>';b.onclick=()=>selectTool(id,b);toolsEl.append(b)});
+toolDefs.forEach(([id,icon,name])=>{const b=document.createElement('button');b.className='tool'+(id==='draw'?' active':'');const image=id==='draw'?'<img class="tool-image" src="./assets/pencil.svg" alt="Draw icon">':'<span class="ico">'+icon+'</span>';b.innerHTML=image+'<span>'+name+'</span>';b.onclick=()=>selectTool(id,b);toolsEl.append(b)});
 function selectTool(id,button){tool=id;document.querySelectorAll('.tool').forEach(b=>b.classList.remove('active'));button.classList.add('active');if(id==='grab')log('Grab tool selected — drag a rope point to pull it.');if(id==='rope')log('Rope tool selected — drag to create; right-click a rope to delete it.');if(id==='leafblower')log('Leafblower selected — drag to aim and blow particles in that direction.');}
 
 const customMaterialsEl=document.querySelector('#customMaterials');
