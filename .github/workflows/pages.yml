@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -47,20 +47,19 @@ jobs:
 
       - name: Assemble Pages site from the same build
         run: |
+          set -e
           mkdir -p _site
           cp -a Website/. _site/
           # Assets live at the repository root, outside Website/.
-          # Copy them into the published root so /assets/... works online.
           cp -a assets _site/assets
           mkdir -p _site/Offline
           cp Offline/*.html _site/Offline/
 
-      - uses: actions/upload-pages-artifact@v3
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
         with:
-          name: pixelphyx-pages
-          path: _site
+          path: _site/
 
-      - id: deployment
+      - name: Deploy Pages artifact
+        id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          artifact_name: pixelphyx-pages
