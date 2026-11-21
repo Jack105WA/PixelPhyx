@@ -560,7 +560,7 @@ function grow(cells,age,x,y,p,w,h,tick,wetness){
  if(height<maxHeight&&add(cells,age,x,y-1,p.plantId,w,h)){
   age[i]=0;decorate(cells,age,x,y-1,p,w,h,tick,height);return;
  }
- age[i]=0;
+ // Keep mature tips aging so they can periodically reproduce after reaching full height.
 }
 function spreadPlantSeeds(cells,age,wetness,x,y,p,w,h,tick){
  const i=y*w+x;
