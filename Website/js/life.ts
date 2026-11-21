@@ -159,18 +159,49 @@ function decorate(cells,age,x,y,p,w,h,tick,height){
   }
  }
 }
+function plantTraits(x,y,p){
+ const gene=noise(x,y,0,p.seedId*97);
+ return {
+  growthScale:.72+gene*.62,
+  heightScale:.78+noise(x,y,0,p.seedId*131)*.42,
+  branchBias:noise(x,y,0,p.seedId*173),
+  lean:noise(x,y,0,p.seedId*211)<.5?-1:1
+ };
+}
 function grow(cells,age,x,y,p,w,h,tick,wetness){
- const i=y*w+x;if(age[i]<p.growth)return;
+ const i=y*w+x,traits=plantTraits(x,y,p);
+ const growthTime=Math.max(8,Math.round(p.growth*traits.growthScale));
+ if(age[i]<growthTime)return;
  let height=1;for(let py=y+1;py<h&&cells[py*w+x]===p.plantId;py++)height++;
+ const maxHeight=Math.max(5,Math.round(p.maxHeight*traits.heightScale));
  const above=y>0?(y-1)*w+x:-1;
- if(height<p.maxHeight&&above>=0&&cells[above]===SOIL){
-  const push=noise(x,y,tick,0x5013)<.5?-1:1;
-  for(const dx of [push,-push]){const nx=x+dx;if(nx>=0&&nx<w&&cells[(y-1)*w+nx]===EMPTY){const target=(y-1)*w+nx;cells[target]=SOIL;cells[above]=EMPTY;wetness[target]=wetness[above];wetness[above]=0;age[target]=age[above];age[above]=0;break}}
+ // Shoots bend around obstacles instead of forcing a straight vertical column.
+ if(height<maxHeight&&above>=0&&cells[above]===SOIL){
+  const preferred=traits.lean*(noise(x,y,Math.floor(tick/12),0x5013)<.72?1:-1);
+  for(const dx of [preferred,-preferred]){
+   const nx=x+dx,target=(y-1)*w+nx;
+   if(nx>=0&&nx<w&&cells[target]===EMPTY&&cells[above]===SOIL){
+    cells[target]=SOIL;cells[above]=EMPTY;wetness[target]=wetness[above];wetness[above]=0;age[target]=age[above];age[above]=0;break;
+   }
+  }
  }
- if(height<p.maxHeight&&add(cells,age,x,y-1,p.plantId,w,h)){
+ if(height<maxHeight&&add(cells,age,x,y-1,p.plantId,w,h)){
   age[i]=0;decorate(cells,age,x,y-1,p,w,h,tick,height);return;
  }
  age[i]=0;
+}
+function spreadPlantSeeds(cells,age,wetness,x,y,p,w,h,tick){
+ const i=y*w+x;
+ // Mature plants occasionally release seeds; wind direction and landing offset vary by plant.
+ if(y<2||age[i]<p.growth*5||noise(x,y,Math.floor(tick/90),p.seedId*313)>.018)return;
+ const direction=noise(x,y,Math.floor(tick/30),p.seedId*317)<.5?-1:1;
+ const distance=2+Math.floor(noise(x,y,Math.floor(tick/30),p.seedId*331)*7);
+ const sx=x+direction*distance,sy=Math.min(h-1,y+2+Math.floor(noise(x,y,tick,p.seedId*337)*4));
+ if(sx<0||sx>=w)return;
+ const target=sy*w+sx;
+ if(cells[target]===EMPTY&&cells[Math.min(h-1,sy+1)*w+sx]===SOIL){
+  cells[target]=p.seedId;age[target]=0;wetness[target]=wetness[i]||0;
+ }
 }
 export function createLifeSystem(){
  let seedBurrowDepth=new Uint8Array(0);
@@ -198,11 +229,23 @@ export function createLifeSystem(){
    const i=y*width+x;if(i>=length)continue;const p=byPlant.get(cells[i]);if(!p)continue;
    const above=y>0?cells[i-width]:EMPTY,below=y+1<height?cells[i+width]:EMPTY;
    const damp=moistureNear(cells,wetness,x,Math.min(height-1,y+2),width,height,5);
-   if(above===p.plantId&&below===SOIL&&damp){
+   const light=hasSunlight(cells,x,y,width,height);
+   const temperatureFactor=ambient<5||ambient>42?0:ambient<12?(ambient-5)/7:ambient>34?(42-ambient)/8:1;
+   const moistureFactor=damp?1:.12;
+   if(above===p.plantId&&below===SOIL&&damp&&light){
     if(age[i]<65535)age[i]++;
-    if(age[i]>=p.growth*2){cells[i+width]=p.plantId;age[i+width]=0;wetness[i+width]=Math.max(wetness[i+width]||0,.12);age[i]=0}
+    const traits=plantTraits(x,y,p);
+    if(age[i]>=p.growth*2*traits.growthScale&&noise(x,y,Math.floor(tick/8),p.seedId*401)<.72){
+     cells[i+width]=p.plantId;age[i+width]=0;wetness[i+width]=Math.max(wetness[i+width]||0,.12);age[i]=0;
+    }
    }
-   if(above!==p.plantId&&damp){if(age[i]<65535)age[i]++;grow(cells,age,x,y,p,width,height,tick,wetness)}
+   if(above!==p.plantId){
+    if(damp&&light&&temperatureFactor>0){
+     if(age[i]<65535)age[i]+=Math.max(1,Math.round(temperatureFactor*moistureFactor*2));
+     grow(cells,age,x,y,p,width,height,tick,wetness);
+     spreadPlantSeeds(cells,age,wetness,x,y,p,width,height,tick);
+    }else if(age[i]>0&&(!damp||!light))age[i]=Math.max(0,age[i]-1);
+   }
   }
  }
  return Object.freeze({step,materials:LIFE_MATERIALS});
